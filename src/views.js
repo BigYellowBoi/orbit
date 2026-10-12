@@ -18,9 +18,11 @@ function lastLine(exId, before) {
 }
 
 /* ---------- Today: the next session, then today's log once it's started ---------- */
+function updateBar() { return ui.update ? `<button class="card upd" data-act="update"><b>Update ready</b><span class="xs">Tap to load v${esc(ui.update)}. Your data stays.</span></button>` : ''; }
 function vToday() {
   const t = today(), w = STATE.w[t], sid = w ? w.s : sessionFor(t), sd = sessDef(sid), o = order(), idx = o.indexOf(sid);
   let h = `<div class="page-h"><div><div class="eyebrow">${esc(fmtDow(t))} ${esc(fmtDate(t, { year: 'numeric' }))}</div><h1>Today</h1></div>${o.length ? `<span class="pill plain">Rotation ${rotationCount() + 1}</span>` : ''}</div>`;
+  h = updateBar() + h;
   const tail = () => whoopCard() + stripHTML() + weekCard();
   if (w && (!w.fin || ui.editToday)) return h + logBody(t) + tail(); // the log, until you press Done
   if (w) return h + doneHero(w, idx, o) + tail();
@@ -394,6 +396,7 @@ function vData() {
   h += `<section class="card"><div class="card-h"><h2>Start over</h2></div>
     ${ui.confirm === 'reset' ? `<p class="small">This deletes every session, import and setting, here and in cloud storage. Save a backup first if you might want it.</p><div class="btnrow"><button class="btn danger sm" data-act="reset">Delete everything</button><button class="link dim" data-act="confirm" data-v="">Cancel</button></div>`
       : `<button class="link danger" data-act="confirm" data-v="reset" style="align-self:flex-start">Delete all data</button>`}</section>`;
+  h += `<p class="xs muted" style="text-align:center">Orbit v${esc(APP_VERSION)}${ui.update ? ` · <button class="link" data-act="update">v${esc(ui.update)} is ready, update</button>` : ''}</p>`;
   return h;
 }
 const VIEWS = { today: vToday, log: vLog, history: vHistory, strength: vStrength, body: vBody, plan: vPlan, data: vData };

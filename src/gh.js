@@ -232,4 +232,13 @@ Object.assign(ACT, {
   ghoff: () => { GH.disconnect(); ui.confirm = null; toast('Sync is off on this device'); render(true); },
 });
 GH.boot();
+/* Update check: GitHub Pages and iOS can keep serving an older copy for a while. version.json is fetched past every cache;
+   if it names a newer build, Today shows an Update ready button that reloads under a fresh URL. */
+async function checkUpdate() {
+  try {
+    const r = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' }); if (!r.ok) return;
+    const j = await r.json(); if (j.v && newerVer(j.v, APP_VERSION) && ui.update !== j.v) { ui.update = j.v; render(); }
+  } catch (e) { }
+}
+checkUpdate(); document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(); });
 if (ui.tab === 'data') render(true);

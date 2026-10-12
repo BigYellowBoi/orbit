@@ -257,6 +257,7 @@ const ACT = {
   prograte: el => { S().progRate = +el.dataset.v; if (S().goal === 'grow') S().growFrom = today(); saveSettings(); render(true); },
   layout: el => { try { localStorage.setItem('orbit-layout', el.dataset.v); } catch (e) { } location.reload(); },
   diagrefresh: () => render(true),
+  update: () => { location.replace(location.pathname + '?v=' + encodeURIComponent(ui.update || Date.now())); },
   edittoday: () => { ui.editToday = true; render(true); },
   pastlog: () => { ui.logDate = addDays(today(), -1); ui.pickSess = null; go('log'); },
   exhist: el => { const i = +el.dataset.e; ui.exHist = ui.exHist === i ? null : i; render(true); },

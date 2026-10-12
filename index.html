@@ -100,6 +100,8 @@ button { cursor: pointer; }
 button.pill { border: 0; font: inherit; font-size: 12.5px; font-weight: 500; cursor: pointer; }
 .tbl.lifts tr.sel td { background: var(--accent-soft); }
 .tbl.lifts tr.sel td:first-child { box-shadow: inset 2px 0 0 var(--accent); padding-left: 8px; }
+.upd { flex-direction: row; justify-content: space-between; align-items: center; text-align: left; border-color: var(--accent); background: var(--accent-soft); color: var(--ink); font: inherit; }
+.upd span { color: var(--ink-2); }
 .hr { height: 1px; background: var(--line); border: 0; margin: 0; }
 
 /* hero: next session */
@@ -461,6 +463,9 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
+const APP_VERSION = '1.1'; // from VERSION, filled in by tools/build.sh
+const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
+const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
 const ui = { metric: 'rec', per: 'M', off: 0, openSess: new Set(), tab: 'today', logDate: null, range: 90, lift: null, imp: {}, exportText: null, confirm: null, editEx: null, pickSess: null };
 const S = () => STATE.settings;
@@ -1310,9 +1315,11 @@ function lastLine(exId, before) {
 }
 
 /* ---------- Today: the next session, then today's log once it's started ---------- */
+function updateBar() { return ui.update ? `<button class="card upd" data-act="update"><b>Update ready</b><span class="xs">Tap to load v${esc(ui.update)}. Your data stays.</span></button>` : ''; }
 function vToday() {
   const t = today(), w = STATE.w[t], sid = w ? w.s : sessionFor(t), sd = sessDef(sid), o = order(), idx = o.indexOf(sid);
   let h = `<div class="page-h"><div><div class="eyebrow">${esc(fmtDow(t))} ${esc(fmtDate(t, { year: 'numeric' }))}</div><h1>Today</h1></div>${o.length ? `<span class="pill plain">Rotation ${rotationCount() + 1}</span>` : ''}</div>`;
+  h = updateBar() + h;
   const tail = () => whoopCard() + stripHTML() + weekCard();
   if (w && (!w.fin || ui.editToday)) return h + logBody(t) + tail(); // the log, until you press Done
   if (w) return h + doneHero(w, idx, o) + tail();
@@ -1686,6 +1693,7 @@ function vData() {
   h += `<section class="card"><div class="card-h"><h2>Start over</h2></div>
     ${ui.confirm === 'reset' ? `<p class="small">This deletes every session, import and setting, here and in cloud storage. Save a backup first if you might want it.</p><div class="btnrow"><button class="btn danger sm" data-act="reset">Delete everything</button><button class="link dim" data-act="confirm" data-v="">Cancel</button></div>`
       : `<button class="link danger" data-act="confirm" data-v="reset" style="align-self:flex-start">Delete all data</button>`}</section>`;
+  h += `<p class="xs muted" style="text-align:center">Orbit v${esc(APP_VERSION)}${ui.update ? ` · <button class="link" data-act="update">v${esc(ui.update)} is ready, update</button>` : ''}</p>`;
   return h;
 }
 const VIEWS = { today: vToday, log: vLog, history: vHistory, strength: vStrength, body: vBody, plan: vPlan, data: vData };
@@ -1948,6 +1956,7 @@ const ACT = {
   prograte: el => { S().progRate = +el.dataset.v; if (S().goal === 'grow') S().growFrom = today(); saveSettings(); render(true); },
   layout: el => { try { localStorage.setItem('orbit-layout', el.dataset.v); } catch (e) { } location.reload(); },
   diagrefresh: () => render(true),
+  update: () => { location.replace(location.pathname + '?v=' + encodeURIComponent(ui.update || Date.now())); },
   edittoday: () => { ui.editToday = true; render(true); },
   pastlog: () => { ui.logDate = addDays(today(), -1); ui.pickSess = null; go('log'); },
   exhist: el => { const i = +el.dataset.e; ui.exHist = ui.exHist === i ? null : i; render(true); },
@@ -2371,6 +2380,15 @@ Object.assign(ACT, {
   ghoff: () => { GH.disconnect(); ui.confirm = null; toast('Sync is off on this device'); render(true); },
 });
 GH.boot();
+/* Update check: GitHub Pages and iOS can keep serving an older copy for a while. version.json is fetched past every cache;
+   if it names a newer build, Today shows an Update ready button that reloads under a fresh URL. */
+async function checkUpdate() {
+  try {
+    const r = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' }); if (!r.ok) return;
+    const j = await r.json(); if (j.v && newerVer(j.v, APP_VERSION) && ui.update !== j.v) { ui.update = j.v; render(); }
+  } catch (e) { }
+}
+checkUpdate(); document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(); });
 if (ui.tab === 'data') render(true);
 </script>
 </body>

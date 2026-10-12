@@ -98,6 +98,9 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
+const APP_VERSION = '__APP_VERSION__'; // from VERSION, filled in by tools/build.sh
+const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
+const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
 const ui = { metric: 'rec', per: 'M', off: 0, openSess: new Set(), tab: 'today', logDate: null, range: 90, lift: null, imp: {}, exportText: null, confirm: null, editEx: null, pickSess: null };
 const S = () => STATE.settings;
