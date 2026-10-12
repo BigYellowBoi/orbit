@@ -101,7 +101,7 @@ function setsTxt(exId, sets) { // compress "48×6, 48×6, 48×6" to "48×6 ×3"
 function scoreTxt(exId, v) { const u = exDef(exId).u; return u === 'bw' ? `${fmt(v, 0)} reps` : u === 'plates' ? `${fmt(v, 2)} pl` : `${fmt(v, 1)} kg`; }
 
 /* ============================================================
-   SUGGESTED LOAD AND REPS (maintenance)
+   SUGGESTED LOAD AND REPS (the Aim)
    Strength and size hold on far less volume than it took to build them,
    provided the sets stay heavy and close to failure (Bickel et al., 2011;
    Spiering et al., 2021). So each lift gets a load and rep target that sits
@@ -121,51 +121,52 @@ function exStep(exId) { // smallest load change on the equipment
   return 2.5;
 }
 function exRir(exId) { const d = exDef(exId); return d.rir != null ? d.rir : (d.rest || 90) >= 150 ? 2 : 1; } // heavy compounds 2 short of failure, the rest 1
-function strengthRef(exId, before) {
-  const tops = []; const from = addDays(before, -90);
+/* Logged working sets are done short of failure (the Aim leaves the lift's reps in reserve), so their reps
+   count with that reserve added. Otherwise following the Aim exactly would read as a slightly weaker lift
+   and nudge every later Aim down. The stated max was an all-out set, so it counts as is. */
+function refScore(exId, s, rir) { return exDef(exId).u === 'bw' ? (s.r || 0) + rir + (s.w || 0) / 2.5 : e1rm({ w: s.w, r: (s.r || 0) + rir }); }
+function strengthRef(exId, before) { // current strength: median of the top sets from the last 3 sessions in 90 days
+  const tops = [], from = addDays(before, -90), rir = exRir(exId);
   for (const w of workoutsSorted()) if (w.date < before && w.date >= from) for (const e of w.ex || []) if (e.id === exId) { const ds = doneSets(e); if (ds.length) tops.push({ date: w.date, s: ds.reduce((a, s) => setScore(exId, s) > setScore(exId, a) ? s : a, ds[0]) }); }
   const last = tops.slice(-3);
-  if (last.length) { const v = last.map(t => setScore(exId, t.s)).sort((a, b) => a - b); return { v: v[Math.floor((v.length - 1) / 2)], n: last.length, top: last[last.length - 1].s }; }
-  const b = exDef(exId).base; return b && b.r > 0 ? { v: setScore(exId, b), n: 0, top: b } : null;
+  if (last.length) { const v = last.map(t => refScore(exId, t.s, rir)).sort((a, b) => a - b); return { v: v[Math.floor((v.length - 1) / 2)], n: last.length, top: last[last.length - 1].s }; }
+  const b = exDef(exId).base; return b && b.r > 0 ? { v: refScore(exId, b, 0), n: 0, top: b } : null;
 }
-function suggest(exId, before) { // { w, r, rir } or null
+function fitLoad(exId, e, startW) { // load × reps leaving the lift's reserve at strength e; stays on the last load while it fits (double progression)
+  const d = exDef(exId), rir = exRir(exId);
+  if (d.u === 'bw') { const add = startW || 0; return { w: add, r: Math.max(1, Math.floor(e - add / 2.5 + 1e-6) - rir), rir }; }
+  const step = exStep(exId), mid = Math.round((d.lo + d.hi) / 2), repsAt = w => Math.floor(30 * (e / w - 1) + 1e-6) - rir;
+  let w = startW > 0 ? startW : Math.floor(e / (1 + (mid + rir) / 30) / step + 1e-6) * step; if (!(w > 0) || !(e > 0)) return null;
+  let r = repsAt(w);
+  while (r < d.lo && w - step > 0) { w -= step; r = repsAt(w); } // too heavy for the range now: come down
+  while (r > d.hi && repsAt(w + step) >= d.lo) { w += step; r = repsAt(w); } // top of the range passed: step up
+  if (r > d.hi) r = Math.min(r, d.hi + 2); // the next jump doesn't fit the range yet (2 kg dumbbells): a rep or two over first
+  return { w: +w.toFixed(3), r: Math.max(1, r), rir };
+}
+function holdTarget(exId, before) { // maintenance: hold current strength
+  const ref = strengthRef(exId, before); return ref ? fitLoad(exId, ref.v, ref.n ? ref.top.w : null) : null;
+}
+/* Overload: target strength climbs from where you were when you switched (S().growFrom) by the weekly rate,
+   so small weekly gains add up instead of rounding away. It never asks for more than 5% above what your logged
+   sets show (about a rep and a half), and pushes on from there if you get ahead of plan. */
+function growStrength(exId, before) {
+  const rate = S().progRate ?? 0.005, cur = strengthRef(exId, before); if (!cur) return null;
+  const from = S().growFrom && S().growFrom <= before ? S().growFrom : before, base = strengthRef(exId, from) || cur;
+  const plan = base.v * (1 + rate) ** Math.max(1, Math.floor(diffDays(from, before) / 7) + 1);
+  return { e: Math.min(Math.max(plan, cur.v * (1 + rate)), cur.v * 1.05), cur };
+}
+function suggest(exId, before) { // the Aim shown on Today and in the log: { w, r, rir } or null
   if (S().suggest === false) return null;
-  const d = exDef(exId), ref = strengthRef(exId, before); if (!ref) return null;
-  const rir = exRir(exId), mid = Math.round((d.lo + d.hi) / 2);
-  if (d.u === 'bw') { // keep the added load, aim a few reps short of your recent best
-    const w = ref.top.w || 0, best = Math.round(ref.v - w / 2.5);
-    return { w, r: Math.max(1, Math.min(d.hi, best - rir)), rir };
-  }
-  const e = ref.v, step = exStep(exId); if (!(e > 0)) return null;
-  let w = Math.floor(e / (1 + (mid + rir) / 30) / step + 1e-6) * step;
-  if (w <= 0) return null;
-  let r = Math.floor(30 * (e / w - 1) + 1e-6) - rir; // reps that leave `rir` in reserve at the rounded load
-  if (r > d.hi) { // a step heavier fits the range better, if it still reaches the bottom of it
-    const w2 = w + step, r2 = Math.floor(30 * (e / w2 - 1) + 1e-6) - rir;
-    if (r2 >= d.lo) { w = w2; r = r2; } else r = d.hi;
-  }
-  r = Math.max(d.lo, Math.min(d.hi, r));
-  return { w: +w.toFixed(3), r, rir };
+  if (S().goal !== 'grow') return holdTarget(exId, before);
+  const g = growStrength(exId, before); return g ? fitLoad(exId, g.e, g.cur.n ? g.cur.top.w : null) : null;
 }
-/* PROGRESSION PLAN (Plan tab): where each lift could be over the next weeks if you push it.
-   Target strength rises by a fixed % a week from your current strength (same reference as the Aim).
-   Each week's prescription keeps the lift's reps in reserve: reps climb at a fixed load until the top of
-   the range, then the load steps up and reps drop back (double progression). */
-function progression(exId, weeks, rate) {
-  const d = exDef(exId), ref = strengthRef(exId, today()); if (!ref) return null;
-  const rir = exRir(exId), out = [];
-  if (d.u === 'bw') {
-    const add = ref.top.w || 0;
-    for (let k = 0; k <= weeks; k++) { const e = ref.v * (1 + rate) ** k; out.push({ k, w: add, r: Math.max(1, Math.floor(e - add / 2.5 + 1e-6) - rir), g: e / ref.v - 1 }); }
-    return out;
-  }
-  const step = exStep(exId), mid = Math.round((d.lo + d.hi) / 2), repsAt = (e, w) => Math.floor(30 * (e / w - 1) + 1e-6) - rir;
-  let w = Math.floor(ref.v / (1 + (mid + rir) / 30) / step + 1e-6) * step; if (w <= 0) return null;
-  for (let k = 0; k <= weeks; k++) {
-    const e = ref.v * (1 + rate) ** k; let r = repsAt(e, w);
-    if (r > d.hi) { const r2 = repsAt(e, w + step); if (r2 >= d.lo) { w += step; r = r2; } else r = Math.min(r, d.hi + 2); } // big jumps (2 kg dumbbells): a rep or two over the range until the next load fits
-    out.push({ k, w: +w.toFixed(3), r: Math.max(d.lo, r), g: e / ref.v - 1 });
-  }
+/* PROGRESSION PLAN (Plan tab): the overload track week by week from today, at the lift's reps in reserve.
+   Reps climb at a fixed load until the top of the range, then the load steps up and reps drop back. */
+function progression(exId, weeks, rate, before = today()) {
+  const ref = strengthRef(exId, before); if (!ref) return null;
+  const e1 = S().goal === 'grow' ? growStrength(exId, before).e : ref.v * (1 + rate), out = [];
+  let w = ref.n ? ref.top.w : null;
+  for (let k = 1; k <= weeks; k++) { const e = e1 * (1 + rate) ** (k - 1), p = fitLoad(exId, e, w); if (!p) return null; w = p.w; out.push({ k, ...p, g: e / ref.v - 1 }); }
   return out;
 }
 function suggestTxt(exId, sg) { const u = exDef(exId).u, w = fmt(sg.w, 2); return u === 'bw' ? (sg.w ? `BW+${w} × ${sg.r}` : `${sg.r} reps`) : `${w} ${u === 'plates' ? 'pl' : 'kg'} × ${sg.r}`; }

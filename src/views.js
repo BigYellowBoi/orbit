@@ -26,7 +26,7 @@ function vToday() {
   if (w) return h + doneHero(w, idx, o) + tail();
   if (!sd) return h + `<section class="card"><p>Your programme has no sessions. Add one in Plan.</p><button class="btn" data-act="go" data-tab="plan">Open Plan</button></section>`;
   if (sd.rest) return h + plannedRestHero(sid) + tail();
-  h += `<section class="card hero"><div class="card-h"><span class="eyebrow">Next up · ${idx + 1} of ${o.length}</span></div>
+  h += `<section class="card hero"><div class="card-h"><span class="eyebrow">Next up · ${idx + 1} of ${o.length}</span>${S().suggest !== false ? `<button class="pill ${S().goal === 'grow' ? 'acc' : ''}" data-act="goalflip" aria-label="Targets: ${esc(goalLabel())}. Tap to switch">${esc(goalLabel())}</button>` : ''}</div>
     <div class="rot">${o.map((id, i) => `<i class="${i === idx ? 'on' : i < idx ? 'done' : ''}"></i>`).join('')}</div>
     <div><h1>${esc(sd.name)}</h1><p class="focus">${esc(sd.focus || '')}</p></div>
     <ul class="exlist">${sd.items.filter(it => S().ex[it.ex]).map(it => `<li><span>${esc(exDef(it.ex).name)}</span><span class="rx">${rxTxt(it)}</span><span class="lt">${prevLine(it.ex, t)}</span></li>`).join('')}
@@ -162,7 +162,7 @@ function exCard(w, e, i, prSet) {
   const ph = (v, dflt) => v != null ? fmt(v, 2).replace(/,/g, '') : dflt, sg = suggest(e.id, w.date);
   return `<section class="card ex" id="ex${i}"><div class="ex-h"><button class="ex-name" data-act="exhist" data-e="${i}" aria-expanded="${open}"><h3>${esc(def.name)}</h3><span class="chev">${ICON.down}</span></button><span class="rx">${def.lo}${def.hi > def.lo ? '–' + def.hi : ''} reps</span></div>
     ${open ? exHistHTML(e.id, w.date) : ''}
-    ${sg ? `<p class="aim"><b>Aim ${esc(suggestTxt(e.id, sg))}</b> · ${sg.rir} rep${sg.rir === 1 ? '' : 's'} in reserve</p>` : ''}
+    ${sg ? `<p class="aim"><b>Aim ${esc(suggestTxt(e.id, sg))}</b> · ${sg.rir} rep${sg.rir === 1 ? '' : 's'} in reserve${S().goal === 'grow' ? ' · overload' : ''}</p>` : ''}
     <p class="ex-meta">${esc(lastLine(e.id, w.date))}${def.note ? ` · ${esc(def.note)}` : ''}</p>
     ${(() => { const ln = e.note == null ? lastExerciseNote(e.id, w.date) : null; return ln ? `<p class="ex-lastnote">Note from ${esc(fmtDate(ln.date))}: ${esc(ln.note)}</p>` : ''; })()}
     <div class="sets"><div class="set hdr"><span>Set</span><span>${esc(u.col)}</span><span>Reps</span><span></span></div>
@@ -326,22 +326,24 @@ function vPlan() {
     <label class="fl">Protein target (g)<input class="in" id="st_pt" inputmode="numeric" data-in="proteint" value="${S().proteinT ?? ''}" placeholder="from MacroFactor"></label>
     <label class="fl">Suggested weight and reps<select class="in" id="st_sg" data-in="suggest"><option value="1" ${S().suggest !== false ? 'selected' : ''}>On</option><option value="0" ${S().suggest === false ? 'selected' : ''}>Off</option></select></label>
   </div><p class="xs muted">Plate weight converts plate-loaded machines to kg for session tonnage. Protein target is used when your MacroFactor export has no target column.</p>
-  <p class="xs muted">Suggestions hold your current strength rather than push it up. Each lift gets a load and reps that stop a set number of reps short of failure (2 for heavy compounds, 1 for the rest), from the middle of its rep range and your last 3 sessions of it. Maintenance research keeps strength and size on far less volume, as long as the sets stay heavy and close to failure (Bickel et al., 2011; Spiering et al., 2021). Change the weight step or reps in reserve for any lift under Exercises.</p></section></section>`;
+  <p class="xs muted">Suggestions follow the goal set under Targets above: Maintenance holds your current strength, Overload pushes it up by the chosen rate. Each lift gets a load and reps that stop a set number of reps short of failure (2 for heavy compounds, 1 for the rest), from the middle of its rep range and your last 3 sessions of it. Maintenance research keeps strength and size on far less volume, as long as the sets stay heavy and close to failure (Bickel et al., 2011; Spiering et al., 2021). Change the weight step or reps in reserve for any lift under Exercises.</p></section></section>`;
   return h;
 }
+function goalLabel() { return S().goal === 'grow' ? `Overload +${fmt((S().progRate ?? 0.005) * 100, 2)}%/wk` : 'Maintenance'; }
 function progressionCard() {
   const ids = [...new Set(order().flatMap(id => sessDef(id).items.map(it => it.ex)))].filter(id => S().ex[id] && strengthRef(id, today()));
   if (!ids.length) return '';
-  const pick = ui.progLift && ids.includes(ui.progLift) ? ui.progLift : ids[0], rate = S().progRate ?? 0.005, plan = progression(pick, 8, rate);
+  const grow = S().goal === 'grow', pick = ui.progLift && ids.includes(ui.progLift) ? ui.progLift : ids[0], rate = S().progRate ?? 0.005;
+  const plan = progression(pick, 8, rate), hold = holdTarget(pick, today()), d = exDef(pick), rir = exRir(pick);
   const rates = [[0.0025, '0.25%'], [0.005, '0.5%'], [0.01, '1%']];
-  const wk = k => k === 0 ? 'Now' : `Week ${k}`;
-  return `<section class="sec"><div class="sec-h"><span class="eyebrow">Progression · next 8 weeks</span></div><section class="card">
-    <div class="fields" style="grid-template-columns:minmax(0,1fr)"><label class="fl">Lift<select class="in" id="proglift" data-in="proglift">${ids.map(id => `<option value="${id}" ${id === pick ? 'selected' : ''}>${esc(exDef(id).name)}</option>`).join('')}</select></label></div>
-    <div class="btnrow" style="justify-content:space-between"><span class="xs muted">Strength gain a week</span><div class="seg" role="group" aria-label="Weekly gain">${rates.map(([r, l]) => `<button class="${Math.abs(rate - r) < 1e-9 ? 'on' : ''}" data-act="prograte" data-v="${r}">${l}</button>`).join('')}</div></div>
-    ${plan ? `<div class="tblwrap"><table class="tbl"><thead><tr><th>Week</th><th class="n">Target</th><th class="n">Strength</th></tr></thead><tbody>
-      ${plan.map(p => `<tr${p.k === 0 ? ' class="muted"' : ''}><td>${wk(p.k)}</td><td class="n">${esc(suggestTxt(pick, p))}</td><td class="n">${p.k ? '+' + fmt(p.g * 100, 1) + '%' : 'today'}</td></tr>`).join('')}
+  return `<section class="sec"><div class="sec-h"><span class="eyebrow">Targets · next 8 weeks</span></div><section class="card">
+    <div class="btnrow" style="justify-content:space-between"><span class="xs muted">Today's Aim follows</span><div class="seg" role="group" aria-label="Goal"><button class="${grow ? '' : 'on'}" data-act="goal" data-v="hold">Maintenance</button><button class="${grow ? 'on' : ''}" data-act="goal" data-v="grow">Overload</button></div></div>
+    <div class="btnrow" style="justify-content:space-between"><span class="xs muted">Overload gain a week</span><div class="seg" role="group" aria-label="Weekly gain">${rates.map(([r, l]) => `<button class="${Math.abs(rate - r) < 1e-9 ? 'on' : ''}" data-act="prograte" data-v="${r}">${l}</button>`).join('')}</div></div>
+    <label class="fl">Lift<select class="in" id="proglift" data-in="proglift">${ids.map(id => `<option value="${id}" ${id === pick ? 'selected' : ''}>${esc(exDef(id).name)}</option>`).join('')}</select></label>
+    ${plan ? `<div class="tblwrap"><table class="tbl goal"><thead><tr><th>Week</th><th class="n ${grow ? '' : 'act'}">Maintenance</th><th class="n ${grow ? 'act' : ''}">Overload</th><th class="n">Gain</th></tr></thead><tbody>
+      ${plan.map(p => `<tr><td>Week ${p.k}</td><td class="n ${grow ? '' : 'act'}">${hold ? esc(suggestTxt(pick, hold)) : '–'}</td><td class="n ${grow ? 'act' : ''}">${esc(suggestTxt(pick, p))}</td><td class="n">+${fmt(p.g * 100, 1)}%</td></tr>`).join('')}
     </tbody></table></div>` : ''}
-    <p class="xs muted">Each week's target leaves ${exRir(pick)} rep${exRir(pick) === 1 ? '' : 's'} in reserve, like the Aim. Reps climb at the same load until the top of the ${exDef(pick).lo}–${exDef(pick).hi} range, then the load steps up by ${fmt(exStep(pick), 2)} ${exDef(pick).u === 'plates' ? 'plates' : 'kg'} and reps drop back. Where that jump is too big to land inside the range, reps run up to 2 past the top first. The plan restarts from your latest logged sets each time, so it adjusts if real progress is faster or slower. The Aim on Today stays at maintenance.</p></section></section>`;
+    <p class="xs muted">Both tracks leave ${rir} rep${rir === 1 ? '' : 's'} in reserve. Maintenance holds the load that matches your current strength, so it stays the same week to week and only moves when your logged sets do. Overload raises target strength by the chosen rate: reps climb at the same load to the top of the ${d.lo}–${d.hi} range, then the load steps up by ${fmt(exStep(pick), 2)} ${d.u === 'plates' ? 'plates' : 'kg'} and reps drop back (where that jump is too big to land in the range, reps run up to 2 past the top first). Both re-plan from your latest logged sets, assuming you stopped about ${rir} short of failure as the Aim asks. Week 1 is this week; Gain is overload strength against where you are now.</p></section></section>`;
 }
 function exEditor(id, x) {
   return `<div class="sec"><div class="fields">

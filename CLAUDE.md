@@ -1,6 +1,6 @@
 # Orbit – working notes
 
-Training log for Louis (BigYellowBoi): a rotating split (Push 1, Pull, Push 2, Legs; optional Upper/Lower/Push/Pull/Legs), WHOOP and MacroFactor imports, maintenance goal (no progressive overload). Single-file vanilla JS app, dark theme, Geist fonts. No framework, no bundler.
+Training log for Louis (BigYellowBoi): a rotating split (Push 1, Pull, Push 2, Legs; optional Upper/Lower/Push/Pull/Legs), WHOOP and MacroFactor imports, maintenance goal by default, with an optional Overload mode for the Aim (Plan → Targets; `S().goal` 'hold' | 'grow', `progRate`, `growFrom`). Aim logic lives in engine.js; check changes with a follow-the-Aim simulation (maintenance must stay flat, overload must climb at each rate). Single-file vanilla JS app, dark theme, Geist fonts. No framework, no bundler.
 
 User preferences: short answers, never use em dashes (in replies or UI copy).
 

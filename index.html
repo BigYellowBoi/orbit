@@ -90,6 +90,8 @@ button { cursor: pointer; }
 .ring b small { font-size: 14px; color: var(--ink-3); font-weight: 500; }
 #liftchart { scroll-margin-top: calc(env(safe-area-inset-top, 0px) + var(--toph) + 12px); }
 .tbl.lifts tbody tr { cursor: pointer; }
+.tbl.goal td.act, .tbl.goal th.act { color: var(--accent); font-weight: 600; }
+button.pill { border: 0; font: inherit; font-size: 12.5px; font-weight: 500; cursor: pointer; }
 .tbl.lifts tr.sel td { background: var(--accent-soft); }
 .tbl.lifts tr.sel td:first-child { box-shadow: inset 2px 0 0 var(--accent); padding-left: 8px; }
 .hr { height: 1px; background: var(--line); border: 0; margin: 0; }
@@ -446,7 +448,7 @@ const PRESETS = {
 };
 function defaultSettings() {
   const p = PRESETS.ppl4;
-  return { v: 1, preset: 'ppl4', prog: { order: p.order.slice(), sessions: clone(p.sessions) }, ex: clone(EXLIB), plateKg: 20, cardio: { name: 'Stairmaster', min: 30 }, proteinT: null, rotOverride: null, imports: {}, suggest: true, progRate: 0.005 };
+  return { v: 1, preset: 'ppl4', prog: { order: p.order.slice(), sessions: clone(p.sessions) }, ex: clone(EXLIB), plateKg: 20, cardio: { name: 'Stairmaster', min: 30 }, proteinT: null, rotOverride: null, imports: {}, suggest: true, goal: 'hold', progRate: 0.005 };
 }
 function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 }; }
 
@@ -565,7 +567,7 @@ function setsTxt(exId, sets) { // compress "48×6, 48×6, 48×6" to "48×6 ×3"
 function scoreTxt(exId, v) { const u = exDef(exId).u; return u === 'bw' ? `${fmt(v, 0)} reps` : u === 'plates' ? `${fmt(v, 2)} pl` : `${fmt(v, 1)} kg`; }
 
 /* ============================================================
-   SUGGESTED LOAD AND REPS (maintenance)
+   SUGGESTED LOAD AND REPS (the Aim)
    Strength and size hold on far less volume than it took to build them,
    provided the sets stay heavy and close to failure (Bickel et al., 2011;
    Spiering et al., 2021). So each lift gets a load and rep target that sits
@@ -585,51 +587,52 @@ function exStep(exId) { // smallest load change on the equipment
   return 2.5;
 }
 function exRir(exId) { const d = exDef(exId); return d.rir != null ? d.rir : (d.rest || 90) >= 150 ? 2 : 1; } // heavy compounds 2 short of failure, the rest 1
-function strengthRef(exId, before) {
-  const tops = []; const from = addDays(before, -90);
+/* Logged working sets are done short of failure (the Aim leaves the lift's reps in reserve), so their reps
+   count with that reserve added. Otherwise following the Aim exactly would read as a slightly weaker lift
+   and nudge every later Aim down. The stated max was an all-out set, so it counts as is. */
+function refScore(exId, s, rir) { return exDef(exId).u === 'bw' ? (s.r || 0) + rir + (s.w || 0) / 2.5 : e1rm({ w: s.w, r: (s.r || 0) + rir }); }
+function strengthRef(exId, before) { // current strength: median of the top sets from the last 3 sessions in 90 days
+  const tops = [], from = addDays(before, -90), rir = exRir(exId);
   for (const w of workoutsSorted()) if (w.date < before && w.date >= from) for (const e of w.ex || []) if (e.id === exId) { const ds = doneSets(e); if (ds.length) tops.push({ date: w.date, s: ds.reduce((a, s) => setScore(exId, s) > setScore(exId, a) ? s : a, ds[0]) }); }
   const last = tops.slice(-3);
-  if (last.length) { const v = last.map(t => setScore(exId, t.s)).sort((a, b) => a - b); return { v: v[Math.floor((v.length - 1) / 2)], n: last.length, top: last[last.length - 1].s }; }
-  const b = exDef(exId).base; return b && b.r > 0 ? { v: setScore(exId, b), n: 0, top: b } : null;
+  if (last.length) { const v = last.map(t => refScore(exId, t.s, rir)).sort((a, b) => a - b); return { v: v[Math.floor((v.length - 1) / 2)], n: last.length, top: last[last.length - 1].s }; }
+  const b = exDef(exId).base; return b && b.r > 0 ? { v: refScore(exId, b, 0), n: 0, top: b } : null;
 }
-function suggest(exId, before) { // { w, r, rir } or null
+function fitLoad(exId, e, startW) { // load × reps leaving the lift's reserve at strength e; stays on the last load while it fits (double progression)
+  const d = exDef(exId), rir = exRir(exId);
+  if (d.u === 'bw') { const add = startW || 0; return { w: add, r: Math.max(1, Math.floor(e - add / 2.5 + 1e-6) - rir), rir }; }
+  const step = exStep(exId), mid = Math.round((d.lo + d.hi) / 2), repsAt = w => Math.floor(30 * (e / w - 1) + 1e-6) - rir;
+  let w = startW > 0 ? startW : Math.floor(e / (1 + (mid + rir) / 30) / step + 1e-6) * step; if (!(w > 0) || !(e > 0)) return null;
+  let r = repsAt(w);
+  while (r < d.lo && w - step > 0) { w -= step; r = repsAt(w); } // too heavy for the range now: come down
+  while (r > d.hi && repsAt(w + step) >= d.lo) { w += step; r = repsAt(w); } // top of the range passed: step up
+  if (r > d.hi) r = Math.min(r, d.hi + 2); // the next jump doesn't fit the range yet (2 kg dumbbells): a rep or two over first
+  return { w: +w.toFixed(3), r: Math.max(1, r), rir };
+}
+function holdTarget(exId, before) { // maintenance: hold current strength
+  const ref = strengthRef(exId, before); return ref ? fitLoad(exId, ref.v, ref.n ? ref.top.w : null) : null;
+}
+/* Overload: target strength climbs from where you were when you switched (S().growFrom) by the weekly rate,
+   so small weekly gains add up instead of rounding away. It never asks for more than 5% above what your logged
+   sets show (about a rep and a half), and pushes on from there if you get ahead of plan. */
+function growStrength(exId, before) {
+  const rate = S().progRate ?? 0.005, cur = strengthRef(exId, before); if (!cur) return null;
+  const from = S().growFrom && S().growFrom <= before ? S().growFrom : before, base = strengthRef(exId, from) || cur;
+  const plan = base.v * (1 + rate) ** Math.max(1, Math.floor(diffDays(from, before) / 7) + 1);
+  return { e: Math.min(Math.max(plan, cur.v * (1 + rate)), cur.v * 1.05), cur };
+}
+function suggest(exId, before) { // the Aim shown on Today and in the log: { w, r, rir } or null
   if (S().suggest === false) return null;
-  const d = exDef(exId), ref = strengthRef(exId, before); if (!ref) return null;
-  const rir = exRir(exId), mid = Math.round((d.lo + d.hi) / 2);
-  if (d.u === 'bw') { // keep the added load, aim a few reps short of your recent best
-    const w = ref.top.w || 0, best = Math.round(ref.v - w / 2.5);
-    return { w, r: Math.max(1, Math.min(d.hi, best - rir)), rir };
-  }
-  const e = ref.v, step = exStep(exId); if (!(e > 0)) return null;
-  let w = Math.floor(e / (1 + (mid + rir) / 30) / step + 1e-6) * step;
-  if (w <= 0) return null;
-  let r = Math.floor(30 * (e / w - 1) + 1e-6) - rir; // reps that leave `rir` in reserve at the rounded load
-  if (r > d.hi) { // a step heavier fits the range better, if it still reaches the bottom of it
-    const w2 = w + step, r2 = Math.floor(30 * (e / w2 - 1) + 1e-6) - rir;
-    if (r2 >= d.lo) { w = w2; r = r2; } else r = d.hi;
-  }
-  r = Math.max(d.lo, Math.min(d.hi, r));
-  return { w: +w.toFixed(3), r, rir };
+  if (S().goal !== 'grow') return holdTarget(exId, before);
+  const g = growStrength(exId, before); return g ? fitLoad(exId, g.e, g.cur.n ? g.cur.top.w : null) : null;
 }
-/* PROGRESSION PLAN (Plan tab): where each lift could be over the next weeks if you push it.
-   Target strength rises by a fixed % a week from your current strength (same reference as the Aim).
-   Each week's prescription keeps the lift's reps in reserve: reps climb at a fixed load until the top of
-   the range, then the load steps up and reps drop back (double progression). */
-function progression(exId, weeks, rate) {
-  const d = exDef(exId), ref = strengthRef(exId, today()); if (!ref) return null;
-  const rir = exRir(exId), out = [];
-  if (d.u === 'bw') {
-    const add = ref.top.w || 0;
-    for (let k = 0; k <= weeks; k++) { const e = ref.v * (1 + rate) ** k; out.push({ k, w: add, r: Math.max(1, Math.floor(e - add / 2.5 + 1e-6) - rir), g: e / ref.v - 1 }); }
-    return out;
-  }
-  const step = exStep(exId), mid = Math.round((d.lo + d.hi) / 2), repsAt = (e, w) => Math.floor(30 * (e / w - 1) + 1e-6) - rir;
-  let w = Math.floor(ref.v / (1 + (mid + rir) / 30) / step + 1e-6) * step; if (w <= 0) return null;
-  for (let k = 0; k <= weeks; k++) {
-    const e = ref.v * (1 + rate) ** k; let r = repsAt(e, w);
-    if (r > d.hi) { const r2 = repsAt(e, w + step); if (r2 >= d.lo) { w += step; r = r2; } else r = Math.min(r, d.hi + 2); } // big jumps (2 kg dumbbells): a rep or two over the range until the next load fits
-    out.push({ k, w: +w.toFixed(3), r: Math.max(d.lo, r), g: e / ref.v - 1 });
-  }
+/* PROGRESSION PLAN (Plan tab): the overload track week by week from today, at the lift's reps in reserve.
+   Reps climb at a fixed load until the top of the range, then the load steps up and reps drop back. */
+function progression(exId, weeks, rate, before = today()) {
+  const ref = strengthRef(exId, before); if (!ref) return null;
+  const e1 = S().goal === 'grow' ? growStrength(exId, before).e : ref.v * (1 + rate), out = [];
+  let w = ref.n ? ref.top.w : null;
+  for (let k = 1; k <= weeks; k++) { const e = e1 * (1 + rate) ** (k - 1), p = fitLoad(exId, e, w); if (!p) return null; w = p.w; out.push({ k, ...p, g: e / ref.v - 1 }); }
   return out;
 }
 function suggestTxt(exId, sg) { const u = exDef(exId).u, w = fmt(sg.w, 2); return u === 'bw' ? (sg.w ? `BW+${w} × ${sg.r}` : `${sg.r} reps`) : `${w} ${u === 'plates' ? 'pl' : 'kg'} × ${sg.r}`; }
@@ -1309,7 +1312,7 @@ function vToday() {
   if (w) return h + doneHero(w, idx, o) + tail();
   if (!sd) return h + `<section class="card"><p>Your programme has no sessions. Add one in Plan.</p><button class="btn" data-act="go" data-tab="plan">Open Plan</button></section>`;
   if (sd.rest) return h + plannedRestHero(sid) + tail();
-  h += `<section class="card hero"><div class="card-h"><span class="eyebrow">Next up · ${idx + 1} of ${o.length}</span></div>
+  h += `<section class="card hero"><div class="card-h"><span class="eyebrow">Next up · ${idx + 1} of ${o.length}</span>${S().suggest !== false ? `<button class="pill ${S().goal === 'grow' ? 'acc' : ''}" data-act="goalflip" aria-label="Targets: ${esc(goalLabel())}. Tap to switch">${esc(goalLabel())}</button>` : ''}</div>
     <div class="rot">${o.map((id, i) => `<i class="${i === idx ? 'on' : i < idx ? 'done' : ''}"></i>`).join('')}</div>
     <div><h1>${esc(sd.name)}</h1><p class="focus">${esc(sd.focus || '')}</p></div>
     <ul class="exlist">${sd.items.filter(it => S().ex[it.ex]).map(it => `<li><span>${esc(exDef(it.ex).name)}</span><span class="rx">${rxTxt(it)}</span><span class="lt">${prevLine(it.ex, t)}</span></li>`).join('')}
@@ -1445,7 +1448,7 @@ function exCard(w, e, i, prSet) {
   const ph = (v, dflt) => v != null ? fmt(v, 2).replace(/,/g, '') : dflt, sg = suggest(e.id, w.date);
   return `<section class="card ex" id="ex${i}"><div class="ex-h"><button class="ex-name" data-act="exhist" data-e="${i}" aria-expanded="${open}"><h3>${esc(def.name)}</h3><span class="chev">${ICON.down}</span></button><span class="rx">${def.lo}${def.hi > def.lo ? '–' + def.hi : ''} reps</span></div>
     ${open ? exHistHTML(e.id, w.date) : ''}
-    ${sg ? `<p class="aim"><b>Aim ${esc(suggestTxt(e.id, sg))}</b> · ${sg.rir} rep${sg.rir === 1 ? '' : 's'} in reserve</p>` : ''}
+    ${sg ? `<p class="aim"><b>Aim ${esc(suggestTxt(e.id, sg))}</b> · ${sg.rir} rep${sg.rir === 1 ? '' : 's'} in reserve${S().goal === 'grow' ? ' · overload' : ''}</p>` : ''}
     <p class="ex-meta">${esc(lastLine(e.id, w.date))}${def.note ? ` · ${esc(def.note)}` : ''}</p>
     ${(() => { const ln = e.note == null ? lastExerciseNote(e.id, w.date) : null; return ln ? `<p class="ex-lastnote">Note from ${esc(fmtDate(ln.date))}: ${esc(ln.note)}</p>` : ''; })()}
     <div class="sets"><div class="set hdr"><span>Set</span><span>${esc(u.col)}</span><span>Reps</span><span></span></div>
@@ -1609,22 +1612,24 @@ function vPlan() {
     <label class="fl">Protein target (g)<input class="in" id="st_pt" inputmode="numeric" data-in="proteint" value="${S().proteinT ?? ''}" placeholder="from MacroFactor"></label>
     <label class="fl">Suggested weight and reps<select class="in" id="st_sg" data-in="suggest"><option value="1" ${S().suggest !== false ? 'selected' : ''}>On</option><option value="0" ${S().suggest === false ? 'selected' : ''}>Off</option></select></label>
   </div><p class="xs muted">Plate weight converts plate-loaded machines to kg for session tonnage. Protein target is used when your MacroFactor export has no target column.</p>
-  <p class="xs muted">Suggestions hold your current strength rather than push it up. Each lift gets a load and reps that stop a set number of reps short of failure (2 for heavy compounds, 1 for the rest), from the middle of its rep range and your last 3 sessions of it. Maintenance research keeps strength and size on far less volume, as long as the sets stay heavy and close to failure (Bickel et al., 2011; Spiering et al., 2021). Change the weight step or reps in reserve for any lift under Exercises.</p></section></section>`;
+  <p class="xs muted">Suggestions follow the goal set under Targets above: Maintenance holds your current strength, Overload pushes it up by the chosen rate. Each lift gets a load and reps that stop a set number of reps short of failure (2 for heavy compounds, 1 for the rest), from the middle of its rep range and your last 3 sessions of it. Maintenance research keeps strength and size on far less volume, as long as the sets stay heavy and close to failure (Bickel et al., 2011; Spiering et al., 2021). Change the weight step or reps in reserve for any lift under Exercises.</p></section></section>`;
   return h;
 }
+function goalLabel() { return S().goal === 'grow' ? `Overload +${fmt((S().progRate ?? 0.005) * 100, 2)}%/wk` : 'Maintenance'; }
 function progressionCard() {
   const ids = [...new Set(order().flatMap(id => sessDef(id).items.map(it => it.ex)))].filter(id => S().ex[id] && strengthRef(id, today()));
   if (!ids.length) return '';
-  const pick = ui.progLift && ids.includes(ui.progLift) ? ui.progLift : ids[0], rate = S().progRate ?? 0.005, plan = progression(pick, 8, rate);
+  const grow = S().goal === 'grow', pick = ui.progLift && ids.includes(ui.progLift) ? ui.progLift : ids[0], rate = S().progRate ?? 0.005;
+  const plan = progression(pick, 8, rate), hold = holdTarget(pick, today()), d = exDef(pick), rir = exRir(pick);
   const rates = [[0.0025, '0.25%'], [0.005, '0.5%'], [0.01, '1%']];
-  const wk = k => k === 0 ? 'Now' : `Week ${k}`;
-  return `<section class="sec"><div class="sec-h"><span class="eyebrow">Progression · next 8 weeks</span></div><section class="card">
-    <div class="fields" style="grid-template-columns:minmax(0,1fr)"><label class="fl">Lift<select class="in" id="proglift" data-in="proglift">${ids.map(id => `<option value="${id}" ${id === pick ? 'selected' : ''}>${esc(exDef(id).name)}</option>`).join('')}</select></label></div>
-    <div class="btnrow" style="justify-content:space-between"><span class="xs muted">Strength gain a week</span><div class="seg" role="group" aria-label="Weekly gain">${rates.map(([r, l]) => `<button class="${Math.abs(rate - r) < 1e-9 ? 'on' : ''}" data-act="prograte" data-v="${r}">${l}</button>`).join('')}</div></div>
-    ${plan ? `<div class="tblwrap"><table class="tbl"><thead><tr><th>Week</th><th class="n">Target</th><th class="n">Strength</th></tr></thead><tbody>
-      ${plan.map(p => `<tr${p.k === 0 ? ' class="muted"' : ''}><td>${wk(p.k)}</td><td class="n">${esc(suggestTxt(pick, p))}</td><td class="n">${p.k ? '+' + fmt(p.g * 100, 1) + '%' : 'today'}</td></tr>`).join('')}
+  return `<section class="sec"><div class="sec-h"><span class="eyebrow">Targets · next 8 weeks</span></div><section class="card">
+    <div class="btnrow" style="justify-content:space-between"><span class="xs muted">Today's Aim follows</span><div class="seg" role="group" aria-label="Goal"><button class="${grow ? '' : 'on'}" data-act="goal" data-v="hold">Maintenance</button><button class="${grow ? 'on' : ''}" data-act="goal" data-v="grow">Overload</button></div></div>
+    <div class="btnrow" style="justify-content:space-between"><span class="xs muted">Overload gain a week</span><div class="seg" role="group" aria-label="Weekly gain">${rates.map(([r, l]) => `<button class="${Math.abs(rate - r) < 1e-9 ? 'on' : ''}" data-act="prograte" data-v="${r}">${l}</button>`).join('')}</div></div>
+    <label class="fl">Lift<select class="in" id="proglift" data-in="proglift">${ids.map(id => `<option value="${id}" ${id === pick ? 'selected' : ''}>${esc(exDef(id).name)}</option>`).join('')}</select></label>
+    ${plan ? `<div class="tblwrap"><table class="tbl goal"><thead><tr><th>Week</th><th class="n ${grow ? '' : 'act'}">Maintenance</th><th class="n ${grow ? 'act' : ''}">Overload</th><th class="n">Gain</th></tr></thead><tbody>
+      ${plan.map(p => `<tr><td>Week ${p.k}</td><td class="n ${grow ? '' : 'act'}">${hold ? esc(suggestTxt(pick, hold)) : '–'}</td><td class="n ${grow ? 'act' : ''}">${esc(suggestTxt(pick, p))}</td><td class="n">+${fmt(p.g * 100, 1)}%</td></tr>`).join('')}
     </tbody></table></div>` : ''}
-    <p class="xs muted">Each week's target leaves ${exRir(pick)} rep${exRir(pick) === 1 ? '' : 's'} in reserve, like the Aim. Reps climb at the same load until the top of the ${exDef(pick).lo}–${exDef(pick).hi} range, then the load steps up by ${fmt(exStep(pick), 2)} ${exDef(pick).u === 'plates' ? 'plates' : 'kg'} and reps drop back. Where that jump is too big to land inside the range, reps run up to 2 past the top first. The plan restarts from your latest logged sets each time, so it adjusts if real progress is faster or slower. The Aim on Today stays at maintenance.</p></section></section>`;
+    <p class="xs muted">Both tracks leave ${rir} rep${rir === 1 ? '' : 's'} in reserve. Maintenance holds the load that matches your current strength, so it stays the same week to week and only moves when your logged sets do. Overload raises target strength by the chosen rate: reps climb at the same load to the top of the ${d.lo}–${d.hi} range, then the load steps up by ${fmt(exStep(pick), 2)} ${d.u === 'plates' ? 'plates' : 'kg'} and reps drop back (where that jump is too big to land in the range, reps run up to 2 past the top first). Both re-plan from your latest logged sets, assuming you stopped about ${rir} short of failure as the Aim asks. Week 1 is this week; Gain is overload strength against where you are now.</p></section></section>`;
 }
 function exEditor(id, x) {
   return `<div class="sec"><div class="fields">
@@ -1908,7 +1913,9 @@ const ACT = {
   picksess: el => { ui.pickSess = el.dataset.id; render(true); },
   logday: el => { const d = addDays(ui.logDate || today(), +el.dataset.n); if (d >= today()) { go('today'); return; } ui.logDate = d; ui.pickSess = null; ui.confirm = null; resetScroll(); render(true); },
   openlog: el => { ui.logDate = el.dataset.d; go('log'); },
-  prograte: el => { S().progRate = +el.dataset.v; saveSettings(); render(true); },
+  goal: el => { if (el.dataset.v === 'grow' && S().goal !== 'grow') S().growFrom = today(); S().goal = el.dataset.v; saveSettings(); render(true); },
+  goalflip: () => { S().goal = S().goal === 'grow' ? 'hold' : 'grow'; if (S().goal === 'grow') S().growFrom = today(); saveSettings(); toast(S().goal === 'grow' ? `Aim set to overload, +${fmt((S().progRate ?? 0.005) * 100, 2)}% a week` : 'Aim set to maintenance'); render(true); },
+  prograte: el => { S().progRate = +el.dataset.v; if (S().goal === 'grow') S().growFrom = today(); saveSettings(); render(true); },
   edittoday: () => { ui.editToday = true; render(true); },
   pastlog: () => { ui.logDate = addDays(today(), -1); ui.pickSess = null; go('log'); },
   exhist: el => { const i = +el.dataset.e; ui.exHist = ui.exHist === i ? null : i; render(true); },
