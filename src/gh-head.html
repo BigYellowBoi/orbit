@@ -13,7 +13,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="manifest" href="manifest.webmanifest">
 <script>/* layout: 'standard' (page scrolls, the default) or 'pinned' (html.shell). Switch on the Data screen. */
-try { if (localStorage.getItem('orbit-layout') === 'pinned') document.documentElement.classList.add('shell'); } catch (e) { }</script>
+try { if (localStorage.getItem('orbit-layout') === 'pinned') document.documentElement.classList.add('shell'); if (localStorage.getItem('orbit-hdr') === 'low') document.documentElement.classList.add('hdr-low'); } catch (e) { }</script>
 <style>
 html, body { margin: 0; }
 html { -webkit-text-size-adjust: 100%; }

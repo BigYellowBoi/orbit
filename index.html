@@ -13,7 +13,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="manifest" href="manifest.webmanifest">
 <script>/* layout: 'standard' (page scrolls, the default) or 'pinned' (html.shell). Switch on the Data screen. */
-try { if (localStorage.getItem('orbit-layout') === 'pinned') document.documentElement.classList.add('shell'); } catch (e) { }</script>
+try { if (localStorage.getItem('orbit-layout') === 'pinned') document.documentElement.classList.add('shell'); if (localStorage.getItem('orbit-hdr') === 'low') document.documentElement.classList.add('hdr-low'); } catch (e) { }</script>
 <style>
 html, body { margin: 0; }
 html { -webkit-text-size-adjust: 100%; }
@@ -44,17 +44,19 @@ html.shell #scroll { position: absolute; top: 0; left: 0; right: 0; height: 100v
   --good: #0ca30c; --warn: #fab219; --bad: #d03b3b;
   --good-ink: #5ccf6b; --warn-ink: #f6c453; --bad-ink: #f07a74;
   --good-soft: rgba(12, 163, 12, .14); --warn-soft: rgba(250, 178, 25, .12); --bad-soft: rgba(208, 59, 59, .14);
-  --logo: #b388ff; --ring-off: #3a414b;
+  --logo: #b388ff;
   --s1: #a06bff; --s2: #d95926; --s3: #199e70; --s4: #6b7480;
   --z0: #4a525d; --z1: #b5aecb; --z2: #a06bff; --z3: #199e70; --z4: #e0a03a; --z5: #d95926;
   --f-body: 'Geist', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --f-mono: 'Geist Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
-  --r: 12px; --tabh: 62px; --toph: 63px;
+  --r: 12px; --tabh: 62px; --toph: 63px; --hdrdrop: 0px;
+}
+html.hdr-low { --hdrdrop: 14px;
 }
 * { box-sizing: border-box; }
 html, body { background: var(--bg); color: var(--ink); }
 body { font-family: var(--f-body); font-size: 15px; line-height: 1.5; padding-inline: 16px; padding-block: 0 calc(var(--tabh) + 28px + env(safe-area-inset-bottom, 0px)); -webkit-tap-highlight-color: transparent; -webkit-font-smoothing: antialiased; }
-.wrap { max-width: 720px; margin: 0 auto; padding-top: calc(env(safe-area-inset-top, 0px) + var(--toph)); }
+.wrap { max-width: 720px; margin: 0 auto; padding-top: calc(env(safe-area-inset-top, 0px) + var(--toph) + var(--hdrdrop)); }
 h1, h2, h3 { font-weight: 600; line-height: 1.15; margin: 0; letter-spacing: -.015em; text-wrap: balance; }
 p { margin: 0; }
 button, input, select, textarea { font: inherit; color: inherit; }
@@ -65,9 +67,9 @@ button { cursor: pointer; }
 .mono { font-family: var(--f-mono); }
 
 /* header */
-.top { position: fixed; top: 0; left: 0; right: 0; z-index: 20; display: flex; align-items: center; gap: 10px; height: calc(env(safe-area-inset-top, 0px) + var(--toph)); padding: calc(env(safe-area-inset-top, 0px) + 12px) max(16px, calc((100% - 720px) / 2)) 12px; background: var(--bg); border-bottom: 1px solid var(--line); }
+.top { position: fixed; top: 0; left: 0; right: 0; z-index: 20; display: flex; align-items: center; gap: 10px; height: calc(env(safe-area-inset-top, 0px) + var(--toph) + var(--hdrdrop)); padding: calc(env(safe-area-inset-top, 0px) + 12px + var(--hdrdrop)) max(16px, calc((100% - 720px) / 2)) 12px; background: var(--bg); border-bottom: 1px solid var(--line); }
 .brand { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 16px; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; }
-.mark-wrap { display: inline-grid; flex: none; } .mark { width: 24px; height: 24px; flex: none; overflow: visible; }
+.mark-wrap { display: inline-grid; flex: none; } .mark { width: 24px; height: 24px; flex: none; filter: drop-shadow(0 0 2.5px var(--glow)); }
 .sync { font-family: var(--f-mono); font-size: 11px; color: var(--ink-3); display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .sync::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--ink-3); }
 .sync.ok::before { background: var(--good); } .sync.bad::before { background: var(--bad); } .sync.busy::before { background: var(--warn); }
@@ -178,7 +180,7 @@ textarea.in { text-align: left; font-size: 15px; min-height: 76px; padding: 10px
 .dnav-c { flex: 1; text-align: center; display: flex; flex-direction: column; }
 .dnav-c b { font-weight: 600; font-size: 16px; }
 .dnav-c small { color: var(--ink-3); font-size: 12px; }
-.sess-top { position: sticky; top: calc(env(safe-area-inset-top, 0px) + var(--toph)); z-index: 15; display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line-2); }
+.sess-top { position: sticky; top: calc(env(safe-area-inset-top, 0px) + var(--toph) + var(--hdrdrop)); z-index: 15; display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line-2); }
 .sess-top .t { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .sess-top .t b { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sess-top .t small { font-size: 12px; color: var(--ink-3); }
@@ -463,7 +465,7 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.2'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.3'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
@@ -1685,6 +1687,7 @@ function vData() {
     const now = diagNums(), a = window.__launch, a1 = window.__launch1;
     h += `<section class="card"><div class="card-h"><h2>Display check</h2><span class="eyebrow">for fixing layout</span></div>
       <div class="btnrow" style="justify-content:space-between"><span class="xs muted">Layout</span><div class="seg" role="group" aria-label="Layout"><button class="${SHELL ? '' : 'on'}" data-act="layout" data-v="standard">Standard</button><button class="${SHELL ? 'on' : ''}" data-act="layout" data-v="pinned">Pinned</button></div></div>
+      <div class="btnrow" style="justify-content:space-between"><span class="xs muted">Header row</span><div class="seg" role="group" aria-label="Header row"><button class="${document.documentElement.classList.contains('hdr-low') ? '' : 'on'}" data-act="hdr" data-v="normal">Normal</button><button class="${document.documentElement.classList.contains('hdr-low') ? 'on' : ''}" data-act="hdr" data-v="low">14pt lower</button></div></div>
       <div class="tblwrap"><table class="tbl"><thead><tr><th></th><th class="n">Launch</th><th class="n">+1 s</th><th class="n">Now</th></tr></thead><tbody>
       ${keys.map(k => `<tr><td class="mono xs">${k}</td>${row(k, a)}${row(k, a1)}${row(k, now)}</tr>`).join('')}</tbody></table></div>
       <div class="btnrow"><button class="link" data-act="diagrefresh">Refresh</button></div>
@@ -1903,7 +1906,7 @@ function renderMark() { // header ring: where today sits in the rotation, one se
   for (let i = 0; i < n; i++) {
     const a0 = i * 360 / n + gapDeg / 2, a1 = (i + 1) * 360 / n - gapDeg / 2, [x0, y0] = pt(a0), [x1, y1] = pt(a1);
     const d = `M${x0.toFixed(3)} ${y0.toFixed(3)}A${r} ${r} 0 ${a1 - a0 > 180 ? 1 : 0} 1 ${x1.toFixed(3)} ${y1.toFixed(3)}`;
-    arcs += `<path d="${d}" fill="none" stroke="${i < k ? 'var(--logo)' : 'var(--ring-off)'}" stroke-width="2.4" stroke-linecap="round"/>`; // no glow: at 24px any halo reads as blur
+    arcs += `<path d="${d}" fill="none" stroke="${i < k ? 'var(--logo)' : 'var(--line-2)'}" stroke-width="2.4" stroke-linecap="round"/>`;
   }
   if (n === 1) arcs = `<circle cx="12" cy="12" r="${r}" fill="none" stroke="var(--logo)" stroke-width="2.4"/>`;
   el.innerHTML = `<svg class="mark" viewBox="0 0 24 24" fill="none" role="img" aria-label="${esc(sessDef(sid)?.name || '')}, ${k} of ${n} in the rotation"><title>${esc(sessDef(sid)?.name || '')} · ${k} of ${n}</title>${arcs}<circle cx="12" cy="12" r="2.5" fill="var(--ink)"/></svg>`;
@@ -1953,6 +1956,7 @@ const ACT = {
   goal: el => { if (el.dataset.v === 'grow' && S().goal !== 'grow') S().growFrom = today(); S().goal = el.dataset.v; saveSettings(); render(true); },
   goalflip: () => { S().goal = S().goal === 'grow' ? 'hold' : 'grow'; if (S().goal === 'grow') S().growFrom = today(); saveSettings(); toast(S().goal === 'grow' ? `Aim set to overload, +${fmt((S().progRate ?? 0.005) * 100, 2)}% a week` : 'Aim set to maintenance'); render(true); },
   prograte: el => { S().progRate = +el.dataset.v; if (S().goal === 'grow') S().growFrom = today(); saveSettings(); render(true); },
+  hdr: el => { try { localStorage.setItem('orbit-hdr', el.dataset.v); } catch (e) { } document.documentElement.classList.toggle('hdr-low', el.dataset.v === 'low'); render(true); },
   layout: el => { try { localStorage.setItem('orbit-layout', el.dataset.v); } catch (e) { } location.reload(); },
   diagrefresh: () => render(true),
   update: () => { location.replace(location.pathname + '?v=' + encodeURIComponent(ui.update || Date.now())); },
