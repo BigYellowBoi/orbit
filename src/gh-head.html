@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" class="shell">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -12,10 +12,13 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="manifest" href="manifest.webmanifest">
+<script>/* layout: 'standard' (page scrolls, the default) or 'pinned' (html.shell). Switch on the Data screen. */
+try { if (localStorage.getItem('orbit-layout') === 'pinned') document.documentElement.classList.add('shell'); } catch (e) { }</script>
 <style>
 html, body { margin: 0; }
 html { -webkit-text-size-adjust: 100%; }
-/* App shell for the home-screen app: the page is pinned and can't move, so iOS has nothing to shift or inset.
+html:not(.shell) body { min-height: 100vh; } /* vh includes the safe areas in home-screen apps (WebKit bug 254868) */
+/* Pinned layout (opt-in on the Data screen while it's tested on iOS). App shell: the page is pinned and can't move, so iOS has nothing to shift or inset.
    Only #scroll scrolls; the header and tab bar sit outside it.
    WebKit bug 254868: in home-screen apps with viewport-fit=cover, 100%, svh and visualViewport come out short by the
    status bar and home indicator, and absolutely positioned bottom elements float above the real edge. vh includes

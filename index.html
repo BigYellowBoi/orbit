@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" class="shell">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -12,10 +12,13 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="manifest" href="manifest.webmanifest">
+<script>/* layout: 'standard' (page scrolls, the default) or 'pinned' (html.shell). Switch on the Data screen. */
+try { if (localStorage.getItem('orbit-layout') === 'pinned') document.documentElement.classList.add('shell'); } catch (e) { }</script>
 <style>
 html, body { margin: 0; }
 html { -webkit-text-size-adjust: 100%; }
-/* App shell for the home-screen app: the page is pinned and can't move, so iOS has nothing to shift or inset.
+html:not(.shell) body { min-height: 100vh; } /* vh includes the safe areas in home-screen apps (WebKit bug 254868) */
+/* Pinned layout (opt-in on the Data screen while it's tested on iOS). App shell: the page is pinned and can't move, so iOS has nothing to shift or inset.
    Only #scroll scrolls; the header and tab bar sit outside it.
    WebKit bug 254868: in home-screen apps with viewport-fit=cover, 100%, svh and visualViewport come out short by the
    status bar and home indicator, and absolutely positioned bottom elements float above the real edge. vh includes
@@ -1669,6 +1672,17 @@ function vData() {
     <div class="btnrow"><button class="btn sm ghost" data-act="export" data-v="json">Save full backup (.json)</button><button class="btn sm ghost" data-act="export" data-v="csv">Save sets (.csv)</button></div>
     ${ui.exportText ? `<div class="exportbox sec"><span class="xs muted">Saving files isn't available here. Copy this instead.</span><textarea class="in" id="exporttext" readonly>${esc(ui.exportText)}</textarea><button class="btn sm" data-act="copyexport">Copy</button></div>` : ''}
     <label class="fl">Restore from a backup<input type="file" class="file" id="f_backup" accept=".json,application/json" data-in="fbackup"></label></section>`;
+  if (window.GH_SYNC) {
+    const row = (k, o) => o ? `<td class="n">${esc(String(o[k]))}</td>` : '';
+    const keys = ['layout', 'standalone', 'screen', 'inner', 'client', 'vv', 'vh', 'dvh', 'svh', 'lvh', 'safeTop', 'safeBottom', 'scroll', 'winScroll', 'docH', 'headerBottom', 'firstTop', 'tabs'];
+    const now = diagNums(), a = window.__launch, a1 = window.__launch1;
+    h += `<section class="card"><div class="card-h"><h2>Display check</h2><span class="eyebrow">for fixing layout</span></div>
+      <div class="btnrow" style="justify-content:space-between"><span class="xs muted">Layout</span><div class="seg" role="group" aria-label="Layout"><button class="${SHELL ? '' : 'on'}" data-act="layout" data-v="standard">Standard</button><button class="${SHELL ? 'on' : ''}" data-act="layout" data-v="pinned">Pinned</button></div></div>
+      <div class="tblwrap"><table class="tbl"><thead><tr><th></th><th class="n">Launch</th><th class="n">+1 s</th><th class="n">Now</th></tr></thead><tbody>
+      ${keys.map(k => `<tr><td class="mono xs">${k}</td>${row(k, a)}${row(k, a1)}${row(k, now)}</tr>`).join('')}</tbody></table></div>
+      <div class="btnrow"><button class="link" data-act="diagrefresh">Refresh</button></div>
+      <p class="xs muted">Measurements in points, from your phone. Switching layout reloads the app; your data stays.</p></section>`;
+  }
   h += `<section class="card"><div class="card-h"><h2>Start over</h2></div>
     ${ui.confirm === 'reset' ? `<p class="small">This deletes every session, import and setting, here and in cloud storage. Save a backup first if you might want it.</p><div class="btnrow"><button class="btn danger sm" data-act="reset">Delete everything</button><button class="link dim" data-act="confirm" data-v="">Cancel</button></div>`
       : `<button class="link danger" data-act="confirm" data-v="reset" style="align-self:flex-start">Delete all data</button>`}</section>`;
@@ -1842,8 +1856,19 @@ const SHELL = document.documentElement.classList.contains('shell');
 const scroller = () => SHELL ? $('#scroll') : window;
 const scrollY0 = () => SHELL ? $('#scroll').scrollTop : window.scrollY;
 const scrollToY = (top, smooth) => scroller().scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' });
+/* Display diagnostics (Data screen): what the phone reports, to debug iOS home-screen layout from screenshots. */
+function diagNums() {
+  const pr = css => { const d = document.createElement('div'); d.style.cssText = 'position:fixed;left:0;top:0;width:1px;visibility:hidden;pointer-events:none;' + css; document.body.appendChild(d); const r = d.getBoundingClientRect(); d.remove(); return r; };
+  const vh = u => Math.round(pr(`height:100${u}`).height);
+  const r = sel => $(sel)?.getBoundingClientRect(), vv = window.visualViewport;
+  return { layout: SHELL ? 'pinned' : 'standard', standalone: !!navigator.standalone || matchMedia('(display-mode: standalone)').matches,
+    screen: `${screen.width}×${screen.height}`, inner: `${innerWidth}×${innerHeight}`, client: document.documentElement.clientHeight, vv: vv ? `${Math.round(vv.height)} @${Math.round(vv.offsetTop)}` : '–',
+    vh: vh('vh'), dvh: vh('dvh'), svh: vh('svh'), lvh: vh('lvh'), safeTop: Math.round(parseFloat(getComputedStyle($('.top')).paddingTop) - 12), safeBottom: Math.round(parseFloat(getComputedStyle($('.tabs')).paddingBottom)),
+    scroll: Math.round(scrollY0()), winScroll: Math.round(window.scrollY), docH: document.documentElement.scrollHeight,
+    headerBottom: Math.round(r('.top')?.bottom), firstTop: Math.round(r('#view > *')?.top), tabs: `${Math.round(r('.tabs')?.top)}–${Math.round(r('.tabs')?.bottom)}` };
+}
 function resetScroll() { // to the top, and stop any momentum still running (iOS keeps flinging unless overflow is cut for a frame)
-  if (!SHELL) { window.scrollTo(0, 0); return; }
+  if (!SHELL) { const de = document.documentElement; de.style.overflow = 'hidden'; window.scrollTo(0, 0); requestAnimationFrame(() => { de.style.overflow = ''; window.scrollTo(0, 0); }); return; }
   const s = $('#scroll'); s.style.overflowY = 'hidden'; s.scrollTop = 0; requestAnimationFrame(() => { s.style.overflowY = ''; });
 }
 let pendingRender = false;
@@ -1919,6 +1944,8 @@ const ACT = {
   goal: el => { if (el.dataset.v === 'grow' && S().goal !== 'grow') S().growFrom = today(); S().goal = el.dataset.v; saveSettings(); render(true); },
   goalflip: () => { S().goal = S().goal === 'grow' ? 'hold' : 'grow'; if (S().goal === 'grow') S().growFrom = today(); saveSettings(); toast(S().goal === 'grow' ? `Aim set to overload, +${fmt((S().progRate ?? 0.005) * 100, 2)}% a week` : 'Aim set to maintenance'); render(true); },
   prograte: el => { S().progRate = +el.dataset.v; if (S().goal === 'grow') S().growFrom = today(); saveSettings(); render(true); },
+  layout: el => { try { localStorage.setItem('orbit-layout', el.dataset.v); } catch (e) { } location.reload(); },
+  diagrefresh: () => render(true),
   edittoday: () => { ui.editToday = true; render(true); },
   pastlog: () => { ui.logDate = addDays(today(), -1); ui.pickSess = null; go('log'); },
   exhist: el => { const i = +el.dataset.e; ui.exHist = ui.exHist === i ? null : i; render(true); },
@@ -2098,6 +2125,9 @@ document.addEventListener('keydown', ev => {
 (function boot() {
   try { history.scrollRestoration = 'manual'; } catch (e) { }
   const top = () => { window.scrollTo(0, 0); scrollToY(0); }; // opening the app always starts at the top
+  // iOS home-screen launches can sit at an offset that a plain scrollTo(0, 0) treats as already done; a 1px nudge forces a real scroll
+  window.addEventListener('load', () => setTimeout(() => { if (!SHELL) { window.scrollTo(0, 1); window.scrollTo(0, 0); } }, 60));
+  setTimeout(() => { window.__launch = diagNums(); }, 0); setTimeout(() => { window.__launch1 = diagNums(); }, 1000);
   window.addEventListener('pageshow', top); window.addEventListener('load', top);
   const loc = loadLocal();
   if (loc) { STATE.settings = migrateSettings(loc.settings); STATE.w = loc.w || {}; STATE.d = loc.d || {}; }
