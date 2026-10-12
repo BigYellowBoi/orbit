@@ -4,7 +4,7 @@ const { chromium } = require(process.env.PLAYWRIGHT || 'playwright');
   p.on('pageerror', e => errs.push(e.message)); await p.route('https://fonts.**', r => r.abort());
   await p.goto('file://' + require('path').resolve(__dirname, '../dist/artifact.html'));
   await p.evaluate(() => { const d = addDays(today(), -4); const w = newWorkout(d, 'pull'); w.ex.forEach(e => e.sets.forEach(s => { s.w = 40; s.r = 8; s.done = true; })); w.note = 'Grip went first on rows, use straps next time'; w.ex[0].note = 'T-bar: chest pad at notch 3'; STATE.w[d] = w; S().rotOverride = { id: 'pull', from: today() }; render(true); });
-  await p.click('.tabs [data-tab="log"]'); await p.click('[data-act="start"]');
+  await p.click('[data-act="start"]');
   console.log('last note banner:', (await p.textContent('.lastnote')).replace(/\s+/g, ' '));
   console.log('ex last note:', await p.textContent('#ex0 .ex-lastnote'));
   await p.click('#ex1 [data-act="exnote"]'); await p.keyboard.type('Pulldown: thumbless grip'); await p.click('body');

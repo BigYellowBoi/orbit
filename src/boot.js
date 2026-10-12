@@ -170,7 +170,7 @@ function render(force) {
   v.style.minHeight = '';
   if (Math.abs(window.scrollY - y) > 1) window.scrollTo(0, y); // a re-render keeps your place; changing tabs scrolls to the top in go()
   drawCharts(v);
-  document.querySelectorAll('.tabs [data-tab]').forEach(b => b.setAttribute('aria-current', b.dataset.tab === ui.tab ? 'page' : 'false'));
+  document.querySelectorAll('.tabs [data-tab]').forEach(b => b.setAttribute('aria-current', b.dataset.tab === (ui.tab === 'log' ? 'history' : ui.tab) ? 'page' : 'false'));
   const g = $('#gear'); g.setAttribute('aria-current', ui.tab === 'data' ? 'page' : 'false'); g.setAttribute('aria-label', ui.tab === 'data' ? 'Back' : 'Data, imports and backups');
   renderSync(); renderMark();
 }
@@ -188,11 +188,21 @@ function renderMark() { // header ring: where today sits in the rotation, one se
   el.innerHTML = `<svg class="mark" viewBox="0 0 24 24" fill="none" role="img" aria-label="${esc(sessDef(sid)?.name || '')}, ${k} of ${n} in the rotation"><title>${esc(sessDef(sid)?.name || '')} · ${k} of ${n}</title>${arcs}<circle cx="12" cy="12" r="2.5" fill="var(--ink)"/></svg>`;
 }
 document.addEventListener('focusout', () => setTimeout(() => { if (pendingRender && !editingInView()) render(); }, 60));
-function go(tab) { ui.exNote = null; ui.noteEdit = null; if (tab === 'trends' && ui.tab !== 'trends') { ui.metric = 'rec'; ui.per = 'M'; ui.off = 0; } if (tab === 'data' && ui.tab === 'data') tab = ui.prevTab || 'today'; else if (tab === 'data') ui.prevTab = ui.tab; ui.tab = tab; ui.confirm = null; ui.pickSess = null; ui.editEx = null; if (tab === 'log' && !ui.logDate) ui.logDate = today(); window.scrollTo(0, 0); render(true); if (tab === 'log') wakeLock(); }
+const logging = () => ui.tab === 'log' || (ui.tab === 'today' && !!STATE.w[today()]);
+function go(tab) {
+  if (tab === 'trends') tab = 'body';
+  if (tab === 'log' && (!ui.logDate || ui.logDate >= today())) tab = 'today'; // today's log lives on Today
+  ui.exNote = null; ui.noteEdit = null; ui.exHist = null;
+  if (tab === 'body' && ui.tab !== 'body') { ui.metric = 'rec'; ui.per = 'M'; ui.off = 0; }
+  if (tab === 'data' && ui.tab === 'data') tab = ui.prevTab || 'today'; else if (tab === 'data') ui.prevTab = ui.tab;
+  if (tab === 'today') ui.logDate = null;
+  ui.tab = tab; ui.confirm = null; ui.pickSess = null; ui.editEx = null;
+  window.scrollTo(0, 0); render(true); if (logging()) wakeLock();
+}
 let toastT;
 function toast(html, kind) { const t = $('#toast'); t.innerHTML = html; t.className = 'toast show ' + (kind || ''); clearTimeout(toastT); toastT = setTimeout(() => t.className = 'toast', kind === 'pr' ? 4000 : 2600); }
 let wl = null; async function wakeLock() { try { if ('wakeLock' in navigator && !wl) { wl = await navigator.wakeLock.request('screen'); wl.addEventListener('release', () => wl = null); } } catch (e) { } }
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && ui.tab === 'log') wakeLock(); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && logging()) wakeLock(); });
 
 /* ============================================================
    ACTIONS
@@ -202,11 +212,12 @@ const ACT = {
   go: el => go(el.dataset.tab),
   start: el => {
     const date = ui.tab === 'log' ? (ui.logDate || today()) : today(), sid = el.dataset.id;
-    if (STATE.w[date] && !STATE.w[date].rest) { ui.logDate = date; go('log'); return; }
+    const open = () => { if (date === today()) go('today'); else { ui.logDate = date; go('log'); } };
+    if (STATE.w[date] && !STATE.w[date].rest) { open(); return; }
     if (!sessDef(sid) || isRestSlot(sid)) return;
     const w = newWorkoutAuto(date, sid);
     STATE.w[date] = w; if (S().rotOverride) { S().rotOverride = null; saveSettings(); }
-    saveW(date); ui.logDate = date; go('log');
+    saveW(date); open();
   },
   restday: () => { const date = ui.tab === 'log' ? (ui.logDate || today()) : today(); if (STATE.w[date]) return; STATE.w[date] = restRecord(date); saveW(date); toast('Rest day logged'); render(true); },
   unrest: () => { const date = ui.tab === 'log' ? (ui.logDate || today()) : today(); if (STATE.w[date]?.rest) { delete STATE.w[date]; saveW(date); } render(true); },
@@ -215,8 +226,12 @@ const ACT = {
   picktoday: () => { ui.pickSess = 'today'; render(true); },
   setnext: el => { S().rotOverride = { id: el.dataset.id, from: today() }; ui.pickSess = null; saveSettings(); render(true); },
   picksess: el => { ui.pickSess = el.dataset.id; render(true); },
-  logday: el => { const d = addDays(ui.logDate || today(), +el.dataset.n); if (d > today()) return; ui.logDate = d; ui.pickSess = null; ui.confirm = null; window.scrollTo(0, 0); render(true); },
+  logday: el => { const d = addDays(ui.logDate || today(), +el.dataset.n); if (d >= today()) { go('today'); return; } ui.logDate = d; ui.pickSess = null; ui.confirm = null; window.scrollTo(0, 0); render(true); },
   openlog: el => { ui.logDate = el.dataset.d; go('log'); },
+  pastlog: () => { ui.logDate = addDays(today(), -1); ui.pickSess = null; go('log'); },
+  exhist: el => { const i = +el.dataset.e; ui.exHist = ui.exHist === i ? null : i; render(true); },
+  liftsel: el => { ui.lift = el.dataset.id; render(true); const c = $('#liftchart'); if (c && c.getBoundingClientRect().top < ($('.top')?.getBoundingClientRect().bottom || 0)) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); },
+  liftgo: el => { ui.lift = el.dataset.id; go('strength'); },
   addset: el => { const w = logW(), e = w.ex[+el.dataset.e]; const l = e.sets[e.sets.length - 1]; e.sets.push({ w: null, r: null, pw: l ? (l.w ?? l.pw) : null, pr: l ? (l.r ?? l.pr) : null, done: false }); saveW(w.date); render(true); setTimeout(() => $(`#r${el.dataset.e}_${e.sets.length - 1}`)?.focus(), 30); },
   remset: el => { const w = logW(), e = w.ex[+el.dataset.e]; if (e.sets.length > 1) e.sets.pop(); saveW(w.date); render(true); },
   remex: el => { const w = logW(), i = +el.dataset.e, e = w.ex[i]; if (doneSets(e).length && ui.confirm !== 'remex' + i) { ui.confirm = 'remex' + i; toast('Tap Remove again to drop logged sets'); return; } w.ex.splice(i, 1); ui.confirm = null; saveW(w.date); render(true); },
@@ -233,7 +248,7 @@ const ACT = {
   logdone: () => {
     const a = document.activeElement; if (a && a.blur) a.blur(); // make sure the last edit is saved
     const w = logW(); if (w && !w.rest) { const st = wStats(w); toast(`${esc(sessName(w))} saved · ${st.sets} set${st.sets === 1 ? '' : 's'}`); }
-    ui.logDate = null; go('today');
+    if (ui.tab === 'today') { window.scrollTo({ top: 0, behavior: 'smooth' }); render(true); } else go('history');
   },
   histview: el => { ui.hist = el.dataset.v; ui.noteEdit = null; render(true); },
   notefilter: el => { ui.noteG = el.dataset.v; ui.noteEdit = null; render(true); },
@@ -290,6 +305,7 @@ const INP = {
   addex: el => { const id = el.value; if (!id) return; const w = logW(); w.ex.push({ id, sets: prefill(id, 3, w.date) }); saveW(w.date); render(true); setTimeout(() => $('#ex' + (w.ex.length - 1))?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50); },
   note: el => { const w = logW(); w.note = el.value; saveW(w.date); },
   exnote: el => { const w = logW(), e = w.ex[+el.dataset.e]; const v = el.value.trim(); if (v) e.note = el.value; else delete e.note; ui.exNote = null; saveW(w.date); },
+  durmin: el => { const w = logW(), n = parseInt(el.value, 10); if (n > 0) w.durMin = n; else delete w.durMin; saveW(w.date); render(); },
   cmin: el => { const w = logW(); w.cardio = w.cardio || { name: S().cardio.name, done: false }; w.cardio.min = num(el.value); w.cardio.manual = true; saveW(w.date); },
   clvl: el => { const w = logW(); w.cardio = w.cardio || { name: S().cardio.name, min: S().cardio.min, done: false }; w.cardio.lvl = el.value.trim() || null; saveW(w.date); },
   lift: el => { ui.lift = el.value; render(true); },
@@ -386,8 +402,7 @@ document.addEventListener('keydown', ev => {
   window.addEventListener('pageshow', top); window.addEventListener('load', top);
   const loc = loadLocal();
   if (loc) { STATE.settings = migrateSettings(loc.settings); STATE.w = loc.w || {}; STATE.d = loc.d || {}; }
-  const h = (location.hash || '').slice(1); if (VIEWS[h]) ui.tab = h;
-  if (ui.tab === 'log') ui.logDate = today();
+  const h = (location.hash || '').slice(1), hh = h === 'trends' ? 'body' : h; if (VIEWS[hh] && hh !== 'log') ui.tab = hh;
   render(true); top(); requestAnimationFrame(top);
   connectCloud();
 })();

@@ -36,7 +36,7 @@ const MOCK = seed => `(() => {
   await page.route('https://fonts.**', r => r.abort());
   await page.goto('file://' + B + '/dist/artifact.html'); await page.waitForTimeout(600);
   console.log('session2 workouts:', await page.evaluate(() => Object.keys(STATE.w)), 'sync:', await page.evaluate(() => Cloud.ready));
-  console.log('session2 today hero:', (await page.textContent('.hero')).replace(/\s+/g, ' ').slice(0, 80));
+  console.log('session2 today log:', (await page.textContent('.sess-top')).replace(/\s+/g, ' ').slice(0, 80));
   // edit settings → saved to cloud
   await page.evaluate(() => { S().cardio.min = 25; saveSettings(); });
   await page.waitForTimeout(1200);

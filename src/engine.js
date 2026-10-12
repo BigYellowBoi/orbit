@@ -209,7 +209,7 @@ function whoopCardio(date, name) { // WHOOP activities matching a cardio type
   return (STATE.d[date]?.acts || []).filter(a => re.test(a.n) && (liftEnd >= 0 ? near(a) : /stair|climb|tread/i.test(a.n)));
 }
 function autoCardio(w) { // fill cardio from WHOOP unless you've set it yourself; returns true if it changed
-  if (!w || w.cardioOff || w.cardio?.manual) return false;
+  if (!w || w.cardioOff) return false; // WHOOP has the final say over hand-entered cardio; only removing cardio opts out
   const cur = w.cardio?.name || S().cardio.name, order = [cur, ...Object.keys(CARDIO_RE).filter(n => n !== cur)];
   for (const name of order) {
     const acts = whoopCardio(w.date, name), min = Math.round(sum(acts.map(a => a.min || 0)));
@@ -220,7 +220,7 @@ function autoCardio(w) { // fill cardio from WHOOP unless you've set it yourself
   }
   return false;
 }
-function sessDur(w) { const m = whoopLiftMin(w.date); return m != null ? m * 60 : (w.dur || null); } // seconds; WHOOP first, older timer logs as fallback
+function sessDur(w) { const m = whoopLiftMin(w.date); return m != null ? m * 60 : w.durMin ? w.durMin * 60 : (w.dur || null); } // seconds; WHOOP first, then minutes entered by hand, then old timer logs
 
 /* ============================================================
    VOLUME — direct working sets per muscle group

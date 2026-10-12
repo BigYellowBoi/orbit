@@ -24,6 +24,8 @@ const METRICS = [
   { id: 'hrv', g: 'Recovery', label: 'Heart rate variability', short: 'HRV', unit: 'ms', src: 'WHOOP', v: dv('hrv'), chart: 'line', band: true, better: 1, f: v => fmt(v, 0) },
   { id: 'rhr', g: 'Recovery', label: 'Resting heart rate', unit: 'bpm', src: 'WHOOP', v: dv('rhr'), chart: 'line', better: -1, f: v => fmt(v, 0) },
   { id: 'rr', g: 'Recovery', label: 'Respiratory rate', unit: 'rpm', src: 'WHOOP', v: dv('rr'), chart: 'line', better: 0, f: v => fmt(v, 1) },
+  { id: 'spo2', g: 'Recovery', label: 'Blood oxygen', unit: '%', src: 'WHOOP', v: dv('spo2'), chart: 'line', better: 0, f: v => fmt(v, 1) },
+  { id: 'skt', g: 'Recovery', label: 'Skin temperature', unit: '°C', src: 'WHOOP', v: dv('skt'), chart: 'line', better: 0, f: v => fmt(v, 1) },
   // Sleep
   { id: 'sp', g: 'Sleep', label: 'Sleep performance', unit: '%', src: 'WHOOP', v: dv('sp'), chart: 'bar', better: 1, f: v => fmt(v, 0), yMin: 0, yMax: 100,
     breakdown: sevBreak([['Optimal (85%+)', v => v >= 85, 'var(--good)'], ['Sufficient (70–84%)', v => v >= 70 && v < 85, 'var(--z1)'], ['Poor (under 70%)', v => v < 70, 'var(--warn)']]) },
@@ -139,7 +141,7 @@ function explorerChart(m, days, start, n) {
     case 'line': {
       const pts = has.map(d => ({ x: xi(d), y: m.v(d) }));
       const area = m.band ? days.map(d => { const b = hrvBand(d); return b ? { x: xi(d), lo: b.lo, hi: b.hi } : null; }).filter(Boolean) : null;
-      return chartHTML({ ...base, yPad: m.id === 'rr' ? .3 : 2, yFmt: v => fmt(v, m.id === 'rr' ? 1 : 0), area, areaGap: 3,
+      return chartHTML({ ...base, yPad: ['rr', 'skt', 'spo2'].includes(m.id) ? .3 : 2, yFmt: v => fmt(v, ['rr', 'skt'].includes(m.id) ? 1 : 0), area, areaGap: 3,
         series: [{ color: 'var(--s1)', pts, gap: n > 60 ? 6 : 3, dots: n <= 31, r: 3, end: true, w: n > 60 ? 1.6 : 2, labels: lab ? p => m.f(p.y) : null }] });
     }
     case 'dual': {

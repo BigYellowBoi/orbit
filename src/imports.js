@@ -43,7 +43,7 @@ function numCell(v) { if (v == null || v === '') return null; if (typeof v === '
 
 /* ---------- WHOOP ---------- */
 const WHOOP_CYCLE = { rec: 'recovery score', hrv: 'heart rate variability', rhr: 'resting heart rate', str: 'day strain', kb: 'energy burned', slp: 'asleep duration', sp: 'sleep performance',
-  sn: 'sleep need', sd: 'sleep debt', se: 'sleep efficiency', sc: 'sleep consistency', deep: 'deep sws duration', rem: 'rem duration', lt: 'light sleep duration', aw: 'awake duration', bed: 'in bed duration', rr: 'respiratory rate' };
+  sn: 'sleep need', sd: 'sleep debt', se: 'sleep efficiency', sc: 'sleep consistency', deep: 'deep sws duration', rem: 'rem duration', lt: 'light sleep duration', aw: 'awake duration', bed: 'in bed duration', rr: 'respiratory rate', spo2: 'blood oxygen', skt: 'skin temp' };
 function whoopKind(head) {
   const h = head.map(norm);
   if (h.some(x => x.startsWith('recovery score')) && h.some(x => x.startsWith('cycle start time'))) return 'cycles';
@@ -153,7 +153,7 @@ async function readMfFiles(files) {
 }
 function previewRange(days) { const ds = Object.keys(days).sort(); return ds.length ? `${fmtDate(ds[0], { year: 'numeric' })} to ${fmtDate(ds[ds.length - 1], { year: 'numeric' })}` : ''; }
 function applyImport(p) {
-  const months = new Set(); const keysBySrc = { whoop: ['rec', 'hrv', 'rhr', 'str', 'kb', 'slp', 'sp', 'sn', 'sd', 'se', 'sc', 'deep', 'rem', 'lt', 'aw', 'bed', 'rr', 'on', 'off', 'alc', 'acts'], mf: ['kcal', 'p', 'c', 'f', 'wt', 'tw', 'exp', 'kT', 'pT'] }[p.src];
+  const months = new Set(); const keysBySrc = { whoop: ['rec', 'hrv', 'rhr', 'str', 'kb', 'slp', 'sp', 'sn', 'sd', 'se', 'sc', 'deep', 'rem', 'lt', 'aw', 'bed', 'rr', 'spo2', 'skt', 'on', 'off', 'alc', 'acts'], mf: ['kcal', 'p', 'c', 'f', 'wt', 'tw', 'exp', 'kT', 'pT'] }[p.src];
   for (const date in p.days) {
     const cur = STATE.d[date] || {}; const nx = { ...cur };
     for (const k of keysBySrc) if (p.days[date][k] != null) nx[k] = p.days[date][k];
