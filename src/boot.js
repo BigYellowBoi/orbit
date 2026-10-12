@@ -254,7 +254,6 @@ const ACT = {
   goal: el => { if (el.dataset.v === 'grow' && S().goal !== 'grow') S().growFrom = today(); S().goal = el.dataset.v; saveSettings(); render(true); },
   goalflip: () => { S().goal = S().goal === 'grow' ? 'hold' : 'grow'; if (S().goal === 'grow') S().growFrom = today(); saveSettings(); toast(S().goal === 'grow' ? `Aim set to overload, +${fmt((S().progRate ?? 0.005) * 100, 2)}% a week` : 'Aim set to maintenance'); render(true); },
   prograte: el => { S().progRate = +el.dataset.v; if (S().goal === 'grow') S().growFrom = today(); saveSettings(); render(true); },
-  hdr: el => { try { localStorage.setItem('orbit-hdr', el.dataset.v); } catch (e) { } document.documentElement.classList.toggle('hdr-low', el.dataset.v === 'low'); render(true); },
   layout: el => { try { localStorage.setItem('orbit-layout', el.dataset.v); } catch (e) { } location.reload(); },
   diagrefresh: () => render(true),
   update: () => { location.replace(location.pathname + '?v=' + encodeURIComponent(ui.update || Date.now())); },

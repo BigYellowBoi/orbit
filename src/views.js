@@ -388,7 +388,6 @@ function vData() {
     const now = diagNums(), a = window.__launch, a1 = window.__launch1;
     h += `<section class="card"><div class="card-h"><h2>Display check</h2><span class="eyebrow">for fixing layout</span></div>
       <div class="btnrow" style="justify-content:space-between"><span class="xs muted">Layout</span><div class="seg" role="group" aria-label="Layout"><button class="${SHELL ? '' : 'on'}" data-act="layout" data-v="standard">Standard</button><button class="${SHELL ? 'on' : ''}" data-act="layout" data-v="pinned">Pinned</button></div></div>
-      <div class="btnrow" style="justify-content:space-between"><span class="xs muted">Header row</span><div class="seg" role="group" aria-label="Header row"><button class="${document.documentElement.classList.contains('hdr-low') ? '' : 'on'}" data-act="hdr" data-v="normal">Normal</button><button class="${document.documentElement.classList.contains('hdr-low') ? 'on' : ''}" data-act="hdr" data-v="low">14pt lower</button></div></div>
       <div class="tblwrap"><table class="tbl"><thead><tr><th></th><th class="n">Launch</th><th class="n">+1 s</th><th class="n">Now</th></tr></thead><tbody>
       ${keys.map(k => `<tr><td class="mono xs">${k}</td>${row(k, a)}${row(k, a1)}${row(k, now)}</tr>`).join('')}</tbody></table></div>
       <div class="btnrow"><button class="link" data-act="diagrefresh">Refresh</button></div>
