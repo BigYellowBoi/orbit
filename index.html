@@ -15,9 +15,12 @@
 <style>
 html, body { margin: 0; }
 html { -webkit-text-size-adjust: 100%; }
-/* app shell: the page itself never scrolls; <body> is the scroller */
-html.shell { height: 100%; overflow: hidden; }
-html.shell body { height: 100%; overflow-y: auto; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; }
+/* App shell for the home-screen app: the page is pinned and can't move, so iOS has nothing to shift or inset.
+   Only #scroll scrolls; the header and tab bar sit outside it. */
+html.shell, html.shell body { height: 100%; overflow: hidden; overscroll-behavior: none; }
+html.shell body { position: fixed; inset: 0; padding: 0; }
+html.shell #scroll { position: absolute; inset: 0; overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain;
+  padding: 0 16px calc(var(--tabh) + 28px + env(safe-area-inset-bottom, 0px)); }
 </style>
 <title>Orbit</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -336,13 +339,11 @@ details.more > summary::-webkit-details-marker { display: none; }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header class="top">
+<header class="top">
     <span class="brand"><span id="mark" class="mark-wrap"></span>Orbit</span>
     <button class="iconbtn" id="gear" data-act="go" data-tab="data" aria-label="Data, imports and backups"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg></button>
-  </header>
-  <main id="view"></main>
-</div>
+</header>
+<div id="scroll"><div class="wrap"><main id="view"></main></div></div>
 <nav class="tabs" aria-label="Sections"><div class="tabs-in">
   <button data-act="go" data-tab="today"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 8 8"/><path d="M12 8v4l2.5 2"/></svg>Today</button>
   <button data-act="go" data-tab="history"><svg viewBox="0 0 24 24"><path d="M5 6h14M5 12h14M5 18h9"/></svg>History</button>
@@ -445,7 +446,7 @@ const PRESETS = {
 };
 function defaultSettings() {
   const p = PRESETS.ppl4;
-  return { v: 1, preset: 'ppl4', prog: { order: p.order.slice(), sessions: clone(p.sessions) }, ex: clone(EXLIB), plateKg: 20, cardio: { name: 'Stairmaster', min: 30 }, proteinT: null, rotOverride: null, imports: {}, suggest: true };
+  return { v: 1, preset: 'ppl4', prog: { order: p.order.slice(), sessions: clone(p.sessions) }, ex: clone(EXLIB), plateKg: 20, cardio: { name: 'Stairmaster', min: 30 }, proteinT: null, rotOverride: null, imports: {}, suggest: true, progRate: 0.005 };
 }
 function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 }; }
 
@@ -609,6 +610,27 @@ function suggest(exId, before) { // { w, r, rir } or null
   }
   r = Math.max(d.lo, Math.min(d.hi, r));
   return { w: +w.toFixed(3), r, rir };
+}
+/* PROGRESSION PLAN (Plan tab): where each lift could be over the next weeks if you push it.
+   Target strength rises by a fixed % a week from your current strength (same reference as the Aim).
+   Each week's prescription keeps the lift's reps in reserve: reps climb at a fixed load until the top of
+   the range, then the load steps up and reps drop back (double progression). */
+function progression(exId, weeks, rate) {
+  const d = exDef(exId), ref = strengthRef(exId, today()); if (!ref) return null;
+  const rir = exRir(exId), out = [];
+  if (d.u === 'bw') {
+    const add = ref.top.w || 0;
+    for (let k = 0; k <= weeks; k++) { const e = ref.v * (1 + rate) ** k; out.push({ k, w: add, r: Math.max(1, Math.floor(e - add / 2.5 + 1e-6) - rir), g: e / ref.v - 1 }); }
+    return out;
+  }
+  const step = exStep(exId), mid = Math.round((d.lo + d.hi) / 2), repsAt = (e, w) => Math.floor(30 * (e / w - 1) + 1e-6) - rir;
+  let w = Math.floor(ref.v / (1 + (mid + rir) / 30) / step + 1e-6) * step; if (w <= 0) return null;
+  for (let k = 0; k <= weeks; k++) {
+    const e = ref.v * (1 + rate) ** k; let r = repsAt(e, w);
+    if (r > d.hi) { const r2 = repsAt(e, w + step); if (r2 >= d.lo) { w += step; r = r2; } else r = Math.min(r, d.hi + 2); } // big jumps (2 kg dumbbells): a rep or two over the range until the next load fits
+    out.push({ k, w: +w.toFixed(3), r: Math.max(d.lo, r), g: e / ref.v - 1 });
+  }
+  return out;
 }
 function suggestTxt(exId, sg) { const u = exDef(exId).u, w = fmt(sg.w, 2); return u === 'bw' ? (sg.w ? `BW+${w} × ${sg.r}` : `${sg.r} reps`) : `${w} ${u === 'plates' ? 'pl' : 'kg'} × ${sg.r}`; }
 
@@ -1283,7 +1305,8 @@ function vToday() {
   const t = today(), w = STATE.w[t], sid = w ? w.s : sessionFor(t), sd = sessDef(sid), o = order(), idx = o.indexOf(sid);
   let h = `<div class="page-h"><div><div class="eyebrow">${esc(fmtDow(t))} ${esc(fmtDate(t, { year: 'numeric' }))}</div><h1>Today</h1></div>${o.length ? `<span class="pill plain">Rotation ${rotationCount() + 1}</span>` : ''}</div>`;
   const tail = () => whoopCard() + stripHTML() + weekCard();
-  if (w) return h + logBody(t) + tail();
+  if (w && (!w.fin || ui.editToday)) return h + logBody(t) + tail(); // the log, until you press Done
+  if (w) return h + doneHero(w, idx, o) + tail();
   if (!sd) return h + `<section class="card"><p>Your programme has no sessions. Add one in Plan.</p><button class="btn" data-act="go" data-tab="plan">Open Plan</button></section>`;
   if (sd.rest) return h + plannedRestHero(sid) + tail();
   h += `<section class="card hero"><div class="card-h"><span class="eyebrow">Next up · ${idx + 1} of ${o.length}</span></div>
@@ -1295,6 +1318,19 @@ function vToday() {
     ${ui.pickSess === 'today' ? `<div class="sec"><span class="xs muted">Do a different session today. The rotation carries on from whichever you log.</span><div class="chips">${trainIds().map(id => `<button class="chip ${id === sid ? 'on' : ''}" data-act="setnext" data-id="${id}">${esc(sessDef(id).name)}</button>`).join('')}</div></div>`
       : `<div class="btnrow" style="justify-content:space-between"><button class="link" data-act="picktoday">Change today's session</button><button class="link dim" data-act="restday">Rest day instead</button></div>`}</section>`;
   return h + tail();
+}
+function doneHero(w, idx, o) { // today after Done: a summary, with the log one tap away
+  if (w.rest) return `<section class="card hero"><div class="card-h"><span class="eyebrow">Rest day${isRestSlot(w.s) ? ' · planned' : ''}</span>${pill('', 'Logged')}</div>
+    <div><h1>Rest</h1><p class="focus">${isRestSlot(w.s) ? 'Planned rest from your rotation.' : 'The rotation waits.'} Tomorrow: ${esc(slotName(sessionFor(addDays(w.date, 1))))}.</p></div>
+    ${w.cardio?.done ? `<p class="small dim">${esc(w.cardio.name)} · ${w.cardio.min || 0} min</p>` : ''}
+    <div class="btnrow" style="justify-content:space-between"><button class="btn sm ghost" data-act="edittoday">${w.cardio?.done || w.note ? 'Edit day' : 'Log cardio or notes'}</button><button class="link dim" data-act="unrest">Undo rest day</button></div></section>`;
+  const st = wStats(w), dur = sessDur(w), prs = prsIn(w);
+  return `<section class="card hero"><div class="card-h"><span class="eyebrow">Logged today · ${idx + 1} of ${o.length}</span>${pill('good', 'Done')}</div>
+    <div class="rot">${o.map((id, i) => `<i class="${i === idx ? 'on' : i < idx ? 'done' : ''}"></i>`).join('')}</div>
+    <div><h1>${esc(sessName(w))}</h1><p class="focus">${esc(sessDef(w.s)?.focus || '')}</p></div>
+    <div class="stats">${stat(st.sets, '', 'sets')}${stat(dur ? fmtDur(dur) : '–', '', dur && whoopLiftMin(w.date) != null ? 'duration · WHOOP' : 'duration')}${stat(st.cardio || '–', st.cardio ? 'min' : '', w.cardio?.name || 'Cardio')}</div>
+    ${prs.length ? `<div class="chips">${prs.slice(0, 6).map(p => `<span class="pill acc">${esc(exDef(p.id).name)} ${esc(fmtSet(p.id, p.s))}</span>`).join('')}</div>` : ''}
+    <button class="btn wide ghost" data-act="edittoday">Edit log</button></section>`;
 }
 function stripHTML() {
   const up = upcoming(Math.max(5, order().length + 1));
@@ -1523,6 +1559,8 @@ function vPlan() {
   h += `<section class="sec"><div class="sec-h"><span class="eyebrow">Split</span></div><div class="grid2">${Object.entries(PRESETS).map(([k, p]) => `<button class="opt ${match === k ? 'on' : ''}" data-act="preset" data-id="${k}"><b>${esc(p.name)}</b><span class="seqs">${p.order.map(id => esc(p.sessions[id].name)).join(' → ')}</span><span>${esc(p.blurb)}</span></button>`).join('')}</div>
     ${ui.confirm && ui.confirm.startsWith('preset:') ? `<div class="prev"><p>Switch to <b>${esc(PRESETS[ui.confirm.slice(7)].name)}</b>? Your session lists are replaced; logged sessions and history stay as they are.</p><div class="btnrow"><button class="btn sm" data-act="usepreset" data-id="${ui.confirm.slice(7)}">Switch</button><button class="link dim" data-act="confirm" data-v="">Cancel</button></div></div>` : ''}</section>`;
 
+  h += progressionCard();
+
   // weekly sets comparison
   const cols = [['ppl4', PRESETS.ppl4], ['ulppl5', PRESETS.ulppl5]]; if (!match) cols.push(['yours', cur]);
   const vols = cols.map(([, p]) => planWeekly(p));
@@ -1573,6 +1611,20 @@ function vPlan() {
   </div><p class="xs muted">Plate weight converts plate-loaded machines to kg for session tonnage. Protein target is used when your MacroFactor export has no target column.</p>
   <p class="xs muted">Suggestions hold your current strength rather than push it up. Each lift gets a load and reps that stop a set number of reps short of failure (2 for heavy compounds, 1 for the rest), from the middle of its rep range and your last 3 sessions of it. Maintenance research keeps strength and size on far less volume, as long as the sets stay heavy and close to failure (Bickel et al., 2011; Spiering et al., 2021). Change the weight step or reps in reserve for any lift under Exercises.</p></section></section>`;
   return h;
+}
+function progressionCard() {
+  const ids = [...new Set(order().flatMap(id => sessDef(id).items.map(it => it.ex)))].filter(id => S().ex[id] && strengthRef(id, today()));
+  if (!ids.length) return '';
+  const pick = ui.progLift && ids.includes(ui.progLift) ? ui.progLift : ids[0], rate = S().progRate ?? 0.005, plan = progression(pick, 8, rate);
+  const rates = [[0.0025, '0.25%'], [0.005, '0.5%'], [0.01, '1%']];
+  const wk = k => k === 0 ? 'Now' : `Week ${k}`;
+  return `<section class="sec"><div class="sec-h"><span class="eyebrow">Progression · next 8 weeks</span></div><section class="card">
+    <div class="fields" style="grid-template-columns:minmax(0,1fr)"><label class="fl">Lift<select class="in" id="proglift" data-in="proglift">${ids.map(id => `<option value="${id}" ${id === pick ? 'selected' : ''}>${esc(exDef(id).name)}</option>`).join('')}</select></label></div>
+    <div class="btnrow" style="justify-content:space-between"><span class="xs muted">Strength gain a week</span><div class="seg" role="group" aria-label="Weekly gain">${rates.map(([r, l]) => `<button class="${Math.abs(rate - r) < 1e-9 ? 'on' : ''}" data-act="prograte" data-v="${r}">${l}</button>`).join('')}</div></div>
+    ${plan ? `<div class="tblwrap"><table class="tbl"><thead><tr><th>Week</th><th class="n">Target</th><th class="n">Strength</th></tr></thead><tbody>
+      ${plan.map(p => `<tr${p.k === 0 ? ' class="muted"' : ''}><td>${wk(p.k)}</td><td class="n">${esc(suggestTxt(pick, p))}</td><td class="n">${p.k ? '+' + fmt(p.g * 100, 1) + '%' : 'today'}</td></tr>`).join('')}
+    </tbody></table></div>` : ''}
+    <p class="xs muted">Each week's target leaves ${exRir(pick)} rep${exRir(pick) === 1 ? '' : 's'} in reserve, like the Aim. Reps climb at the same load until the top of the ${exDef(pick).lo}–${exDef(pick).hi} range, then the load steps up by ${fmt(exStep(pick), 2)} ${exDef(pick).u === 'plates' ? 'plates' : 'kg'} and reps drop back. Where that jump is too big to land inside the range, reps run up to 2 past the top first. The plan restarts from your latest logged sets each time, so it adjusts if real progress is faster or slower. The Aim on Today stays at maintenance.</p></section></section>`;
 }
 function exEditor(id, x) {
   return `<div class="sec"><div class="fields">
@@ -1779,9 +1831,13 @@ async function resetAll() {
 /* Scrolling: the claude.ai artifact scrolls the page. The home-screen app (html.shell) scrolls <body> as an inner
    container instead, so iOS can't add its status-bar inset to the page at launch. */
 const SHELL = document.documentElement.classList.contains('shell');
-const scroller = () => SHELL ? document.body : window;
-const scrollY0 = () => SHELL ? document.body.scrollTop : window.scrollY;
+const scroller = () => SHELL ? $('#scroll') : window;
+const scrollY0 = () => SHELL ? $('#scroll').scrollTop : window.scrollY;
 const scrollToY = (top, smooth) => scroller().scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' });
+function resetScroll() { // to the top, and stop any momentum still running (iOS keeps flinging unless overflow is cut for a frame)
+  if (!SHELL) { window.scrollTo(0, 0); return; }
+  const s = $('#scroll'); s.style.overflowY = 'hidden'; s.scrollTop = 0; requestAnimationFrame(() => { s.style.overflowY = ''; });
+}
 let pendingRender = false;
 function editingInView() { const a = document.activeElement; return a && $('#view')?.contains(a) && /INPUT|TEXTAREA|SELECT/.test(a.tagName) && a.type !== 'file'; }
 function render(force) {
@@ -1814,13 +1870,14 @@ document.addEventListener('focusout', () => setTimeout(() => { if (pendingRender
 const logging = () => ui.tab === 'log' || (ui.tab === 'today' && !!STATE.w[today()]);
 function go(tab) {
   if (tab === 'trends') tab = 'body';
-  if (tab === 'log' && (!ui.logDate || ui.logDate >= today())) tab = 'today'; // today's log lives on Today
+  if (tab === 'log' && (!ui.logDate || ui.logDate >= today())) { tab = 'today'; ui.editToday = true; } // today's log lives on Today
+  if (ui.tab === 'today' && tab !== 'today') ui.editToday = false;
   ui.exNote = null; ui.noteEdit = null; ui.exHist = null;
   if (tab === 'body' && ui.tab !== 'body') { ui.metric = 'rec'; ui.per = 'M'; ui.off = 0; }
   if (tab === 'data' && ui.tab === 'data') tab = ui.prevTab || 'today'; else if (tab === 'data') ui.prevTab = ui.tab;
   if (tab === 'today') ui.logDate = null;
   ui.tab = tab; ui.confirm = null; ui.pickSess = null; ui.editEx = null;
-  scrollToY(0); render(true); if (logging()) wakeLock();
+  resetScroll(); render(true); if (logging()) wakeLock();
 }
 let toastT;
 function toast(html, kind) { const t = $('#toast'); t.innerHTML = html; t.className = 'toast show ' + (kind || ''); clearTimeout(toastT); toastT = setTimeout(() => t.className = 'toast', kind === 'pr' ? 4000 : 2600); }
@@ -1835,22 +1892,24 @@ const ACT = {
   go: el => go(el.dataset.tab),
   start: el => {
     const date = ui.tab === 'log' ? (ui.logDate || today()) : today(), sid = el.dataset.id;
-    const open = () => { if (date === today()) go('today'); else { ui.logDate = date; go('log'); } };
+    const open = () => { if (date === today()) { ui.editToday = true; go('today'); } else { ui.logDate = date; go('log'); } };
     if (STATE.w[date] && !STATE.w[date].rest) { open(); return; }
     if (!sessDef(sid) || isRestSlot(sid)) return;
     const w = newWorkoutAuto(date, sid);
     STATE.w[date] = w; if (S().rotOverride) { S().rotOverride = null; saveSettings(); }
     saveW(date); open();
   },
-  restday: () => { const date = ui.tab === 'log' ? (ui.logDate || today()) : today(); if (STATE.w[date]) return; STATE.w[date] = restRecord(date); saveW(date); toast('Rest day logged'); render(true); },
+  restday: () => { const date = ui.tab === 'log' ? (ui.logDate || today()) : today(); if (STATE.w[date]) return; STATE.w[date] = restRecord(date); if (ui.tab === 'today') STATE.w[date].fin = true; saveW(date); toast('Rest day logged'); render(true); },
   unrest: () => { const date = ui.tab === 'log' ? (ui.logDate || today()) : today(); if (STATE.w[date]?.rest) { delete STATE.w[date]; saveW(date); } render(true); },
   addrest: () => { const id = 'r' + Date.now().toString(36); S().prog.sessions[id] = { name: 'Rest', focus: 'Recovery', items: [], rest: true }; S().prog.order.push(id); saveSettings(); toast('Rest day added to the end of the rotation'); render(true); },
   togglesess: el => { const id = el.dataset.id; ui.openSess.has(id) ? ui.openSess.delete(id) : ui.openSess.add(id); ui.confirm = null; render(true); },
   picktoday: () => { ui.pickSess = 'today'; render(true); },
   setnext: el => { S().rotOverride = { id: el.dataset.id, from: today() }; ui.pickSess = null; saveSettings(); render(true); },
   picksess: el => { ui.pickSess = el.dataset.id; render(true); },
-  logday: el => { const d = addDays(ui.logDate || today(), +el.dataset.n); if (d >= today()) { go('today'); return; } ui.logDate = d; ui.pickSess = null; ui.confirm = null; scrollToY(0); render(true); },
+  logday: el => { const d = addDays(ui.logDate || today(), +el.dataset.n); if (d >= today()) { go('today'); return; } ui.logDate = d; ui.pickSess = null; ui.confirm = null; resetScroll(); render(true); },
   openlog: el => { ui.logDate = el.dataset.d; go('log'); },
+  prograte: el => { S().progRate = +el.dataset.v; saveSettings(); render(true); },
+  edittoday: () => { ui.editToday = true; render(true); },
   pastlog: () => { ui.logDate = addDays(today(), -1); ui.pickSess = null; go('log'); },
   exhist: el => { const i = +el.dataset.e; ui.exHist = ui.exHist === i ? null : i; render(true); },
   liftsel: el => { ui.lift = el.dataset.id; render(true); const c = $('#liftchart'); if (c && c.getBoundingClientRect().top < ($('.top')?.getBoundingClientRect().bottom || 0)) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); },
@@ -1871,7 +1930,7 @@ const ACT = {
   logdone: () => {
     const a = document.activeElement; if (a && a.blur) a.blur(); // make sure the last edit is saved
     const w = logW(); if (w && !w.rest) { const st = wStats(w); toast(`${esc(sessName(w))} saved · ${st.sets} set${st.sets === 1 ? '' : 's'}`); }
-    if (ui.tab === 'today') { scrollToY(0, true); render(true); } else go('history');
+    if (ui.tab === 'today') { if (w) { w.fin = true; saveW(w.date); } ui.editToday = false; resetScroll(); render(true); } else go('history');
   },
   histview: el => { ui.hist = el.dataset.v; ui.noteEdit = null; render(true); },
   notefilter: el => { ui.noteG = el.dataset.v; ui.noteEdit = null; render(true); },
@@ -1917,8 +1976,14 @@ const ACT = {
   copyexport: async () => { const ta = $('#exporttext'); try { await navigator.clipboard.writeText(ta.value); toast('Copied'); } catch (e) { ta.select(); toast('Selected. Copy it with your keyboard or the share menu.'); } },
   reset: async () => { await resetAll(); ui.confirm = null; toast('Everything deleted'); go('today'); },
 };
+let navAt = 0;
+document.addEventListener('pointerdown', ev => {
+  const b = ev.target.closest('.tabs [data-tab], #gear'); if (!b || ev.button > 0) return;
+  ev.preventDefault(); navAt = Date.now(); go(b.dataset.tab);
+}, true);
 document.addEventListener('click', ev => {
   const el = ev.target.closest('[data-act]'); if (!el || el.disabled) return;
+  if (el.matches('.tabs [data-tab], #gear') && Date.now() - navAt < 800) { ev.preventDefault(); return; } // already handled on touch-down
   const f = ACT[el.dataset.act]; if (f) { ev.preventDefault(); f(el); }
 });
 
@@ -1932,6 +1997,7 @@ const INP = {
   cmin: el => { const w = logW(); w.cardio = w.cardio || { name: S().cardio.name, done: false }; w.cardio.min = num(el.value); w.cardio.manual = true; saveW(w.date); },
   clvl: el => { const w = logW(); w.cardio = w.cardio || { name: S().cardio.name, min: S().cardio.min, done: false }; w.cardio.lvl = el.value.trim() || null; saveW(w.date); },
   lift: el => { ui.lift = el.value; render(true); },
+  proglift: el => { ui.progLift = el.value; render(true); },
   metric: el => { ui.metric = el.value; ui.off = 0; render(true); },
   sname: el => { const sd = sessDef(el.dataset.id); sd.name = el.value.trim() || sd.name; saveSettings(); },
   sfocus: el => { sessDef(el.dataset.id).focus = el.value.trim(); saveSettings(); },

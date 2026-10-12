@@ -162,9 +162,13 @@ async function resetAll() {
 /* Scrolling: the claude.ai artifact scrolls the page. The home-screen app (html.shell) scrolls <body> as an inner
    container instead, so iOS can't add its status-bar inset to the page at launch. */
 const SHELL = document.documentElement.classList.contains('shell');
-const scroller = () => SHELL ? document.body : window;
-const scrollY0 = () => SHELL ? document.body.scrollTop : window.scrollY;
+const scroller = () => SHELL ? $('#scroll') : window;
+const scrollY0 = () => SHELL ? $('#scroll').scrollTop : window.scrollY;
 const scrollToY = (top, smooth) => scroller().scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' });
+function resetScroll() { // to the top, and stop any momentum still running (iOS keeps flinging unless overflow is cut for a frame)
+  if (!SHELL) { window.scrollTo(0, 0); return; }
+  const s = $('#scroll'); s.style.overflowY = 'hidden'; s.scrollTop = 0; requestAnimationFrame(() => { s.style.overflowY = ''; });
+}
 let pendingRender = false;
 function editingInView() { const a = document.activeElement; return a && $('#view')?.contains(a) && /INPUT|TEXTAREA|SELECT/.test(a.tagName) && a.type !== 'file'; }
 function render(force) {
@@ -197,13 +201,14 @@ document.addEventListener('focusout', () => setTimeout(() => { if (pendingRender
 const logging = () => ui.tab === 'log' || (ui.tab === 'today' && !!STATE.w[today()]);
 function go(tab) {
   if (tab === 'trends') tab = 'body';
-  if (tab === 'log' && (!ui.logDate || ui.logDate >= today())) tab = 'today'; // today's log lives on Today
+  if (tab === 'log' && (!ui.logDate || ui.logDate >= today())) { tab = 'today'; ui.editToday = true; } // today's log lives on Today
+  if (ui.tab === 'today' && tab !== 'today') ui.editToday = false;
   ui.exNote = null; ui.noteEdit = null; ui.exHist = null;
   if (tab === 'body' && ui.tab !== 'body') { ui.metric = 'rec'; ui.per = 'M'; ui.off = 0; }
   if (tab === 'data' && ui.tab === 'data') tab = ui.prevTab || 'today'; else if (tab === 'data') ui.prevTab = ui.tab;
   if (tab === 'today') ui.logDate = null;
   ui.tab = tab; ui.confirm = null; ui.pickSess = null; ui.editEx = null;
-  scrollToY(0); render(true); if (logging()) wakeLock();
+  resetScroll(); render(true); if (logging()) wakeLock();
 }
 let toastT;
 function toast(html, kind) { const t = $('#toast'); t.innerHTML = html; t.className = 'toast show ' + (kind || ''); clearTimeout(toastT); toastT = setTimeout(() => t.className = 'toast', kind === 'pr' ? 4000 : 2600); }
@@ -218,22 +223,24 @@ const ACT = {
   go: el => go(el.dataset.tab),
   start: el => {
     const date = ui.tab === 'log' ? (ui.logDate || today()) : today(), sid = el.dataset.id;
-    const open = () => { if (date === today()) go('today'); else { ui.logDate = date; go('log'); } };
+    const open = () => { if (date === today()) { ui.editToday = true; go('today'); } else { ui.logDate = date; go('log'); } };
     if (STATE.w[date] && !STATE.w[date].rest) { open(); return; }
     if (!sessDef(sid) || isRestSlot(sid)) return;
     const w = newWorkoutAuto(date, sid);
     STATE.w[date] = w; if (S().rotOverride) { S().rotOverride = null; saveSettings(); }
     saveW(date); open();
   },
-  restday: () => { const date = ui.tab === 'log' ? (ui.logDate || today()) : today(); if (STATE.w[date]) return; STATE.w[date] = restRecord(date); saveW(date); toast('Rest day logged'); render(true); },
+  restday: () => { const date = ui.tab === 'log' ? (ui.logDate || today()) : today(); if (STATE.w[date]) return; STATE.w[date] = restRecord(date); if (ui.tab === 'today') STATE.w[date].fin = true; saveW(date); toast('Rest day logged'); render(true); },
   unrest: () => { const date = ui.tab === 'log' ? (ui.logDate || today()) : today(); if (STATE.w[date]?.rest) { delete STATE.w[date]; saveW(date); } render(true); },
   addrest: () => { const id = 'r' + Date.now().toString(36); S().prog.sessions[id] = { name: 'Rest', focus: 'Recovery', items: [], rest: true }; S().prog.order.push(id); saveSettings(); toast('Rest day added to the end of the rotation'); render(true); },
   togglesess: el => { const id = el.dataset.id; ui.openSess.has(id) ? ui.openSess.delete(id) : ui.openSess.add(id); ui.confirm = null; render(true); },
   picktoday: () => { ui.pickSess = 'today'; render(true); },
   setnext: el => { S().rotOverride = { id: el.dataset.id, from: today() }; ui.pickSess = null; saveSettings(); render(true); },
   picksess: el => { ui.pickSess = el.dataset.id; render(true); },
-  logday: el => { const d = addDays(ui.logDate || today(), +el.dataset.n); if (d >= today()) { go('today'); return; } ui.logDate = d; ui.pickSess = null; ui.confirm = null; scrollToY(0); render(true); },
+  logday: el => { const d = addDays(ui.logDate || today(), +el.dataset.n); if (d >= today()) { go('today'); return; } ui.logDate = d; ui.pickSess = null; ui.confirm = null; resetScroll(); render(true); },
   openlog: el => { ui.logDate = el.dataset.d; go('log'); },
+  prograte: el => { S().progRate = +el.dataset.v; saveSettings(); render(true); },
+  edittoday: () => { ui.editToday = true; render(true); },
   pastlog: () => { ui.logDate = addDays(today(), -1); ui.pickSess = null; go('log'); },
   exhist: el => { const i = +el.dataset.e; ui.exHist = ui.exHist === i ? null : i; render(true); },
   liftsel: el => { ui.lift = el.dataset.id; render(true); const c = $('#liftchart'); if (c && c.getBoundingClientRect().top < ($('.top')?.getBoundingClientRect().bottom || 0)) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); },
@@ -254,7 +261,7 @@ const ACT = {
   logdone: () => {
     const a = document.activeElement; if (a && a.blur) a.blur(); // make sure the last edit is saved
     const w = logW(); if (w && !w.rest) { const st = wStats(w); toast(`${esc(sessName(w))} saved · ${st.sets} set${st.sets === 1 ? '' : 's'}`); }
-    if (ui.tab === 'today') { scrollToY(0, true); render(true); } else go('history');
+    if (ui.tab === 'today') { if (w) { w.fin = true; saveW(w.date); } ui.editToday = false; resetScroll(); render(true); } else go('history');
   },
   histview: el => { ui.hist = el.dataset.v; ui.noteEdit = null; render(true); },
   notefilter: el => { ui.noteG = el.dataset.v; ui.noteEdit = null; render(true); },
@@ -300,8 +307,14 @@ const ACT = {
   copyexport: async () => { const ta = $('#exporttext'); try { await navigator.clipboard.writeText(ta.value); toast('Copied'); } catch (e) { ta.select(); toast('Selected. Copy it with your keyboard or the share menu.'); } },
   reset: async () => { await resetAll(); ui.confirm = null; toast('Everything deleted'); go('today'); },
 };
+let navAt = 0;
+document.addEventListener('pointerdown', ev => {
+  const b = ev.target.closest('.tabs [data-tab], #gear'); if (!b || ev.button > 0) return;
+  ev.preventDefault(); navAt = Date.now(); go(b.dataset.tab);
+}, true);
 document.addEventListener('click', ev => {
   const el = ev.target.closest('[data-act]'); if (!el || el.disabled) return;
+  if (el.matches('.tabs [data-tab], #gear') && Date.now() - navAt < 800) { ev.preventDefault(); return; } // already handled on touch-down
   const f = ACT[el.dataset.act]; if (f) { ev.preventDefault(); f(el); }
 });
 
@@ -315,6 +328,7 @@ const INP = {
   cmin: el => { const w = logW(); w.cardio = w.cardio || { name: S().cardio.name, done: false }; w.cardio.min = num(el.value); w.cardio.manual = true; saveW(w.date); },
   clvl: el => { const w = logW(); w.cardio = w.cardio || { name: S().cardio.name, min: S().cardio.min, done: false }; w.cardio.lvl = el.value.trim() || null; saveW(w.date); },
   lift: el => { ui.lift = el.value; render(true); },
+  proglift: el => { ui.progLift = el.value; render(true); },
   metric: el => { ui.metric = el.value; ui.off = 0; render(true); },
   sname: el => { const sd = sessDef(el.dataset.id); sd.name = el.value.trim() || sd.name; saveSettings(); },
   sfocus: el => { sessDef(el.dataset.id).focus = el.value.trim(); saveSettings(); },

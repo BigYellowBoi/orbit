@@ -147,6 +147,27 @@ function suggest(exId, before) { // { w, r, rir } or null
   r = Math.max(d.lo, Math.min(d.hi, r));
   return { w: +w.toFixed(3), r, rir };
 }
+/* PROGRESSION PLAN (Plan tab): where each lift could be over the next weeks if you push it.
+   Target strength rises by a fixed % a week from your current strength (same reference as the Aim).
+   Each week's prescription keeps the lift's reps in reserve: reps climb at a fixed load until the top of
+   the range, then the load steps up and reps drop back (double progression). */
+function progression(exId, weeks, rate) {
+  const d = exDef(exId), ref = strengthRef(exId, today()); if (!ref) return null;
+  const rir = exRir(exId), out = [];
+  if (d.u === 'bw') {
+    const add = ref.top.w || 0;
+    for (let k = 0; k <= weeks; k++) { const e = ref.v * (1 + rate) ** k; out.push({ k, w: add, r: Math.max(1, Math.floor(e - add / 2.5 + 1e-6) - rir), g: e / ref.v - 1 }); }
+    return out;
+  }
+  const step = exStep(exId), mid = Math.round((d.lo + d.hi) / 2), repsAt = (e, w) => Math.floor(30 * (e / w - 1) + 1e-6) - rir;
+  let w = Math.floor(ref.v / (1 + (mid + rir) / 30) / step + 1e-6) * step; if (w <= 0) return null;
+  for (let k = 0; k <= weeks; k++) {
+    const e = ref.v * (1 + rate) ** k; let r = repsAt(e, w);
+    if (r > d.hi) { const r2 = repsAt(e, w + step); if (r2 >= d.lo) { w += step; r = r2; } else r = Math.min(r, d.hi + 2); } // big jumps (2 kg dumbbells): a rep or two over the range until the next load fits
+    out.push({ k, w: +w.toFixed(3), r: Math.max(d.lo, r), g: e / ref.v - 1 });
+  }
+  return out;
+}
 function suggestTxt(exId, sg) { const u = exDef(exId).u, w = fmt(sg.w, 2); return u === 'bw' ? (sg.w ? `BW+${w} × ${sg.r}` : `${sg.r} reps`) : `${w} ${u === 'plates' ? 'pl' : 'kg'} × ${sg.r}`; }
 
 /* ============================================================

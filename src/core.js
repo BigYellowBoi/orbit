@@ -91,7 +91,7 @@ const PRESETS = {
 };
 function defaultSettings() {
   const p = PRESETS.ppl4;
-  return { v: 1, preset: 'ppl4', prog: { order: p.order.slice(), sessions: clone(p.sessions) }, ex: clone(EXLIB), plateKg: 20, cardio: { name: 'Stairmaster', min: 30 }, proteinT: null, rotOverride: null, imports: {}, suggest: true };
+  return { v: 1, preset: 'ppl4', prog: { order: p.order.slice(), sessions: clone(p.sessions) }, ex: clone(EXLIB), plateKg: 20, cardio: { name: 'Stairmaster', min: 30 }, proteinT: null, rotOverride: null, imports: {}, suggest: true, progRate: 0.005 };
 }
 function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 }; }
 

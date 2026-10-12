@@ -22,7 +22,8 @@ function vToday() {
   const t = today(), w = STATE.w[t], sid = w ? w.s : sessionFor(t), sd = sessDef(sid), o = order(), idx = o.indexOf(sid);
   let h = `<div class="page-h"><div><div class="eyebrow">${esc(fmtDow(t))} ${esc(fmtDate(t, { year: 'numeric' }))}</div><h1>Today</h1></div>${o.length ? `<span class="pill plain">Rotation ${rotationCount() + 1}</span>` : ''}</div>`;
   const tail = () => whoopCard() + stripHTML() + weekCard();
-  if (w) return h + logBody(t) + tail();
+  if (w && (!w.fin || ui.editToday)) return h + logBody(t) + tail(); // the log, until you press Done
+  if (w) return h + doneHero(w, idx, o) + tail();
   if (!sd) return h + `<section class="card"><p>Your programme has no sessions. Add one in Plan.</p><button class="btn" data-act="go" data-tab="plan">Open Plan</button></section>`;
   if (sd.rest) return h + plannedRestHero(sid) + tail();
   h += `<section class="card hero"><div class="card-h"><span class="eyebrow">Next up · ${idx + 1} of ${o.length}</span></div>
@@ -34,6 +35,19 @@ function vToday() {
     ${ui.pickSess === 'today' ? `<div class="sec"><span class="xs muted">Do a different session today. The rotation carries on from whichever you log.</span><div class="chips">${trainIds().map(id => `<button class="chip ${id === sid ? 'on' : ''}" data-act="setnext" data-id="${id}">${esc(sessDef(id).name)}</button>`).join('')}</div></div>`
       : `<div class="btnrow" style="justify-content:space-between"><button class="link" data-act="picktoday">Change today's session</button><button class="link dim" data-act="restday">Rest day instead</button></div>`}</section>`;
   return h + tail();
+}
+function doneHero(w, idx, o) { // today after Done: a summary, with the log one tap away
+  if (w.rest) return `<section class="card hero"><div class="card-h"><span class="eyebrow">Rest day${isRestSlot(w.s) ? ' · planned' : ''}</span>${pill('', 'Logged')}</div>
+    <div><h1>Rest</h1><p class="focus">${isRestSlot(w.s) ? 'Planned rest from your rotation.' : 'The rotation waits.'} Tomorrow: ${esc(slotName(sessionFor(addDays(w.date, 1))))}.</p></div>
+    ${w.cardio?.done ? `<p class="small dim">${esc(w.cardio.name)} · ${w.cardio.min || 0} min</p>` : ''}
+    <div class="btnrow" style="justify-content:space-between"><button class="btn sm ghost" data-act="edittoday">${w.cardio?.done || w.note ? 'Edit day' : 'Log cardio or notes'}</button><button class="link dim" data-act="unrest">Undo rest day</button></div></section>`;
+  const st = wStats(w), dur = sessDur(w), prs = prsIn(w);
+  return `<section class="card hero"><div class="card-h"><span class="eyebrow">Logged today · ${idx + 1} of ${o.length}</span>${pill('good', 'Done')}</div>
+    <div class="rot">${o.map((id, i) => `<i class="${i === idx ? 'on' : i < idx ? 'done' : ''}"></i>`).join('')}</div>
+    <div><h1>${esc(sessName(w))}</h1><p class="focus">${esc(sessDef(w.s)?.focus || '')}</p></div>
+    <div class="stats">${stat(st.sets, '', 'sets')}${stat(dur ? fmtDur(dur) : '–', '', dur && whoopLiftMin(w.date) != null ? 'duration · WHOOP' : 'duration')}${stat(st.cardio || '–', st.cardio ? 'min' : '', w.cardio?.name || 'Cardio')}</div>
+    ${prs.length ? `<div class="chips">${prs.slice(0, 6).map(p => `<span class="pill acc">${esc(exDef(p.id).name)} ${esc(fmtSet(p.id, p.s))}</span>`).join('')}</div>` : ''}
+    <button class="btn wide ghost" data-act="edittoday">Edit log</button></section>`;
 }
 function stripHTML() {
   const up = upcoming(Math.max(5, order().length + 1));
@@ -262,6 +276,8 @@ function vPlan() {
   h += `<section class="sec"><div class="sec-h"><span class="eyebrow">Split</span></div><div class="grid2">${Object.entries(PRESETS).map(([k, p]) => `<button class="opt ${match === k ? 'on' : ''}" data-act="preset" data-id="${k}"><b>${esc(p.name)}</b><span class="seqs">${p.order.map(id => esc(p.sessions[id].name)).join(' → ')}</span><span>${esc(p.blurb)}</span></button>`).join('')}</div>
     ${ui.confirm && ui.confirm.startsWith('preset:') ? `<div class="prev"><p>Switch to <b>${esc(PRESETS[ui.confirm.slice(7)].name)}</b>? Your session lists are replaced; logged sessions and history stay as they are.</p><div class="btnrow"><button class="btn sm" data-act="usepreset" data-id="${ui.confirm.slice(7)}">Switch</button><button class="link dim" data-act="confirm" data-v="">Cancel</button></div></div>` : ''}</section>`;
 
+  h += progressionCard();
+
   // weekly sets comparison
   const cols = [['ppl4', PRESETS.ppl4], ['ulppl5', PRESETS.ulppl5]]; if (!match) cols.push(['yours', cur]);
   const vols = cols.map(([, p]) => planWeekly(p));
@@ -312,6 +328,20 @@ function vPlan() {
   </div><p class="xs muted">Plate weight converts plate-loaded machines to kg for session tonnage. Protein target is used when your MacroFactor export has no target column.</p>
   <p class="xs muted">Suggestions hold your current strength rather than push it up. Each lift gets a load and reps that stop a set number of reps short of failure (2 for heavy compounds, 1 for the rest), from the middle of its rep range and your last 3 sessions of it. Maintenance research keeps strength and size on far less volume, as long as the sets stay heavy and close to failure (Bickel et al., 2011; Spiering et al., 2021). Change the weight step or reps in reserve for any lift under Exercises.</p></section></section>`;
   return h;
+}
+function progressionCard() {
+  const ids = [...new Set(order().flatMap(id => sessDef(id).items.map(it => it.ex)))].filter(id => S().ex[id] && strengthRef(id, today()));
+  if (!ids.length) return '';
+  const pick = ui.progLift && ids.includes(ui.progLift) ? ui.progLift : ids[0], rate = S().progRate ?? 0.005, plan = progression(pick, 8, rate);
+  const rates = [[0.0025, '0.25%'], [0.005, '0.5%'], [0.01, '1%']];
+  const wk = k => k === 0 ? 'Now' : `Week ${k}`;
+  return `<section class="sec"><div class="sec-h"><span class="eyebrow">Progression · next 8 weeks</span></div><section class="card">
+    <div class="fields" style="grid-template-columns:minmax(0,1fr)"><label class="fl">Lift<select class="in" id="proglift" data-in="proglift">${ids.map(id => `<option value="${id}" ${id === pick ? 'selected' : ''}>${esc(exDef(id).name)}</option>`).join('')}</select></label></div>
+    <div class="btnrow" style="justify-content:space-between"><span class="xs muted">Strength gain a week</span><div class="seg" role="group" aria-label="Weekly gain">${rates.map(([r, l]) => `<button class="${Math.abs(rate - r) < 1e-9 ? 'on' : ''}" data-act="prograte" data-v="${r}">${l}</button>`).join('')}</div></div>
+    ${plan ? `<div class="tblwrap"><table class="tbl"><thead><tr><th>Week</th><th class="n">Target</th><th class="n">Strength</th></tr></thead><tbody>
+      ${plan.map(p => `<tr${p.k === 0 ? ' class="muted"' : ''}><td>${wk(p.k)}</td><td class="n">${esc(suggestTxt(pick, p))}</td><td class="n">${p.k ? '+' + fmt(p.g * 100, 1) + '%' : 'today'}</td></tr>`).join('')}
+    </tbody></table></div>` : ''}
+    <p class="xs muted">Each week's target leaves ${exRir(pick)} rep${exRir(pick) === 1 ? '' : 's'} in reserve, like the Aim. Reps climb at the same load until the top of the ${exDef(pick).lo}–${exDef(pick).hi} range, then the load steps up by ${fmt(exStep(pick), 2)} ${exDef(pick).u === 'plates' ? 'plates' : 'kg'} and reps drop back. Where that jump is too big to land inside the range, reps run up to 2 past the top first. The plan restarts from your latest logged sets each time, so it adjusts if real progress is faster or slower. The Aim on Today stays at maintenance.</p></section></section>`;
 }
 function exEditor(id, x) {
   return `<div class="sec"><div class="fields">
