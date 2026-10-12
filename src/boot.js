@@ -1,0 +1,379 @@
+/* ============================================================
+   PERSISTENCE — browser copy + private claude.ai storage
+   Cloud layout (per viewer, private): data/users/<id>/settings
+   and month buckets data/users/<id>/log/{wk|dy}/<YYYY-MM> = { items: { date: … } }
+   ============================================================ */
+const LS_KEY = 'rotation-logbook-v1';
+const Cloud = { db: null, uid: null, ready: false, failed: false, writing: 0, loaded: { settings: false, wk: false, dy: false }, cloud: { settings: undefined, wk: {}, dy: {} } };
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+let lsT;
+function cacheLocal() { clearTimeout(lsT); lsT = setTimeout(() => { try { localStorage.setItem(LS_KEY, JSON.stringify({ settings: STATE.settings, w: STATE.w, d: STATE.d })); } catch (e) { } }, 250); }
+function loadLocal() { try { const s = localStorage.getItem(LS_KEY); if (!s) return null; const o = JSON.parse(s); return o && o.settings ? o : null; } catch (e) { return null; } }
+function migrateSettings(s) {
+  const d = defaultSettings(), out = { ...d, ...(s || {}) };
+  out.ex = { ...(s?.ex || d.ex) };
+  out.prog = s?.prog && s.prog.order && s.prog.sessions ? s.prog : d.prog;
+  for (const sd of Object.values(out.prog.sessions)) for (const it of sd.items) if (!out.ex[it.ex] && EXLIB[it.ex]) out.ex[it.ex] = clone(EXLIB[it.ex]);
+  out.cardio = { ...d.cardio, ...(s?.cardio || {}) };
+  if (!['Stairmaster', 'Treadmill'].includes(out.cardio.name)) out.cardio.name = /tread/i.test(out.cardio.name) ? 'Treadmill' : 'Stairmaster';
+  return out;
+}
+const base = () => `data/users/${Cloud.uid}`;
+const setPath = () => `${base()}/settings`;
+const monPath = (kind, ym) => `${base()}/log/${kind}/${ym}`;
+const KIND = { wk: 'w', dy: 'd' };
+function monthItems(kind, ym) { const src = STATE[KIND[kind]], o = {}; for (const k in src) if (k.slice(0, 7) === ym) o[k] = src[k]; return o; }
+function docFor(path) {
+  if (path === setPath()) return clone(STATE.settings);
+  const [kind, ym] = path.split('/').slice(-2); const items = monthItems(kind, ym);
+  return Object.keys(items).length ? { items: clone(items) } : null;
+}
+const Wq = { pending: new Set(), inflight: new Set(), until: new Map(), timer: null, local: [] };
+function changed(kind, key, whole) { // kind: 'settings' | 'wk' | 'dy'; key: date or month; whole: the month is replaced outright
+  bump(); cacheLocal();
+  if (window.GH_SYNC) { GH.changed(kind, key, whole); return; }
+  if (!Cloud.uid) { Wq.local.push([kind, key]); return; }
+  const p = kind === 'settings' ? setPath() : monPath(kind, key.slice(0, 7));
+  Wq.pending.add(p); Wq.until.set(p, Infinity);
+  clearTimeout(Wq.timer); Wq.timer = setTimeout(flush, 600);
+}
+function bump() { STATE.v++; }
+function isProtected(p) { const u = Wq.until.get(p); if (u == null) return false; if (u === Infinity || Date.now() < u) return true; Wq.until.delete(p); return false; }
+function flush() { if (!Cloud.ready) return; for (const p of [...Wq.pending]) if (!Wq.inflight.has(p)) { Wq.pending.delete(p); writeOne(p); } }
+async function writeOne(p) {
+  Wq.inflight.add(p); Cloud.writing++; renderSync();
+  const ref = Cloud.db.doc(p), op = () => { const data = docFor(p); return data ? ref.set(data) : ref.delete(); };
+  try { await op().catch(async e => { if (e && e.code === 'unavailable') { await sleep(400 + Math.random() * 600); return op(); } throw e; }); Cloud.failed = false; }
+  catch (e) { Cloud.failed = true; console.warn('save failed', p, e); toast(e?.code === 'quota_exceeded' ? 'Cloud storage is full. Save a backup and delete old data.' : 'Couldn’t save to the cloud. Your data is kept in this browser.', 'bad'); }
+  finally { Wq.inflight.delete(p); Cloud.writing--; if (!Wq.pending.has(p)) Wq.until.set(p, Date.now() + 6000); renderSync(); if (Wq.pending.has(p)) flush(); }
+}
+const saveW = date => changed('wk', date);
+const saveSettings = () => changed('settings', '');
+function saveMonths(kind, months, whole) { for (const m of months) changed(kind, m, whole); }
+
+async function connectCloud() {
+  if (!window.claude || typeof window.claude.use !== 'function') { renderSync(); return; }
+  let db = null, user = null;
+  try { [db, user] = await Promise.all([window.claude.use('db'), window.claude.use('user')]); } catch (e) { }
+  if (!db || !user) { renderSync(); return; }
+  let uid = null; try { uid = await user.id(); } catch (e) { }
+  if (!uid) { renderSync(); return; }
+  Cloud.db = db; Cloud.uid = uid;
+  // anything changed before the cloud answered gets queued now
+  for (const [k, key] of Wq.local) { const p = k === 'settings' ? setPath() : monPath(k, key.slice(0, 7)); Wq.pending.add(p); Wq.until.set(p, Infinity); }
+  Wq.local = [];
+  const onErr = e => { console.warn('sync error', e); if (e?.code === 'revoked') { Cloud.ready = false; renderSync(); } };
+  db.doc(setPath()).onSnapshot(snap => {
+    if (snap.metadata.hasPendingWrites) return;
+    Cloud.cloud.settings = snap.exists ? clone(snap.data()) : null; Cloud.loaded.settings = true; afterSnap();
+  }, onErr);
+  for (const kind of ['wk', 'dy']) db.collection(`${base()}/log/${kind}`).limit(1000).onSnapshot(snap => {
+    if (snap.metadata.hasPendingWrites) return;
+    const m = {}; snap.docs.forEach(d => { if (d.exists) m[d.id] = clone(d.data()); });
+    Cloud.cloud[kind] = m; Cloud.loaded[kind] = true; afterSnap();
+  }, onErr);
+}
+function afterSnap() {
+  if (!Cloud.ready) {
+    if (!(Cloud.loaded.settings && Cloud.loaded.wk && Cloud.loaded.dy)) return;
+    Cloud.ready = true; firstSync();
+  } else applyCloud();
+}
+function firstSync() {
+  const c = Cloud.cloud;
+  if (c.settings && !isProtected(setPath())) STATE.settings = migrateSettings(c.settings);
+  else if (!c.settings) { Wq.pending.add(setPath()); Wq.until.set(setPath(), Infinity); }
+  for (const kind of ['wk', 'dy']) {
+    const tgt = STATE[KIND[kind]], localMonths = new Set(Object.keys(tgt).map(k => k.slice(0, 7)));
+    for (const ym in c[kind]) {
+      const p = monPath(kind, ym); if (isProtected(p)) continue;
+      const items = c[kind][ym].items || {}; let extra = false;
+      for (const k of Object.keys(tgt)) if (k.slice(0, 7) === ym && !items[k]) extra = true;
+      Object.assign(tgt, clone(items));
+      if (extra) { Wq.pending.add(p); Wq.until.set(p, Infinity); }
+      localMonths.delete(ym);
+    }
+    for (const ym of localMonths) { const p = monPath(kind, ym); Wq.pending.add(p); Wq.until.set(p, Infinity); }
+  }
+  bump(); cacheLocal(); flush(); renderSync(); render();
+}
+function applyCloud() {
+  let ch = false; const c = Cloud.cloud;
+  if (c.settings && !isProtected(setPath()) && JSON.stringify(c.settings) !== JSON.stringify(STATE.settings)) { STATE.settings = migrateSettings(c.settings); ch = true; }
+  for (const kind of ['wk', 'dy']) {
+    const tgt = STATE[KIND[kind]], months = new Set([...Object.keys(c[kind]), ...Object.keys(tgt).map(k => k.slice(0, 7))]);
+    for (const ym of months) {
+      if (isProtected(monPath(kind, ym))) continue;
+      const items = c[kind][ym]?.items || {}, local = monthItems(kind, ym);
+      if (JSON.stringify(items) === JSON.stringify(local)) continue;
+      for (const k in local) delete tgt[k];
+      Object.assign(tgt, clone(items)); ch = true;
+    }
+  }
+  if (ch) { bump(); cacheLocal(); render(); }
+}
+function renderSync() {
+  const el = $('#sync'); if (!el) return;
+  const [cls, txt] = Cloud.failed ? ['bad', 'Not synced'] : Cloud.writing ? ['busy', 'Saving'] : Cloud.ready ? ['ok', 'Synced'] : Cloud.uid ? ['busy', 'Connecting'] : ['', 'This device'];
+  el.className = 'sync ' + cls; el.textContent = txt;
+}
+
+/* ---------- export / import backups ---------- */
+function exportJson() { return JSON.stringify({ app: 'orbit', version: 1, exportedAt: new Date().toISOString(), settings: STATE.settings, workouts: STATE.w, days: STATE.d }, null, 1); }
+function csvEsc(v) { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; }
+function exportCsv() {
+  const rows = [['date', 'session', 'exercise', 'set', 'load', 'unit', 'reps', 'e1rm'].join(',')];
+  for (const w of workoutsSorted()) for (const e of w.ex || []) doneSets(e).forEach((s, i) => rows.push([w.date, sessName(w), exDef(e.id).name, i + 1, s.w ?? '', exDef(e.id).u, s.r, exDef(e.id).u === 'bw' ? '' : r1(e1rm(s)) || ''].map(csvEsc).join(',')));
+  for (const w of workoutsSorted()) if (w.cardio?.done) rows.push([w.date, sessName(w), w.cardio.name, 1, '', 'min', w.cardio.min ?? '', ''].map(csvEsc).join(','));
+  return rows.join('\n');
+}
+async function offerFile(filename, text) {
+  let dl = null; try { dl = window.claude && await window.claude.use('downloads'); } catch (e) { }
+  if (dl) { try { await dl.save({ filename, data: text }); toast('Saved ' + esc(filename)); ui.exportText = null; return; } catch (e) { if (e?.code === 'declined') return; if (e?.code === 'rate_limited') { toast('A save prompt is already open.'); return; } } }
+  if (!window.claude) { // plain web page: a real file
+    const type = filename.endsWith('.csv') ? 'text/csv' : 'application/json', blob = new Blob([text], { type });
+    const standalone = navigator.standalone || matchMedia('(display-mode: standalone)').matches;
+    if (standalone && navigator.canShare) { try { const file = new File([blob], filename, { type }); if (navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return; } } catch (e) { if (e?.name === 'AbortError') return; } }
+    const a = document.createElement('a'), url = URL.createObjectURL(blob); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 4000); toast('Saved ' + esc(filename)); return;
+  }
+  ui.exportText = text; render(true);
+}
+function restoreBackup(o) {
+  if (!o || !['orbit', 'rotation-logbook'].includes(o.app) || !o.settings || typeof o.workouts !== 'object' || typeof o.days !== 'object') throw new Error('This file isn’t an Orbit backup.');
+  const okDate = k => /^\d{4}-\d{2}-\d{2}$/.test(k);
+  const w = {}, d = {}; for (const k in o.workouts) if (okDate(k) && o.workouts[k]?.ex) w[k] = o.workouts[k]; for (const k in o.days) if (okDate(k)) d[k] = o.days[k];
+  const oldMonths = { wk: new Set(Object.keys(STATE.w).map(k => k.slice(0, 7))), dy: new Set(Object.keys(STATE.d).map(k => k.slice(0, 7))) };
+  STATE.settings = migrateSettings(o.settings); STATE.w = w; STATE.d = d;
+  saveSettings();
+  for (const kind of ['wk', 'dy']) { const ms = new Set([...oldMonths[kind], ...Object.keys(STATE[KIND[kind]]).map(k => k.slice(0, 7))]); saveMonths(kind, ms, true); }
+  return Object.keys(w).length;
+}
+async function resetAll() {
+  const months = { wk: new Set([...Object.keys(STATE.w).map(k => k.slice(0, 7)), ...Object.keys(Cloud.cloud.wk)]), dy: new Set([...Object.keys(STATE.d).map(k => k.slice(0, 7)), ...Object.keys(Cloud.cloud.dy)]) };
+  if (window.GH_SYNC) for (const p in GH.meta.known) { const o = GH.parse(p); if (o && o.kind !== 'settings') months[o.kind].add(o.ym); }
+  const fresh = emptyData(); STATE.settings = fresh.settings; STATE.w = {}; STATE.d = {};
+  try { localStorage.removeItem(LS_KEY); } catch (e) { }
+  saveSettings(); for (const k of ['wk', 'dy']) saveMonths(k, months[k], true);
+}
+
+/* ============================================================
+   RENDER
+   ============================================================ */
+let pendingRender = false;
+function editingInView() { const a = document.activeElement; return a && $('#view')?.contains(a) && /INPUT|TEXTAREA|SELECT/.test(a.tagName) && a.type !== 'file'; }
+function render(force) {
+  if (!force && editingInView()) { pendingRender = true; return; }
+  pendingRender = false;
+  const v = $('#view'); CHART_REG.clear();
+  v.innerHTML = (VIEWS[ui.tab] || vToday)();
+  drawCharts(v);
+  document.querySelectorAll('.tabs [data-tab]').forEach(b => b.setAttribute('aria-current', b.dataset.tab === ui.tab ? 'page' : 'false'));
+  const g = $('#gear'); g.setAttribute('aria-current', ui.tab === 'data' ? 'page' : 'false'); g.setAttribute('aria-label', ui.tab === 'data' ? 'Back' : 'Data, imports and backups');
+  renderSync(); renderMark();
+}
+function renderMark() { // header ring: where today sits in the rotation, one segment per slot (rest slots included)
+  const el = $('#mark'); if (!el) return;
+  const o = order(), n = o.length, t = today(), rec = STATE.w[t], sid = rec && sessDef(rec.s) ? rec.s : sessionFor(t), k = Math.max(0, o.indexOf(sid)) + 1;
+  // explicit arcs: equal segments, gaps centred on 12 o'clock and every 360/n degrees after it
+  const r = 9, gapDeg = n > 1 ? Math.min(25, 360 / n * 0.35) : 0, pt = a => [12 + r * Math.sin(a * Math.PI / 180), 12 - r * Math.cos(a * Math.PI / 180)];
+  let arcs = '';
+  for (let i = 0; i < n; i++) {
+    const a0 = i * 360 / n + gapDeg / 2, a1 = (i + 1) * 360 / n - gapDeg / 2, [x0, y0] = pt(a0), [x1, y1] = pt(a1);
+    arcs += `<path d="M${x0.toFixed(3)} ${y0.toFixed(3)}A${r} ${r} 0 ${a1 - a0 > 180 ? 1 : 0} 1 ${x1.toFixed(3)} ${y1.toFixed(3)}" fill="none" stroke="${i < k ? 'var(--logo)' : 'var(--line-2)'}" stroke-width="2.4" stroke-linecap="round"/>`;
+  }
+  if (n === 1) arcs = `<circle cx="12" cy="12" r="${r}" fill="none" stroke="var(--logo)" stroke-width="2.4"/>`;
+  el.innerHTML = `<svg class="mark" viewBox="0 0 24 24" fill="none" role="img" aria-label="${esc(sessDef(sid)?.name || '')}, ${k} of ${n} in the rotation"><title>${esc(sessDef(sid)?.name || '')} · ${k} of ${n}</title>${arcs}<circle cx="12" cy="12" r="2.5" fill="var(--ink)"/></svg>`;
+}
+document.addEventListener('focusout', () => setTimeout(() => { if (pendingRender && !editingInView()) render(); }, 60));
+function go(tab) { ui.exNote = null; ui.noteEdit = null; if (tab === 'trends' && ui.tab !== 'trends') { ui.metric = 'rec'; ui.per = 'M'; ui.off = 0; } if (tab === 'data' && ui.tab === 'data') tab = ui.prevTab || 'today'; else if (tab === 'data') ui.prevTab = ui.tab; ui.tab = tab; ui.confirm = null; ui.pickSess = null; ui.editEx = null; if (tab === 'log' && !ui.logDate) ui.logDate = today(); window.scrollTo(0, 0); render(true); if (tab === 'log') wakeLock(); }
+let toastT;
+function toast(html, kind) { const t = $('#toast'); t.innerHTML = html; t.className = 'toast show ' + (kind || ''); clearTimeout(toastT); toastT = setTimeout(() => t.className = 'toast', kind === 'pr' ? 4000 : 2600); }
+let wl = null; async function wakeLock() { try { if ('wakeLock' in navigator && !wl) { wl = await navigator.wakeLock.request('screen'); wl.addEventListener('release', () => wl = null); } } catch (e) { } }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && ui.tab === 'log') wakeLock(); });
+
+/* ============================================================
+   ACTIONS
+   ============================================================ */
+const logW = () => STATE.w[ui.logDate || today()];
+const ACT = {
+  go: el => go(el.dataset.tab),
+  start: el => {
+    const date = ui.tab === 'log' ? (ui.logDate || today()) : today(), sid = el.dataset.id;
+    if (STATE.w[date] && !STATE.w[date].rest) { ui.logDate = date; go('log'); return; }
+    if (!sessDef(sid) || isRestSlot(sid)) return;
+    const w = newWorkoutAuto(date, sid);
+    STATE.w[date] = w; if (S().rotOverride) { S().rotOverride = null; saveSettings(); }
+    saveW(date); ui.logDate = date; go('log');
+  },
+  restday: () => { const date = ui.tab === 'log' ? (ui.logDate || today()) : today(); if (STATE.w[date]) return; STATE.w[date] = restRecord(date); saveW(date); toast('Rest day logged'); render(true); },
+  unrest: () => { const date = ui.tab === 'log' ? (ui.logDate || today()) : today(); if (STATE.w[date]?.rest) { delete STATE.w[date]; saveW(date); } render(true); },
+  addrest: () => { const id = 'r' + Date.now().toString(36); S().prog.sessions[id] = { name: 'Rest', focus: 'Recovery', items: [], rest: true }; S().prog.order.push(id); saveSettings(); toast('Rest day added to the end of the rotation'); render(true); },
+  togglesess: el => { const id = el.dataset.id; ui.openSess.has(id) ? ui.openSess.delete(id) : ui.openSess.add(id); ui.confirm = null; render(true); },
+  picktoday: () => { ui.pickSess = 'today'; render(true); },
+  setnext: el => { S().rotOverride = { id: el.dataset.id, from: today() }; ui.pickSess = null; saveSettings(); render(true); },
+  picksess: el => { ui.pickSess = el.dataset.id; render(true); },
+  logday: el => { const d = addDays(ui.logDate || today(), +el.dataset.n); if (d > today()) return; ui.logDate = d; ui.pickSess = null; ui.confirm = null; window.scrollTo(0, 0); render(true); },
+  openlog: el => { ui.logDate = el.dataset.d; go('log'); },
+  addset: el => { const w = logW(), e = w.ex[+el.dataset.e]; const l = e.sets[e.sets.length - 1]; e.sets.push({ w: null, r: null, pw: l ? (l.w ?? l.pw) : null, pr: l ? (l.r ?? l.pr) : null, done: false }); saveW(w.date); render(true); setTimeout(() => $(`#r${el.dataset.e}_${e.sets.length - 1}`)?.focus(), 30); },
+  remset: el => { const w = logW(), e = w.ex[+el.dataset.e]; if (e.sets.length > 1) e.sets.pop(); saveW(w.date); render(true); },
+  remex: el => { const w = logW(), i = +el.dataset.e, e = w.ex[i]; if (doneSets(e).length && ui.confirm !== 'remex' + i) { ui.confirm = 'remex' + i; toast('Tap Remove again to drop logged sets'); return; } w.ex.splice(i, 1); ui.confirm = null; saveW(w.date); render(true); },
+  cardiotype: el => { const w = logW(), name = el.dataset.v, wm = Math.round(sum(whoopCardio(w.date, name).map(a => a.min || 0)));
+    w.cardioOff = false; w.cardio = { ...(w.cardio || { min: S().cardio.min, lvl: null, done: false }), name, manual: true }; if (wm) { w.cardio.min = wm; w.cardio.done = true; w.cardio.src = 'whoop'; }
+    saveW(w.date); render(true); },
+  cardiorem: () => { const w = logW(); w.cardio = null; w.cardioOff = true; saveW(w.date); render(true); },
+  cardiowhoop: el => { const w = logW(); w.cardio = w.cardio || { name: S().cardio.name }; w.cardio.min = +el.dataset.v; w.cardio.done = true; w.cardio.src = 'whoop'; saveW(w.date); render(true); },
+  cardio: () => { const w = logW(); w.cardio = w.cardio || { name: S().cardio.name, min: S().cardio.min }; w.cardio.min = num($('#cmin')?.value) ?? w.cardio.min; w.cardio.done = !w.cardio.done; w.cardio.manual = true; saveW(w.date); render(true); },
+  confirm: el => { ui.confirm = el.dataset.v || null; render(true); },
+  delw: () => { const d = ui.logDate || today(); delete STATE.w[d]; ui.confirm = null; saveW(d); toast('Session deleted'); render(true); },
+  per: el => { ui.per = el.dataset.v; ui.off = 0; render(true); },
+  poff: el => { ui.off = Math.max(0, (ui.off || 0) + +el.dataset.n); render(true); },
+  logdone: () => {
+    const a = document.activeElement; if (a && a.blur) a.blur(); // make sure the last edit is saved
+    const w = logW(); if (w && !w.rest) { const st = wStats(w); toast(`${esc(sessName(w))} saved · ${st.sets} set${st.sets === 1 ? '' : 's'}`); }
+    ui.logDate = null; go('today');
+  },
+  histview: el => { ui.hist = el.dataset.v; ui.noteEdit = null; render(true); },
+  notefilter: el => { ui.noteG = el.dataset.v; ui.noteEdit = null; render(true); },
+  notenew: () => { ui.noteNew = !ui.noteNew; render(true); },
+  noteadd: () => { const t = ($('#nt')?.value || '').trim(); if (!t) { toast('Write the note first', 'bad'); return; } notebook().general.push({ id: Date.now().toString(36), g: $('#ng').value, text: t, date: today() }); ui.noteNew = false; saveSettings(); toast('Note added'); render(true); },
+  noteedit: el => { ui.noteEdit = el.dataset.k || null; render(true); },
+  notesave: el => { const k = el.dataset.k, t = ($('#ne_' + el.dataset.id)?.value || '').trim(), nb = notebook();
+    if (k.startsWith('g|')) { const n = nb.general.find(x => 'g|' + x.id === k); if (n) n.text = t || n.text; } else nb.edits[k] = t;
+    ui.noteEdit = null; saveSettings(); render(true); },
+  notedel: el => { const k = el.dataset.k, nb = notebook();
+    if (k.startsWith('g|')) nb.general = nb.general.filter(x => 'g|' + x.id !== k); else { nb.hidden[k] = true; delete nb.edits[k]; toast('Removed from Notes. The session keeps its note.'); }
+    ui.noteEdit = null; saveSettings(); render(true); },
+  exnote: el => { ui.exNote = +el.dataset.e; render(true); setTimeout(() => $('#xn' + el.dataset.e)?.focus(), 30); },
+  weeksall: () => { ui.weeksAll = !ui.weeksAll; render(true); },
+  range: el => { ui.range = +el.dataset.v; render(true); },
+  preset: el => { ui.confirm = 'preset:' + el.dataset.id; render(true); },
+  usepreset: el => {
+    const p = PRESETS[el.dataset.id]; S().preset = el.dataset.id; S().prog = { order: p.order.slice(), sessions: clone(p.sessions) };
+    for (const sd of Object.values(S().prog.sessions)) for (const it of sd.items) if (!S().ex[it.ex] && EXLIB[it.ex]) S().ex[it.ex] = clone(EXLIB[it.ex]);
+    S().rotOverride = null; ui.confirm = null; saveSettings(); toast(`Switched to ${esc(p.name)}`); render(true);
+  },
+  addsess: () => { const id = 's' + Date.now().toString(36); ui.openSess.add(id); S().prog.sessions[id] = { name: 'New session', focus: '', items: [] }; S().prog.order.push(id); saveSettings(); render(true); },
+  delsess: el => { const id = el.dataset.id; S().prog.order = S().prog.order.filter(x => x !== id); delete S().prog.sessions[id]; ui.confirm = null; saveSettings(); render(true); },
+  remitem: el => { sessDef(el.dataset.id).items.splice(+el.dataset.j, 1); saveSettings(); render(true); },
+  newex: () => { const id = 'x' + Date.now().toString(36); S().ex[id] = X('New exercise', 'other', 'kg', 90, 8, 12, null, null); ui.editEx = id; saveSettings(); render(true); },
+  editex: el => { ui.editEx = el.dataset.id || null; render(true); },
+  saveex: el => {
+    const x = S().ex[el.dataset.id]; if (!x) return;
+    x.name = ($('#xe_n').value || '').trim() || x.name; x.g = $('#xe_g').value; x.u = $('#xe_u').value;
+    const lo = parseInt($('#xe_lo').value, 10), hi = parseInt($('#xe_hi').value, 10), bw = num($('#xe_bw').value), br = parseInt($('#xe_br').value, 10);
+    if (lo > 0) x.lo = lo; if (hi >= x.lo) x.hi = hi; else x.hi = x.lo; x.note = ($('#xe_note').value || '').trim();
+    x.base = br > 0 ? { w: bw ?? (x.u === 'bw' ? 0 : null), r: br } : null;
+    ui.editEx = null; saveSettings(); render(true);
+  },
+  delex: el => { delete S().ex[el.dataset.id]; ui.editEx = null; saveSettings(); render(true); },
+  doimport: el => { const src = el.dataset.v, p = ui.imp[src]; if (!p) return; const months = applyImport(p); saveMonths('dy', months);
+    if (src === 'whoop') for (const w of Object.values(STATE.w)) if (p.days[w.date] && autoCardio(w)) saveW(w.date); saveSettings(); delete ui.imp[src]; toast(`Imported ${Object.keys(p.days).length} days from ${src === 'whoop' ? 'WHOOP' : 'MacroFactor'}`); render(true); },
+  cancelimp: el => { delete ui.imp[el.dataset.v]; render(true); },
+  export: el => el.dataset.v === 'csv' ? offerFile(`orbit-sets-${today()}.csv`, exportCsv()) : offerFile(`orbit-backup-${today()}.json`, exportJson()),
+  copyexport: async () => { const ta = $('#exporttext'); try { await navigator.clipboard.writeText(ta.value); toast('Copied'); } catch (e) { ta.select(); toast('Selected. Copy it with your keyboard or the share menu.'); } },
+  reset: async () => { await resetAll(); ui.confirm = null; toast('Everything deleted'); go('today'); },
+};
+document.addEventListener('click', ev => {
+  const el = ev.target.closest('[data-act]'); if (!el || el.disabled) return;
+  const f = ACT[el.dataset.act]; if (f) { ev.preventDefault(); f(el); }
+});
+
+const INP = {
+  w: el => setInput(el, true),
+  r: el => setInput(el, true),
+  addex: el => { const id = el.value; if (!id) return; const w = logW(); w.ex.push({ id, sets: prefill(id, 3, w.date) }); saveW(w.date); render(true); setTimeout(() => $('#ex' + (w.ex.length - 1))?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50); },
+  note: el => { const w = logW(); w.note = el.value; saveW(w.date); },
+  exnote: el => { const w = logW(), e = w.ex[+el.dataset.e]; const v = el.value.trim(); if (v) e.note = el.value; else delete e.note; ui.exNote = null; saveW(w.date); },
+  cmin: el => { const w = logW(); w.cardio = w.cardio || { name: S().cardio.name, done: false }; w.cardio.min = num(el.value); w.cardio.manual = true; saveW(w.date); },
+  clvl: el => { const w = logW(); w.cardio = w.cardio || { name: S().cardio.name, min: S().cardio.min, done: false }; w.cardio.lvl = el.value.trim() || null; saveW(w.date); },
+  lift: el => { ui.lift = el.value; render(true); },
+  metric: el => { ui.metric = el.value; ui.off = 0; render(true); },
+  sname: el => { const sd = sessDef(el.dataset.id); sd.name = el.value.trim() || sd.name; saveSettings(); },
+  sfocus: el => { sessDef(el.dataset.id).focus = el.value.trim(); saveSettings(); },
+  isets: el => { const n = parseInt(el.value, 10); if (n >= 1 && n <= 12) { sessDef(el.dataset.id).items[+el.dataset.j].sets = n; saveSettings(); render(); } },
+  additem: el => { if (!el.value) return; sessDef(el.dataset.id).items.push({ ex: el.value, sets: 3 }); saveSettings(); render(true); },
+  cname: el => { S().cardio.name = el.value; saveSettings(); },
+  cmindef: el => { const n = parseInt(el.value, 10); if (n > 0) { S().cardio.min = n; saveSettings(); } },
+  platekg: el => { const n = num(el.value); if (n > 0) { S().plateKg = n; saveSettings(); } },
+  proteint: el => { const n = num(el.value); S().proteinT = n > 0 ? n : null; saveSettings(); },
+  fwhoop: el => readFiles(el, readWhoopFiles),
+  fmf: el => readFiles(el, readMfFiles),
+  fbackup: async el => {
+    const f = el.files?.[0]; if (!f) return;
+    try { const n = restoreBackup(JSON.parse(await f.text())); toast(`Restored ${n} sessions`); go('today'); }
+    catch (e) { toast(esc(e.message || 'That file couldn’t be read.'), 'bad'); el.value = ''; }
+  },
+};
+async function readFiles(el, reader) {
+  const files = [...(el.files || [])]; if (!files.length) return;
+  toast('Reading…');
+  try { const p = await reader(files); ui.imp[p.src] = p; $('#toast').className = 'toast'; render(true); setTimeout(() => $('#imp-' + p.src)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50); }
+  catch (e) { console.warn(e); toast(esc(e.message || 'That file couldn’t be read.'), 'bad'); el.value = ''; }
+}
+/* ---------- drag to reorder (sessions, and exercises within a session) ---------- */
+let drag = null;
+document.addEventListener('pointerdown', ev => {
+  const g = ev.target.closest('[data-grip]'); if (!g || ev.button > 0) return;
+  const el = g.closest('[data-dragitem]'), list = el?.parentElement; if (!el || !list) return;
+  const sibs = [...list.children].filter(c => c.hasAttribute('data-dragitem')); if (sibs.length < 2) return;
+  const rects = sibs.map(s => s.getBoundingClientRect());
+  const gap = rects.length > 1 ? Math.max(0, rects[1].top - rects[0].bottom) : 8;
+  drag = { el, list, sibs, rects, gap, from: sibs.indexOf(el), to: sibs.indexOf(el), y0: ev.clientY, kind: g.dataset.grip, pid: ev.pointerId };
+  try { g.setPointerCapture(ev.pointerId); } catch (e) { }
+  el.classList.add('dragging'); document.body.classList.add('is-dragging'); ev.preventDefault();
+});
+document.addEventListener('pointermove', ev => {
+  if (!drag || ev.pointerId !== drag.pid) return;
+  const { rects, from, sibs, el, gap } = drag;
+  const top = rects[0].top, bot = rects[rects.length - 1].bottom;
+  const dy = Math.max(top - rects[from].top, Math.min(bot - rects[from].bottom, ev.clientY - drag.y0));
+  el.style.transform = `translateY(${dy}px)`;
+  const mid = rects[from].top + rects[from].height / 2 + dy;
+  let to = 0; for (let i = 0; i < rects.length; i++) if (i !== from && mid > rects[i].top + rects[i].height / 2) to++;
+  drag.to = to;
+  const shift = rects[from].height + gap;
+  sibs.forEach((s, i) => { if (i === from) return; const t = from < to && i > from && i <= to ? -shift : from > to && i >= to && i < from ? shift : 0; s.style.transform = t ? `translateY(${t}px)` : ''; });
+  if (ev.clientY < 80) window.scrollBy(0, -8); else if (ev.clientY > window.innerHeight - 90) window.scrollBy(0, 8);
+});
+function endDrag(ev) {
+  if (!drag || (ev && ev.pointerId !== drag.pid)) return;
+  const { from, to, kind, list, sibs } = drag; drag = null;
+  document.body.classList.remove('is-dragging'); sibs.forEach(s => { s.style.transform = ''; s.classList.remove('dragging'); });
+  if (from === to || !ev || ev.type === 'pointercancel') { render(true); return; }
+  if (kind === 'sess') { const ids = sibs.map(s => s.dataset.id); const [m] = ids.splice(from, 1); ids.splice(to, 0, m); S().prog.order = ids; }
+  else { const items = sessDef(list.dataset.id).items; const [m] = items.splice(from, 1); items.splice(to, 0, m); }
+  saveSettings(); render(true);
+}
+document.addEventListener('pointerup', endDrag); document.addEventListener('pointercancel', endDrag);
+
+/* ---------- set rows: saved and counted as you type ---------- */
+function setInput(el, final) {
+  const w = logW(); if (!w) return; const i = +el.dataset.e, j = +el.dataset.s, e = w.ex[i], s = e?.sets[j]; if (!s) return;
+  const def = exDef(e.id), wasDone = s.done, prevBest = final ? Math.max(bestBefore(e.id, w.date), ...e.sets.filter((x, k) => k !== j && x.done && x.r > 0).map(x => setScore(e.id, x))) : 0;
+  setFromInputs(s, num($(`#w${i}_${j}`)?.value), parseInt($(`#r${i}_${j}`)?.value, 10), def.u);
+  const row = $(`#row${i}_${j}`); if (row) row.classList.toggle('done', s.done);
+  if (final && s.done && s.w != null && $(`#w${i}_${j}`) && $(`#w${i}_${j}`).value === '') $(`#w${i}_${j}`).value = fmt(s.w, 2).replace(/,/g, '');
+  const st = wStats(w), sm = $('.sess-top .t small'); if (sm) sm.textContent = sm.textContent.replace(/\d+ sets?/, `${st.sets} set${st.sets === 1 ? '' : 's'}`);
+  saveW(w.date);
+  if (final && s.done && hasRef(e.id, w.date) && setScore(e.id, s) > prevBest + 1e-9) { row?.classList.add('pr'); toast(`New best · ${esc(def.name)} ${esc(fmtSet(e.id, s))}`, 'pr'); }
+  else if (final && row && !s.done) row.classList.remove('pr');
+}
+document.addEventListener('input', ev => { const el = ev.target; if (el.matches && el.matches('.set .in')) setInput(el, false); });
+document.addEventListener('change', ev => { const el = ev.target.closest('[data-in]'); if (!el) return; const f = INP[el.dataset.in]; if (f) f(el); });
+document.addEventListener('keydown', ev => {
+  if (ev.key !== 'Enter' || !ev.target.matches('.set .in')) return;
+  ev.preventDefault(); const all = [...document.querySelectorAll('.set .in')], k = all.indexOf(ev.target);
+  if (all[k + 1]) all[k + 1].focus(); else ev.target.blur();
+});
+
+/* ============================================================
+   BOOT
+   ============================================================ */
+(function boot() {
+  const loc = loadLocal();
+  if (loc) { STATE.settings = migrateSettings(loc.settings); STATE.w = loc.w || {}; STATE.d = loc.d || {}; }
+  const h = (location.hash || '').slice(1); if (VIEWS[h]) ui.tab = h;
+  if (ui.tab === 'log') ui.logDate = today();
+  render(true);
+  connectCloud();
+})();

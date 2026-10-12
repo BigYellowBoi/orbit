@@ -1,0 +1,235 @@
+/* ============================================================
+   GITHUB SYNC (GitHub Pages build only)
+   Data lives in a private repo the owner controls:
+     orbit/settings.json, orbit/wk/YYYY-MM.json, orbit/dy/YYYY-MM.json
+   Each sync: read the branch head; if it moved, fetch only changed files and merge
+   them in (dates edited here and not yet pushed win); then commit everything
+   edited here as one commit. A rejected ref update means another device pushed
+   first, so pull again and retry. The token is kept in this browser only.
+   ============================================================ */
+window.GH_SYNC = true;
+const GH_CFG = 'orbit-gh-cfg', GH_META = 'orbit-gh-meta', GH_API = 'https://api.github.com';
+function b64(text) { const by = new TextEncoder().encode(text); let s = ''; for (let i = 0; i < by.length; i += 0x8000) s += String.fromCharCode.apply(null, by.subarray(i, i + 0x8000)); return btoa(s); }
+const GH = {
+  cfg: null, meta: null, busy: false, again: false, timer: null, poll: null,
+  state: 'off', err: null, // off | syncing | ok | offline | error
+  load() {
+    try { this.cfg = JSON.parse(localStorage.getItem(GH_CFG) || 'null'); } catch (e) { this.cfg = null; }
+    try { this.meta = JSON.parse(localStorage.getItem(GH_META) || 'null'); } catch (e) { this.meta = null; }
+    if (!this.meta || !this.cfg || this.meta.repo !== this.repoKey()) this.meta = this.freshMeta();
+  },
+  repoKey() { return this.cfg ? `${this.cfg.owner}/${this.cfg.repo}`.toLowerCase() : ''; },
+  freshMeta() { return { repo: this.repoKey(), head: null, tree: null, known: {}, dirty: {}, first: true, at: null }; },
+  saveMeta() { try { localStorage.setItem(GH_META, JSON.stringify(this.meta)); } catch (e) { } },
+  on() { return !!(this.cfg && this.cfg.token); },
+
+  /* ---------- paths ---------- */
+  path(kind, ym) { return kind === 'settings' ? 'orbit/settings.json' : `orbit/${kind}/${ym}.json`; },
+  parse(p) { const m = /^orbit\/(wk|dy)\/(\d{4}-\d{2})\.json$/.exec(p); return m ? { kind: m[1], ym: m[2] } : p === 'orbit/settings.json' ? { kind: 'settings' } : null; },
+  content(p) { const o = this.parse(p); if (!o) return null; if (o.kind === 'settings') return JSON.stringify(STATE.settings); const it = monthItems(o.kind, o.ym); return Object.keys(it).length ? JSON.stringify({ items: it }) : null; },
+
+  /* ---------- local edits ---------- */
+  changed(kind, key, whole) {
+    if (!this.meta) return;
+    this.mark(kind, key, whole); this.saveMeta();
+    if (!this.on()) return;
+    clearTimeout(this.timer); this.timer = setTimeout(() => this.sync(), 1500);
+    if (this.state !== 'error') this.setState('syncing');
+  },
+  mark(kind, key, whole) {
+    const d = this.meta.dirty;
+    if (kind === 'settings') d[this.path('settings')] = true;
+    else {
+      const ym = key.slice(0, 7), p = this.path(kind, ym);
+      if (whole || d[p] === '*') d[p] = '*';
+      else {
+        const set = new Set(Array.isArray(d[p]) ? d[p] : []);
+        if (key.length === 10) set.add(key); else for (const k in monthItems(kind, ym)) set.add(k);
+        d[p] = [...set];
+      }
+    }
+  },
+
+  /* ---------- HTTP ---------- */
+  async req(method, url, body) {
+    const r = await fetch(GH_API + url, { method, cache: 'no-store', headers: { Accept: 'application/vnd.github+json', Authorization: 'Bearer ' + this.cfg.token, 'X-GitHub-Api-Version': '2022-11-28', ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+    let data = null; try { data = await r.json(); } catch (e) { }
+    if (!r.ok) { const e = new Error(data?.message || 'HTTP ' + r.status); e.status = r.status; e.ratelimit = r.status === 403 && r.headers.get('x-ratelimit-remaining') === '0'; throw e; }
+    return data;
+  },
+  repoUrl(rest) { return `/repos/${encodeURIComponent(this.cfg.owner)}/${encodeURIComponent(this.cfg.repo)}${rest}`; },
+  branch() { return this.cfg.branch || 'main'; },
+  async head() { // null when the repo has no commits yet
+    try { const r = await this.req('GET', this.repoUrl(`/git/ref/heads/${this.branch()}`)); return r.object.sha; }
+    catch (e) { if (e.status === 409 || e.status === 404) { if (e.status === 404) await this.req('GET', this.repoUrl('')); return null; } throw e; }
+  },
+  async blobText(sha) { const b = await this.req('GET', this.repoUrl(`/git/blobs/${sha}`)); const bin = atob((b.content || '').replace(/\s/g, '')); return new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0))); },
+  async gitSha(text) { const bytes = new TextEncoder().encode(text), hdr = new TextEncoder().encode(`blob ${bytes.length}\0`), all = new Uint8Array(hdr.length + bytes.length); all.set(hdr); all.set(bytes, hdr.length); const h = await crypto.subtle.digest('SHA-1', all); return [...new Uint8Array(h)].map(x => x.toString(16).padStart(2, '0')).join(''); },
+
+  /* ---------- pull + merge ---------- */
+  async pull() {
+    const m = this.meta, head = await this.head();
+    if (!head) { // empty repo: everything here is new
+      if (m.first) this.markAllLocal();
+      m.head = null; m.tree = null; m.known = {}; m.first = false; return false;
+    }
+    if (head === m.head && !m.first) return false;
+    const commit = await this.req('GET', this.repoUrl(`/git/commits/${head}`));
+    const tree = await this.req('GET', this.repoUrl(`/git/trees/${commit.tree.sha}?recursive=1`));
+    const remote = {}; for (const t of tree.tree || []) if (t.type === 'blob' && this.parse(t.path)) remote[t.path] = t.sha;
+    const fetchList = Object.keys(remote).filter(p => remote[p] !== m.known[p]);
+    const texts = {}; let i = 0;
+    await Promise.all(Array.from({ length: Math.min(6, fetchList.length) }, async () => { while (i < fetchList.length) { const p = fetchList[i++]; texts[p] = await this.blobText(remote[p]); } }));
+    let ch = false;
+    for (const p of fetchList) { let o = null; try { o = JSON.parse(texts[p]); } catch (e) { continue; } if (this.merge(p, o)) ch = true; }
+    if (!m.first) for (const p in m.known) if (!remote[p] && this.removeRemote(p)) ch = true; // deleted on another device
+    if (m.first) this.markLocalOnly(remote);
+    m.head = head; m.tree = commit.tree.sha; m.known = remote; m.first = false;
+    if (ch) { bump(); cacheLocal(); render(); }
+    return ch;
+  },
+  merge(p, o) {
+    const info = this.parse(p), dirty = this.meta.dirty[p], first = this.meta.first;
+    if (info.kind === 'settings') {
+      if (dirty && !first) return false; // edited here: this device's settings win
+      if (JSON.stringify(o) === JSON.stringify(STATE.settings)) return false;
+      STATE.settings = migrateSettings(o); delete this.meta.dirty[p]; return true;
+    }
+    if (dirty === '*') return false; // replaced wholesale here (restore / delete all)
+    const tgt = STATE[KIND[info.kind]], items = o?.items || {}, local = monthItems(info.kind, info.ym);
+    const keep = new Set(Array.isArray(dirty) ? dirty : []);
+    const next = { ...items };
+    if (first) { for (const k in local) if (!items[k]) { next[k] = local[k]; keep.add(k); } } // first connect: union, the repo wins on overlaps
+    else for (const k of keep) { if (local[k]) next[k] = local[k]; else delete next[k]; }
+    if (JSON.stringify(next) === JSON.stringify(local)) return false;
+    for (const k in local) delete tgt[k];
+    Object.assign(tgt, clone(next));
+    if (first && keep.size) this.meta.dirty[p] = [...keep];
+    return true;
+  },
+  removeRemote(p) {
+    const info = this.parse(p); if (!info || info.kind === 'settings' || this.meta.dirty[p]) return false;
+    const tgt = STATE[KIND[info.kind]]; let ch = false;
+    for (const k in monthItems(info.kind, info.ym)) { delete tgt[k]; ch = true; }
+    return ch;
+  },
+  markAllLocal() {
+    this.meta.dirty[this.path('settings')] = true;
+    for (const kind of ['wk', 'dy']) for (const k in STATE[KIND[kind]]) this.mark(kind, k);
+  },
+  markLocalOnly(remote) {
+    if (!remote[this.path('settings')]) this.meta.dirty[this.path('settings')] = true;
+    for (const kind of ['wk', 'dy']) { const months = new Set(Object.keys(STATE[KIND[kind]]).map(k => k.slice(0, 7))); for (const ym of months) if (!remote[this.path(kind, ym)]) this.mark(kind, ym); }
+  },
+
+  /* ---------- push ---------- */
+  async push() {
+    const m = this.meta, paths = Object.keys(m.dirty); if (!paths.length) return true;
+    const taking = m.dirty; m.dirty = {};
+    try {
+      const entries = [], newKnown = { ...m.known };
+      for (const p of paths) {
+        const text = this.content(p);
+        if (text == null) { if (m.known[p]) { entries.push({ path: p, mode: '100644', type: 'blob', sha: null }); delete newKnown[p]; } continue; }
+        const sha = await this.gitSha(text); if (sha === m.known[p]) continue;
+        entries.push({ path: p, mode: '100644', type: 'blob', content: text }); newKnown[p] = sha;
+      }
+      if (!entries.length) { this.saveMeta(); return true; }
+      if (!m.head) { // the Git Data API refuses empty repos, so seed the first commit through the contents API
+        const first = entries.find(e => e.content) || { path: 'orbit/settings.json', content: JSON.stringify(STATE.settings) };
+        const r = await this.req('PUT', this.repoUrl(`/contents/${first.path}`), { message: 'Orbit: start sync', content: b64(first.content), branch: this.branch() });
+        m.head = r.commit.sha; m.tree = r.commit.tree.sha; m.known = { [first.path]: r.content.sha };
+        this.restore(taking); this.saveMeta(); return false; // the rest goes as one commit next round
+      }
+      const tree = await this.req('POST', this.repoUrl('/git/trees'), { base_tree: m.tree, tree: entries });
+      const commit = await this.req('POST', this.repoUrl('/git/commits'), { message: `Orbit: ${entries.length} file${entries.length === 1 ? '' : 's'} from ${this.device()}`, tree: tree.sha, parents: [m.head] });
+      await this.req('PATCH', this.repoUrl(`/git/refs/heads/${this.branch()}`), { sha: commit.sha, force: false });
+      m.head = commit.sha; m.tree = tree.sha; m.known = newKnown; this.saveMeta(); return true;
+    } catch (e) {
+      this.restore(taking); this.saveMeta();
+      if (e.status === 422 || e.status === 409) return false; // another device got there first
+      throw e;
+    }
+  },
+  restore(taking) { const d = this.meta.dirty; for (const p in taking) { const cur = d[p], t = taking[p]; d[p] = cur === undefined ? t : (cur === '*' || t === '*') ? '*' : (cur === true || t === true) ? true : [...new Set([...t, ...cur])]; } },
+  device() { return /iPhone|iPad|Android/i.test(navigator.userAgent) ? 'phone' : 'browser'; },
+
+  /* ---------- loop ---------- */
+  async sync() {
+    if (!this.on()) return;
+    if (this.busy) { this.again = true; return; }
+    if (navigator.onLine === false) { this.setState('offline'); return; }
+    this.busy = true; clearTimeout(this.timer); this.setState('syncing');
+    try {
+      for (let tries = 0; tries < 4; tries++) { await this.pull(); if (await this.push()) break; }
+      this.meta.at = Date.now(); this.err = null; this.saveMeta();
+      this.setState(Object.keys(this.meta.dirty).length ? 'syncing' : 'ok');
+    } catch (e) {
+      console.warn('GitHub sync', e.status || '', e.message);
+      if (!e.status) this.setState('offline');
+      else { this.err = e.status === 401 ? 'GitHub rejected the token. It may have expired: make a new one and reconnect.' : e.status === 404 ? 'Repo not found, or the token can’t see it.' : e.ratelimit ? 'GitHub rate limit reached. Sync resumes shortly.' : e.status === 403 ? 'The token can’t write to this repo. Give it Contents: read and write.' : 'GitHub said: ' + e.message; this.setState('error'); }
+    } finally {
+      this.busy = false; this.saveMeta();
+      if (this.again) { this.again = false; setTimeout(() => this.sync(), 300); }
+      else if (Object.keys(this.meta.dirty).length && this.state === 'syncing') { clearTimeout(this.timer); this.timer = setTimeout(() => this.sync(), 1500); }
+    }
+  },
+  setState(s) { this.state = s; const el = $('#ghstat'); if (el) el.innerHTML = this.pill(); const at = $('#ghat'); if (at) at.textContent = this.atText(); const er = $('#gherr'); if (er) { er.textContent = this.state === 'error' ? this.err || '' : ''; er.hidden = this.state !== 'error'; } },
+  pill() { return ({ ok: pill('good', 'Synced'), syncing: pill('', 'Syncing'), offline: pill('warn', 'Offline'), error: pill('bad', 'Not synced'), off: pill('', 'This browser') })[this.on() ? this.state : 'off']; },
+  atText() { const a = this.meta?.at; if (!a) return 'Not synced yet'; const s = (Date.now() - a) / 1000; return 'Last synced ' + (s < 60 ? 'just now' : s < 3600 ? Math.round(s / 60) + ' min ago' : new Date(a).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })); },
+
+  async connect(owner, repo, token) {
+    this.cfg = { owner, repo, token, branch: 'main' };
+    let r;
+    try { r = await this.req('GET', this.repoUrl('')); }
+    catch (e) { this.cfg = null; throw new Error(e.status === 401 ? 'GitHub rejected that token.' : e.status === 404 ? `Can’t find ${owner}/${repo} with that token.` : 'Couldn’t reach GitHub. Check your connection.'); }
+    if (!r.private) { this.cfg = null; throw new Error(`${owner}/${repo} is public. Make it private first: your health data would be visible to anyone.`); }
+    if (r.permissions && !r.permissions.push) { this.cfg = null; throw new Error('That token can read the repo but not write to it. Give it Contents: read and write.'); }
+    this.cfg.branch = r.default_branch || 'main';
+    try { localStorage.setItem(GH_CFG, JSON.stringify(this.cfg)); } catch (e) { }
+    this.meta = this.freshMeta(); this.saveMeta();
+    this.start(); await this.sync();
+  },
+  disconnect() { this.stop(); this.cfg = null; this.meta = this.freshMeta(); try { localStorage.removeItem(GH_CFG); localStorage.removeItem(GH_META); } catch (e) { } this.state = 'off'; },
+  start() {
+    this.stop();
+    this.poll = setInterval(() => { if (document.visibilityState === 'visible') this.sync(); }, 60000);
+  },
+  stop() { clearInterval(this.poll); clearTimeout(this.timer); },
+  boot() {
+    this.load();
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') this.sync(); else if (Object.keys(this.meta?.dirty || {}).length) this.sync(); });
+    window.addEventListener('online', () => this.sync());
+    window.addEventListener('offline', () => { if (this.on()) this.setState('offline'); });
+    if (this.on()) { this.start(); this.sync(); }
+  },
+  card() {
+    if (!this.on()) return `<section class="card"><div class="card-h"><h2>Sync</h2><span id="ghstat">${pill('', 'This browser')}</span></div>
+      <p class="small dim">Connect your private GitHub repo to keep this phone and your browser in step. Data is saved to <span class="mono">orbit-data</span> as small JSON files, and also kept in this browser.</p>
+      <div class="grid2 sec"><label class="fl">GitHub username<input class="in left" id="gh_o" value="${esc(ui.ghO ?? 'BigYellowBoi')}" autocapitalize="off" autocomplete="off" spellcheck="false"></label>
+      <label class="fl">Data repo<input class="in left" id="gh_r" value="${esc(ui.ghR ?? 'orbit-data')}" autocapitalize="off" autocomplete="off" spellcheck="false"></label></div>
+      <label class="fl">Access token<input class="in left" id="gh_t" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…"></label>
+      <p class="xs muted">A fine-grained token with <b>Contents: read and write</b> on the data repo only. It stays in this browser and is sent only to GitHub.</p>
+      <div class="btnrow"><button class="btn sm" data-act="ghconnect">Connect</button></div></section>`;
+    return `<section class="card"><div class="card-h"><h2>Sync</h2><span id="ghstat">${this.pill()}</span></div>
+      <p class="small dim">Saving to <span class="mono">${esc(this.cfg.owner)}/${esc(this.cfg.repo)}</span> on GitHub and to this browser. Changes sync within a couple of seconds, and every device catches up when it’s opened.</p>
+      <p class="xs muted" id="ghat">${esc(this.atText())}</p><p class="small" id="gherr" style="color:var(--bad-ink)" ${this.state === 'error' ? '' : 'hidden'}>${esc(this.err || '')}</p>
+      ${ui.confirm === 'ghoff' ? `<p class="small">Stop syncing on this device? Data here and in the repo stays as it is.</p><div class="btnrow"><button class="btn sm danger" data-act="ghoff">Disconnect</button><button class="link dim" data-act="confirm" data-v="">Cancel</button></div>`
+      : `<div class="btnrow"><button class="btn sm ghost" data-act="ghnow">Sync now</button><button class="link dim" data-act="confirm" data-v="ghoff" style="margin-left:auto">Disconnect</button></div>`}</section>`;
+  },
+};
+Object.assign(ACT, {
+  ghconnect: async el => {
+    const o = ($('#gh_o')?.value || '').trim(), r = ($('#gh_r')?.value || '').trim(), t = ($('#gh_t')?.value || '').trim();
+    ui.ghO = o; ui.ghR = r;
+    if (!o || !r || !t) { toast('Fill in all three fields', 'bad'); return; }
+    el.disabled = true; el.textContent = 'Connecting…';
+    try { await GH.connect(o, r, t); toast(GH.state === 'error' ? esc(GH.err) : 'Sync is on', GH.state === 'error' ? 'bad' : ''); }
+    catch (e) { toast(esc(e.message), 'bad'); }
+    render(true);
+  },
+  ghnow: () => GH.sync(),
+  ghoff: () => { GH.disconnect(); ui.confirm = null; toast('Sync is off on this device'); render(true); },
+});
+GH.boot();
+if (ui.tab === 'data') render(true);
