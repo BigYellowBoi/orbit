@@ -13,7 +13,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="manifest" href="manifest.webmanifest">
 <script>/* layout: 'standard' (page scrolls, the default) or 'pinned' (html.shell). Switch on the Data screen. */
-try { if (localStorage.getItem('orbit-layout') === 'pinned') document.documentElement.classList.add('shell'); } catch (e) { }</script>
+try { if (localStorage.getItem('orbit-layout') === 'pinned') document.documentElement.classList.add('shell'); const hd = localStorage.getItem('orbit-hdr'); if (hd === 't1' || hd === 't2') document.documentElement.classList.add('hdr-' + hd); } catch (e) { }</script>
 <style>
 html, body { margin: 0; }
 html { -webkit-text-size-adjust: 100%; }
@@ -21,6 +21,10 @@ html:not(.shell) body { min-height: 100vh; } /* vh includes the safe areas in ho
 /* iOS draws a blurred band over the top of home-screen apps, reaching about 14pt below the status bar. Tested on an
    iPhone 13 Pro Max (v1.3 Display check): the header row is sharp only when moved below it. */
 @media (display-mode: standalone) { html:root { --hdrdrop: 14px; } }
+/* Experiment (Display check → Header): header back up, with a background a shade off the page, to see whether iOS then
+   treats it as a solid bar and stops blurring it. */
+html.hdr-t1:root, html.hdr-t2:root { --hdrdrop: 0px; }
+html.hdr-t1 .top { background: #111418; } html.hdr-t2 .top { background: #171b21; }
 /* Pinned layout (opt-in on the Data screen while it's tested on iOS). App shell: the page is pinned and can't move, so iOS has nothing to shift or inset.
    Only #scroll scrolls; the header and tab bar sit outside it.
    WebKit bug 254868: in home-screen apps with viewport-fit=cover, 100%, svh and visualViewport come out short by the

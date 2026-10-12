@@ -13,7 +13,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="manifest" href="manifest.webmanifest">
 <script>/* layout: 'standard' (page scrolls, the default) or 'pinned' (html.shell). Switch on the Data screen. */
-try { if (localStorage.getItem('orbit-layout') === 'pinned') document.documentElement.classList.add('shell'); } catch (e) { }</script>
+try { if (localStorage.getItem('orbit-layout') === 'pinned') document.documentElement.classList.add('shell'); const hd = localStorage.getItem('orbit-hdr'); if (hd === 't1' || hd === 't2') document.documentElement.classList.add('hdr-' + hd); } catch (e) { }</script>
 <style>
 html, body { margin: 0; }
 html { -webkit-text-size-adjust: 100%; }
@@ -21,6 +21,10 @@ html:not(.shell) body { min-height: 100vh; } /* vh includes the safe areas in ho
 /* iOS draws a blurred band over the top of home-screen apps, reaching about 14pt below the status bar. Tested on an
    iPhone 13 Pro Max (v1.3 Display check): the header row is sharp only when moved below it. */
 @media (display-mode: standalone) { html:root { --hdrdrop: 14px; } }
+/* Experiment (Display check → Header): header back up, with a background a shade off the page, to see whether iOS then
+   treats it as a solid bar and stops blurring it. */
+html.hdr-t1:root, html.hdr-t2:root { --hdrdrop: 0px; }
+html.hdr-t1 .top { background: #111418; } html.hdr-t2 .top { background: #171b21; }
 /* Pinned layout (opt-in on the Data screen while it's tested on iOS). App shell: the page is pinned and can't move, so iOS has nothing to shift or inset.
    Only #scroll scrolls; the header and tab bar sit outside it.
    WebKit bug 254868: in home-screen apps with viewport-fit=cover, 100%, svh and visualViewport come out short by the
@@ -466,7 +470,7 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.4'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.5'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
@@ -1688,6 +1692,7 @@ function vData() {
     const now = diagNums(), a = window.__launch, a1 = window.__launch1;
     h += `<section class="card"><div class="card-h"><h2>Display check</h2><span class="eyebrow">for fixing layout</span></div>
       <div class="btnrow" style="justify-content:space-between"><span class="xs muted">Layout</span><div class="seg" role="group" aria-label="Layout"><button class="${SHELL ? '' : 'on'}" data-act="layout" data-v="standard">Standard</button><button class="${SHELL ? 'on' : ''}" data-act="layout" data-v="pinned">Pinned</button></div></div>
+      ${(() => { const c = document.documentElement.classList, cur = c.contains('hdr-t1') ? 't1' : c.contains('hdr-t2') ? 't2' : 'low'; return `<div class="btnrow" style="justify-content:space-between"><span class="xs muted">Header</span><div class="seg" role="group" aria-label="Header test">${[['low', 'Lowered'], ['t1', 'Up, tint 1'], ['t2', 'Up, tint 2']].map(([k, l]) => `<button class="${cur === k ? 'on' : ''}" data-act="hdr" data-v="${k}">${l}</button>`).join('')}</div></div>`; })()}
       <div class="tblwrap"><table class="tbl"><thead><tr><th></th><th class="n">Launch</th><th class="n">+1 s</th><th class="n">Now</th></tr></thead><tbody>
       ${keys.map(k => `<tr><td class="mono xs">${k}</td>${row(k, a)}${row(k, a1)}${row(k, now)}</tr>`).join('')}</tbody></table></div>
       <div class="btnrow"><button class="link" data-act="diagrefresh">Refresh</button></div>
@@ -1956,6 +1961,7 @@ const ACT = {
   goal: el => { if (el.dataset.v === 'grow' && S().goal !== 'grow') S().growFrom = today(); S().goal = el.dataset.v; saveSettings(); render(true); },
   goalflip: () => { S().goal = S().goal === 'grow' ? 'hold' : 'grow'; if (S().goal === 'grow') S().growFrom = today(); saveSettings(); toast(S().goal === 'grow' ? `Aim set to overload, +${fmt((S().progRate ?? 0.005) * 100, 2)}% a week` : 'Aim set to maintenance'); render(true); },
   prograte: el => { S().progRate = +el.dataset.v; if (S().goal === 'grow') S().growFrom = today(); saveSettings(); render(true); },
+  hdr: el => { const v = el.dataset.v; try { localStorage.setItem('orbit-hdr', v); } catch (e) { } const c = document.documentElement.classList; c.remove('hdr-t1', 'hdr-t2'); if (v !== 'low') c.add('hdr-' + v); render(true); },
   layout: el => { try { localStorage.setItem('orbit-layout', el.dataset.v); } catch (e) { } location.reload(); },
   diagrefresh: () => render(true),
   update: () => { location.replace(location.pathname + '?v=' + encodeURIComponent(ui.update || Date.now())); },

@@ -388,6 +388,7 @@ function vData() {
     const now = diagNums(), a = window.__launch, a1 = window.__launch1;
     h += `<section class="card"><div class="card-h"><h2>Display check</h2><span class="eyebrow">for fixing layout</span></div>
       <div class="btnrow" style="justify-content:space-between"><span class="xs muted">Layout</span><div class="seg" role="group" aria-label="Layout"><button class="${SHELL ? '' : 'on'}" data-act="layout" data-v="standard">Standard</button><button class="${SHELL ? 'on' : ''}" data-act="layout" data-v="pinned">Pinned</button></div></div>
+      ${(() => { const c = document.documentElement.classList, cur = c.contains('hdr-t1') ? 't1' : c.contains('hdr-t2') ? 't2' : 'low'; return `<div class="btnrow" style="justify-content:space-between"><span class="xs muted">Header</span><div class="seg" role="group" aria-label="Header test">${[['low', 'Lowered'], ['t1', 'Up, tint 1'], ['t2', 'Up, tint 2']].map(([k, l]) => `<button class="${cur === k ? 'on' : ''}" data-act="hdr" data-v="${k}">${l}</button>`).join('')}</div></div>`; })()}
       <div class="tblwrap"><table class="tbl"><thead><tr><th></th><th class="n">Launch</th><th class="n">+1 s</th><th class="n">Now</th></tr></thead><tbody>
       ${keys.map(k => `<tr><td class="mono xs">${k}</td>${row(k, a)}${row(k, a1)}${row(k, now)}</tr>`).join('')}</tbody></table></div>
       <div class="btnrow"><button class="link" data-act="diagrefresh">Refresh</button></div>
