@@ -203,7 +203,9 @@ function renderMark() { // header ring: where today sits in the rotation, one se
   let arcs = '';
   for (let i = 0; i < n; i++) {
     const a0 = i * 360 / n + gapDeg / 2, a1 = (i + 1) * 360 / n - gapDeg / 2, [x0, y0] = pt(a0), [x1, y1] = pt(a1);
-    arcs += `<path d="M${x0.toFixed(3)} ${y0.toFixed(3)}A${r} ${r} 0 ${a1 - a0 > 180 ? 1 : 0} 1 ${x1.toFixed(3)} ${y1.toFixed(3)}" fill="none" stroke="${i < k ? 'var(--logo)' : 'var(--line-2)'}" stroke-width="2.4" stroke-linecap="round"/>`;
+    const d = `M${x0.toFixed(3)} ${y0.toFixed(3)}A${r} ${r} 0 ${a1 - a0 > 180 ? 1 : 0} 1 ${x1.toFixed(3)} ${y1.toFixed(3)}`;
+    if (i < k) arcs += `<path d="${d}" fill="none" stroke="var(--logo)" stroke-opacity=".22" stroke-width="5" stroke-linecap="round"/>`; // soft halo
+    arcs += `<path d="${d}" fill="none" stroke="${i < k ? 'var(--logo)' : 'var(--line-2)'}" stroke-width="2.4" stroke-linecap="round"/>`;
   }
   if (n === 1) arcs = `<circle cx="12" cy="12" r="${r}" fill="none" stroke="var(--logo)" stroke-width="2.4"/>`;
   el.innerHTML = `<svg class="mark" viewBox="0 0 24 24" fill="none" role="img" aria-label="${esc(sessDef(sid)?.name || '')}, ${k} of ${n} in the rotation"><title>${esc(sessDef(sid)?.name || '')} · ${k} of ${n}</title>${arcs}<circle cx="12" cy="12" r="2.5" fill="var(--ink)"/></svg>`;
