@@ -12,7 +12,7 @@ User preferences: short answers, never use em dashes (in replies or UI copy).
 Any feature change goes into `src/`, then `tools/build.sh` rebuilds both. Ship to both targets unless told otherwise.
 
 ## Layout
-- `src/head.html` CSS tokens and styles; `src/body.html` shell (fixed header with the ring, 5 tabs: Today, History, Strength, Body, Plan; toast); `src/gh-head.html` the Pages-only document head (meta, icons, safe-area status-bar backdrop).
+- `src/head.html` CSS tokens and styles; `src/body.html` shell (fixed header with the ring, 5 tabs: Today, History, Strength, Body, Plan; toast); `src/gh-head.html` the Pages-only document head (meta, icons).
 - JS, concatenated in this order: `core.js` (helpers, exercise library, presets, STATE, ui), `engine.js` (rotation, e1RM/PRs, maintenance check, suggested load and reps, HRV band, cardio auto-log from WHOOP, which overrides hand entries), `imports.js` (WHOOP zip/CSV via JSZip 3.10.1, MacroFactor xlsx via SheetJS 0.18.5, both lazy-loaded from cdnjs), `charts.js` (hand-built SVG), `explorer.js` (Trends metric explorer), `notes.js`, `views.js` (Today, which holds today's log once started; Log, a past day opened from History; History; Strength; Body; Plan; Data), `boot.js` (persistence, render, actions, boot). `gh.js` is appended for Pages only.
 - `tools/build.sh` builds; `tools/icons.js` renders `tools/icon.html` to the PNG icons.
 - `test/` Playwright scripts: `gh.js` (GitHub sync against a mocked API: two devices, conflicts, offline, delete, restore), `sync.js` (artifact cloud sync with a mocked `window.claude`), `notes.js`. Run with `PLAYWRIGHT=/path/to/playwright node test/gh.js` after building.
