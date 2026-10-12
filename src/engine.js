@@ -101,6 +101,55 @@ function setsTxt(exId, sets) { // compress "48×6, 48×6, 48×6" to "48×6 ×3"
 function scoreTxt(exId, v) { const u = exDef(exId).u; return u === 'bw' ? `${fmt(v, 0)} reps` : u === 'plates' ? `${fmt(v, 2)} pl` : `${fmt(v, 1)} kg`; }
 
 /* ============================================================
+   SUGGESTED LOAD AND REPS (maintenance)
+   Strength and size hold on far less volume than it took to build them,
+   provided the sets stay heavy and close to failure (Bickel et al., 2011;
+   Spiering et al., 2021). So each lift gets a load and rep target that sits
+   a set number of reps short of failure at your current strength:
+   - current strength: median e1RM of the top set from your last 3 sessions
+     of that lift in the past 90 days (the stated max if none)
+   - target reps: middle of the rep range, then load = e1RM / (1 + (reps + RIR) / 30)
+     (Epley solved for load, with reps in reserve added), rounded down to the
+     lift's weight step, and reps re-fitted to that rounded load.
+   ============================================================ */
+function exStep(exId) { // smallest load change on the equipment
+  const d = exDef(exId); if (d.inc > 0) return d.inc;
+  if (d.u === 'plates') return 0.25; // a 5 kg plate per side
+  if (d.u === 'bw') return 2.5;
+  if (/dumbbell/i.test(d.note || '') || /dumbbell/i.test(d.name)) return 2;
+  if (/cable/i.test(d.name)) return 1.25;
+  return 2.5;
+}
+function exRir(exId) { const d = exDef(exId); return d.rir != null ? d.rir : (d.rest || 90) >= 150 ? 2 : 1; } // heavy compounds 2 short of failure, the rest 1
+function strengthRef(exId, before) {
+  const tops = []; const from = addDays(before, -90);
+  for (const w of workoutsSorted()) if (w.date < before && w.date >= from) for (const e of w.ex || []) if (e.id === exId) { const ds = doneSets(e); if (ds.length) tops.push({ date: w.date, s: ds.reduce((a, s) => setScore(exId, s) > setScore(exId, a) ? s : a, ds[0]) }); }
+  const last = tops.slice(-3);
+  if (last.length) { const v = last.map(t => setScore(exId, t.s)).sort((a, b) => a - b); return { v: v[Math.floor((v.length - 1) / 2)], n: last.length, top: last[last.length - 1].s }; }
+  const b = exDef(exId).base; return b && b.r > 0 ? { v: setScore(exId, b), n: 0, top: b } : null;
+}
+function suggest(exId, before) { // { w, r, rir } or null
+  if (S().suggest === false) return null;
+  const d = exDef(exId), ref = strengthRef(exId, before); if (!ref) return null;
+  const rir = exRir(exId), mid = Math.round((d.lo + d.hi) / 2);
+  if (d.u === 'bw') { // keep the added load, aim a few reps short of your recent best
+    const w = ref.top.w || 0, best = Math.round(ref.v - w / 2.5);
+    return { w, r: Math.max(1, Math.min(d.hi, best - rir)), rir };
+  }
+  const e = ref.v, step = exStep(exId); if (!(e > 0)) return null;
+  let w = Math.floor(e / (1 + (mid + rir) / 30) / step + 1e-6) * step;
+  if (w <= 0) return null;
+  let r = Math.floor(30 * (e / w - 1) + 1e-6) - rir; // reps that leave `rir` in reserve at the rounded load
+  if (r > d.hi) { // a step heavier fits the range better, if it still reaches the bottom of it
+    const w2 = w + step, r2 = Math.floor(30 * (e / w2 - 1) + 1e-6) - rir;
+    if (r2 >= d.lo) { w = w2; r = r2; } else r = d.hi;
+  }
+  r = Math.max(d.lo, Math.min(d.hi, r));
+  return { w: +w.toFixed(3), r, rir };
+}
+function suggestTxt(exId, sg) { const u = exDef(exId).u, w = fmt(sg.w, 2); return u === 'bw' ? (sg.w ? `BW+${w} × ${sg.r}` : `${sg.r} reps`) : `${w} ${u === 'plates' ? 'pl' : 'kg'} × ${sg.r}`; }
+
+/* ============================================================
    WORKOUTS
    ============================================================ */
 function prefill(exId, n, date) {
@@ -114,10 +163,10 @@ function prefill(exId, n, date) {
 function normSets(w) { // older sessions stored pre-filled numbers as values; unlogged ones become hints
   for (const e of w.ex || []) for (const s of e.sets) if (!s.done && !('pw' in s)) { s.pw = s.w ?? null; s.pr = s.r ?? null; s.w = null; s.r = null; }
 }
-function setFromInputs(s, wv, rv, u) { // a row counts as soon as it has reps; blank weight takes the hint
+function setFromInputs(s, wv, rv, u, hintW) { // a row counts as soon as it has reps; blank weight takes the hint
   s.r = rv > 0 ? rv : null;
   s.w = wv != null ? wv : null;
-  if (s.r && s.w == null) s.w = s.pw != null ? s.pw : (u === 'bw' ? 0 : null);
+  if (s.r && s.w == null) s.w = hintW != null ? hintW : s.pw != null ? s.pw : (u === 'bw' ? 0 : null);
   s.done = !!s.r;
 }
 function newWorkout(date, sid) {
