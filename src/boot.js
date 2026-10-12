@@ -164,8 +164,11 @@ function editingInView() { const a = document.activeElement; return a && $('#vie
 function render(force) {
   if (!force && editingInView()) { pendingRender = true; return; }
   pendingRender = false;
-  const v = $('#view'); CHART_REG.clear();
+  const v = $('#view'), y = window.scrollY; CHART_REG.clear();
+  v.style.minHeight = v.offsetHeight + 'px'; // hold the page height while the view is swapped, so the scroll position can't be clamped
   v.innerHTML = (VIEWS[ui.tab] || vToday)();
+  v.style.minHeight = '';
+  if (Math.abs(window.scrollY - y) > 1) window.scrollTo(0, y); // a re-render keeps your place; changing tabs scrolls to the top in go()
   drawCharts(v);
   document.querySelectorAll('.tabs [data-tab]').forEach(b => b.setAttribute('aria-current', b.dataset.tab === ui.tab ? 'page' : 'false'));
   const g = $('#gear'); g.setAttribute('aria-current', ui.tab === 'data' ? 'page' : 'false'); g.setAttribute('aria-label', ui.tab === 'data' ? 'Back' : 'Data, imports and backups');
@@ -337,11 +340,15 @@ document.addEventListener('pointermove', ev => {
   drag.to = to;
   const shift = rects[from].height + gap;
   sibs.forEach((s, i) => { if (i === from) return; const t = from < to && i > from && i <= to ? -shift : from > to && i >= to && i < from ? shift : 0; s.style.transform = t ? `translateY(${t}px)` : ''; });
-  if (ev.clientY < 80) window.scrollBy(0, -8); else if (ev.clientY > window.innerHeight - 90) window.scrollBy(0, 8);
+  const hb = $('.top')?.getBoundingClientRect().bottom || 60; // auto-scroll only when the finger reaches the header or the tab bar
+  if (ev.clientY < hb + 24) window.scrollBy(0, -8); else if (ev.clientY > window.innerHeight - 90) window.scrollBy(0, 8);
 });
 function endDrag(ev) {
   if (!drag || (ev && ev.pointerId !== drag.pid)) return;
   const { from, to, kind, list, sibs } = drag; drag = null;
+  const y = window.scrollY, keep = () => { if (Math.abs(window.scrollY - y) > 1) window.scrollTo(0, y); };
+  if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
+  requestAnimationFrame(keep); setTimeout(keep, 80); setTimeout(keep, 250); // iOS can jump to the top after the dragged row is replaced
   document.body.classList.remove('is-dragging'); sibs.forEach(s => { s.style.transform = ''; s.classList.remove('dragging'); });
   if (from === to || !ev || ev.type === 'pointercancel') { render(true); return; }
   if (kind === 'sess') { const ids = sibs.map(s => s.dataset.id); const [m] = ids.splice(from, 1); ids.splice(to, 0, m); S().prog.order = ids; }
@@ -374,10 +381,13 @@ document.addEventListener('keydown', ev => {
    BOOT
    ============================================================ */
 (function boot() {
+  try { history.scrollRestoration = 'manual'; } catch (e) { }
+  const top = () => window.scrollTo(0, 0); // opening the app always starts at the top
+  window.addEventListener('pageshow', top); window.addEventListener('load', top);
   const loc = loadLocal();
   if (loc) { STATE.settings = migrateSettings(loc.settings); STATE.w = loc.w || {}; STATE.d = loc.d || {}; }
   const h = (location.hash || '').slice(1); if (VIEWS[h]) ui.tab = h;
   if (ui.tab === 'log') ui.logDate = today();
-  render(true);
+  render(true); top(); requestAnimationFrame(top);
   connectCloud();
 })();

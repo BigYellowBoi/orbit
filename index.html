@@ -23,20 +23,20 @@ body { padding-top: env(safe-area-inset-top, 0px); min-height: 100dvh; overscrol
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
 <style>
 /* Layout: one 720px column, sticky header, fixed bottom tab bar within thumb reach.
-   Committed dark theme (user request): graphite neutrals with a slight cool bias, one steel-blue accent,
+   Committed dark theme (user request): graphite neutrals with a slight cool bias, one soft neon-purple accent,
    WHOOP-style status colours reserved for recovery state. */
 :root {
   color-scheme: dark;
   --bg: #0a0c0f; --surface: #111418; --surface-2: #171b21; --surface-3: #1e232a;
   --line: #222830; --line-2: #2d343d;
   --ink: #e8ebef; --ink-2: #a5adb8; --ink-3: #6c7480;
-  --accent: #7ea2ee; --accent-ink: #0a0c0f; --accent-soft: rgba(126, 162, 238, .12);
+  --accent: #b388ff; --accent-ink: #0a0c0f; --accent-soft: rgba(179, 136, 255, .13); --glow: rgba(179, 136, 255, .45);
   --good: #0ca30c; --warn: #fab219; --bad: #d03b3b;
   --good-ink: #5ccf6b; --warn-ink: #f6c453; --bad-ink: #f07a74;
   --good-soft: rgba(12, 163, 12, .14); --warn-soft: rgba(250, 178, 25, .12); --bad-soft: rgba(208, 59, 59, .14);
-  --logo: #9d8cf2;
-  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #6b7480;
-  --z0: #4a525d; --z1: #9fb0c3; --z2: #3987e5; --z3: #199e70; --z4: #e0a03a; --z5: #d95926;
+  --logo: #b388ff;
+  --s1: #a06bff; --s2: #d95926; --s3: #199e70; --s4: #6b7480;
+  --z0: #4a525d; --z1: #b5aecb; --z2: #a06bff; --z3: #199e70; --z4: #e0a03a; --z5: #d95926;
   --f-body: 'Geist', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --f-mono: 'Geist Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
   --r: 12px; --tabh: 62px;
@@ -57,7 +57,7 @@ button { cursor: pointer; }
 /* header */
 .top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; display: flex; align-items: center; gap: 10px; margin-inline: -16px; padding: 12px 16px; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-bottom: 1px solid var(--line); }
 .brand { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 16px; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; }
-.mark-wrap { display: inline-grid; flex: none; } .mark { width: 24px; height: 24px; flex: none; }
+.mark-wrap { display: inline-grid; flex: none; } .mark { width: 24px; height: 24px; flex: none; filter: drop-shadow(0 0 2.5px var(--glow)); }
 .sync { font-family: var(--f-mono); font-size: 11px; color: var(--ink-3); display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .sync::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--ink-3); }
 .sync.ok::before { background: var(--good); } .sync.bad::before { background: var(--bad); } .sync.busy::before { background: var(--warn); }
@@ -87,7 +87,7 @@ button { cursor: pointer; }
 .hero .focus { color: var(--ink-2); font-size: 15px; }
 .rot { display: flex; gap: 4px; }
 .rot i { flex: 1; height: 4px; border-radius: 2px; background: var(--line-2); }
-.rot i.on { background: var(--accent); } .rot i.done { background: var(--ink-3); }
+.rot i.on { background: var(--accent); box-shadow: 0 0 6px var(--glow); } .rot i.done { background: var(--ink-3); }
 .exlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .exlist li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 14.5px; align-items: baseline; }
 .exlist li .rx { font-family: var(--f-mono); font-size: 12.5px; color: var(--ink-2); white-space: nowrap; }
@@ -307,7 +307,7 @@ details.more > summary::-webkit-details-marker { display: none; }
 .tabs button { background: none; border: 0; min-height: var(--tabh); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 11px; font-weight: 500; color: var(--ink-3); letter-spacing: .01em; }
 .tabs svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .tabs button[aria-current="page"] { color: var(--ink); }
-.tabs button[aria-current="page"] svg { stroke: var(--accent); }
+.tabs button[aria-current="page"] svg { stroke: var(--accent); filter: drop-shadow(0 0 3px var(--glow)); }
 
 /* toast */
 .toast { position: fixed; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 74px); transform: translate(-50%, -16px); opacity: 0; pointer-events: none; z-index: 50; background: var(--surface-3); border: 1px solid var(--line-2); color: var(--ink); padding: 10px 16px; border-radius: 12px; font-size: 14px; max-width: calc(100% - 32px); text-align: center; transition: opacity .2s, transform .2s; box-shadow: 0 10px 30px rgba(0,0,0,.5); }
@@ -1743,8 +1743,11 @@ function editingInView() { const a = document.activeElement; return a && $('#vie
 function render(force) {
   if (!force && editingInView()) { pendingRender = true; return; }
   pendingRender = false;
-  const v = $('#view'); CHART_REG.clear();
+  const v = $('#view'), y = window.scrollY; CHART_REG.clear();
+  v.style.minHeight = v.offsetHeight + 'px'; // hold the page height while the view is swapped, so the scroll position can't be clamped
   v.innerHTML = (VIEWS[ui.tab] || vToday)();
+  v.style.minHeight = '';
+  if (Math.abs(window.scrollY - y) > 1) window.scrollTo(0, y); // a re-render keeps your place; changing tabs scrolls to the top in go()
   drawCharts(v);
   document.querySelectorAll('.tabs [data-tab]').forEach(b => b.setAttribute('aria-current', b.dataset.tab === ui.tab ? 'page' : 'false'));
   const g = $('#gear'); g.setAttribute('aria-current', ui.tab === 'data' ? 'page' : 'false'); g.setAttribute('aria-label', ui.tab === 'data' ? 'Back' : 'Data, imports and backups');
@@ -1916,11 +1919,15 @@ document.addEventListener('pointermove', ev => {
   drag.to = to;
   const shift = rects[from].height + gap;
   sibs.forEach((s, i) => { if (i === from) return; const t = from < to && i > from && i <= to ? -shift : from > to && i >= to && i < from ? shift : 0; s.style.transform = t ? `translateY(${t}px)` : ''; });
-  if (ev.clientY < 80) window.scrollBy(0, -8); else if (ev.clientY > window.innerHeight - 90) window.scrollBy(0, 8);
+  const hb = $('.top')?.getBoundingClientRect().bottom || 60; // auto-scroll only when the finger reaches the header or the tab bar
+  if (ev.clientY < hb + 24) window.scrollBy(0, -8); else if (ev.clientY > window.innerHeight - 90) window.scrollBy(0, 8);
 });
 function endDrag(ev) {
   if (!drag || (ev && ev.pointerId !== drag.pid)) return;
   const { from, to, kind, list, sibs } = drag; drag = null;
+  const y = window.scrollY, keep = () => { if (Math.abs(window.scrollY - y) > 1) window.scrollTo(0, y); };
+  if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
+  requestAnimationFrame(keep); setTimeout(keep, 80); setTimeout(keep, 250); // iOS can jump to the top after the dragged row is replaced
   document.body.classList.remove('is-dragging'); sibs.forEach(s => { s.style.transform = ''; s.classList.remove('dragging'); });
   if (from === to || !ev || ev.type === 'pointercancel') { render(true); return; }
   if (kind === 'sess') { const ids = sibs.map(s => s.dataset.id); const [m] = ids.splice(from, 1); ids.splice(to, 0, m); S().prog.order = ids; }
@@ -1953,11 +1960,14 @@ document.addEventListener('keydown', ev => {
    BOOT
    ============================================================ */
 (function boot() {
+  try { history.scrollRestoration = 'manual'; } catch (e) { }
+  const top = () => window.scrollTo(0, 0); // opening the app always starts at the top
+  window.addEventListener('pageshow', top); window.addEventListener('load', top);
   const loc = loadLocal();
   if (loc) { STATE.settings = migrateSettings(loc.settings); STATE.w = loc.w || {}; STATE.d = loc.d || {}; }
   const h = (location.hash || '').slice(1); if (VIEWS[h]) ui.tab = h;
   if (ui.tab === 'log') ui.logDate = today();
-  render(true);
+  render(true); top(); requestAnimationFrame(top);
   connectCloud();
 })();
 /* ============================================================
