@@ -165,13 +165,6 @@ const SHELL = document.documentElement.classList.contains('shell');
 const scroller = () => SHELL ? $('#scroll') : window;
 const scrollY0 = () => SHELL ? $('#scroll').scrollTop : window.scrollY;
 const scrollToY = (top, smooth) => scroller().scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' });
-function sizeShell() { // the real screen height for the home-screen app (see gh-head.html)
-  if (!SHELL) return;
-  const portraitMatch = Math.abs(screen.width - window.innerWidth) < 2;
-  const full = navigator.standalone && portraitMatch ? Math.max(screen.height, window.innerHeight) : window.innerHeight;
-  document.documentElement.style.setProperty('--apph', full + 'px');
-}
-if (SHELL) { sizeShell(); window.addEventListener('resize', sizeShell); window.addEventListener('orientationchange', () => setTimeout(sizeShell, 200)); }
 function resetScroll() { // to the top, and stop any momentum still running (iOS keeps flinging unless overflow is cut for a frame)
   if (!SHELL) { window.scrollTo(0, 0); return; }
   const s = $('#scroll'); s.style.overflowY = 'hidden'; s.scrollTop = 0; requestAnimationFrame(() => { s.style.overflowY = ''; });

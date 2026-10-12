@@ -16,13 +16,12 @@
 html, body { margin: 0; }
 html { -webkit-text-size-adjust: 100%; }
 /* App shell for the home-screen app: the page is pinned and can't move, so iOS has nothing to shift or inset.
-   Only #scroll scrolls; the header and tab bar sit outside it. */
-html.shell, html.shell body { height: 100%; overflow: hidden; overscroll-behavior: none; }
-/* iOS home-screen apps report a viewport about a status bar shorter than the screen, which left a black strip under
-   the tab bar. --apph is set from the real screen height in boot.js, and the tab bar sits at the bottom of body, not of
-   that short viewport, so it runs down under the home indicator. */
-html.shell body { position: fixed; top: 0; left: 0; right: 0; height: var(--apph, 100%); padding: 0; }
-html.shell .tabs { position: absolute; }
-html.shell #scroll { position: absolute; inset: 0; overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain;
+   Only #scroll scrolls; the header and tab bar sit outside it.
+   WebKit bug 254868: in home-screen apps with viewport-fit=cover, 100%, svh and visualViewport come out short by the
+   status bar and home indicator, and absolutely positioned bottom elements float above the real edge. vh includes
+   those insets and position: fixed anchors to the real bottom, which is the workaround given in the bug report. */
+html.shell, html.shell body { height: 100vh; min-height: 100vh; overflow: hidden; overscroll-behavior: none; }
+html.shell body { position: fixed; top: 0; left: 0; right: 0; padding: 0; }
+html.shell #scroll { position: absolute; top: 0; left: 0; right: 0; height: 100vh; overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain;
   padding: 0 16px calc(var(--tabh) + 28px + env(safe-area-inset-bottom, 0px)); }
 </style>
