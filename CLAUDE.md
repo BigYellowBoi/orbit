@@ -2,7 +2,7 @@
 
 Training log for Louis (BigYellowBoi): a rotating split (Push 1, Pull, Push 2, Legs; optional Upper/Lower/Push/Pull/Legs), WHOOP and MacroFactor imports, maintenance goal by default, with an optional Overload mode for the Aim (Plan → Targets; `S().goal` 'hold' | 'grow', `progRate`, `growFrom`). Aim logic lives in engine.js; check changes with a follow-the-Aim simulation (maintenance must stay flat, overload must climb at each rate). Single-file vanilla JS app, dark theme, Geist fonts. No framework, no bundler.
 
-User preferences: short answers, never use em dashes (in replies or UI copy).
+User preferences: short answers, never use em dashes (in replies or UI copy). Keep the soft neon-purple glow on the header logo (he likes it). Open question (v1.3): a fuzzy band over the top of the screen down to mid-logo on his phone, likely drawn by iOS over the status bar area; Display check has a 'Header row: 14pt lower' switch to test it.
 
 ## Two targets, one source
 - **claude.ai artifact (beta, still Louis's main data)**: https://claude.ai/artifact/XAN6MufDsut3PVWobwYvgh, capabilities `{db:{}, user:{}, downloads:true}`. Publish `dist/artifact.html` to that URL (read it first). Also save it to the claude.ai Project "Gym stuff" as `claude/Orbit.html`.
