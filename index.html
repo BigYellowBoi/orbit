@@ -1,0 +1,2185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Orbit">
+<meta name="theme-color" content="#0a0c0f">
+<meta name="robots" content="noindex">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+html, body { margin: 0; }
+html { -webkit-text-size-adjust: 100%; }
+body { padding-top: env(safe-area-inset-top, 0px); min-height: 100dvh; overscroll-behavior-y: none; }
+.sbar { position: fixed; top: 0; left: 0; right: 0; height: env(safe-area-inset-top, 0px); background: #0a0c0f; z-index: 40; }
+</style>
+<title>Orbit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one 720px column, sticky header, fixed bottom tab bar within thumb reach.
+   Committed dark theme (user request): graphite neutrals with a slight cool bias, one steel-blue accent,
+   WHOOP-style status colours reserved for recovery state. */
+:root {
+  color-scheme: dark;
+  --bg: #0a0c0f; --surface: #111418; --surface-2: #171b21; --surface-3: #1e232a;
+  --line: #222830; --line-2: #2d343d;
+  --ink: #e8ebef; --ink-2: #a5adb8; --ink-3: #6c7480;
+  --accent: #7ea2ee; --accent-ink: #0a0c0f; --accent-soft: rgba(126, 162, 238, .12);
+  --good: #0ca30c; --warn: #fab219; --bad: #d03b3b;
+  --good-ink: #5ccf6b; --warn-ink: #f6c453; --bad-ink: #f07a74;
+  --good-soft: rgba(12, 163, 12, .14); --warn-soft: rgba(250, 178, 25, .12); --bad-soft: rgba(208, 59, 59, .14);
+  --logo: #9d8cf2;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #6b7480;
+  --z0: #4a525d; --z1: #9fb0c3; --z2: #3987e5; --z3: #199e70; --z4: #e0a03a; --z5: #d95926;
+  --f-body: 'Geist', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --f-mono: 'Geist Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --r: 12px; --tabh: 62px;
+}
+* { box-sizing: border-box; }
+html, body { background: var(--bg); color: var(--ink); }
+body { font-family: var(--f-body); font-size: 15px; line-height: 1.5; padding-inline: 16px; padding-block: 0 calc(var(--tabh) + 28px + env(safe-area-inset-bottom, 0px)); -webkit-tap-highlight-color: transparent; -webkit-font-smoothing: antialiased; }
+.wrap { max-width: 720px; margin: 0 auto; }
+h1, h2, h3 { font-weight: 600; line-height: 1.15; margin: 0; letter-spacing: -.015em; text-wrap: balance; }
+p { margin: 0; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.num { font-variant-numeric: tabular-nums; }
+.muted { color: var(--ink-3); } .dim { color: var(--ink-2); } .small { font-size: 13px; } .xs { font-size: 12px; }
+.mono { font-family: var(--f-mono); }
+
+/* header */
+.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; display: flex; align-items: center; gap: 10px; margin-inline: -16px; padding: 12px 16px; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-bottom: 1px solid var(--line); }
+.brand { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 16px; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; }
+.mark-wrap { display: inline-grid; flex: none; } .mark { width: 24px; height: 24px; flex: none; }
+.sync { font-family: var(--f-mono); font-size: 11px; color: var(--ink-3); display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.sync::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--ink-3); }
+.sync.ok::before { background: var(--good); } .sync.bad::before { background: var(--bad); } .sync.busy::before { background: var(--warn); }
+.iconbtn { width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); display: grid; place-items: center; color: var(--ink-2); }
+.iconbtn svg { width: 18px; height: 18px; }
+.iconbtn[aria-current="page"] { border-color: var(--accent); color: var(--accent); }
+
+#view { display: flex; flex-direction: column; gap: 14px; padding-top: 18px; }
+.page-h { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.page-h h1 { font-size: 26px; }
+.eyebrow { font-family: var(--f-mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+.sec { display: flex; flex-direction: column; gap: 10px; }
+.sec-h { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+
+/* cards */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; container-type: inline-size; }
+.card.flat { background: transparent; }
+.card-h { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.card-h h2 { font-size: 17px; }
+.grid2 { display: grid; grid-template-columns: 1fr; gap: 14px; }
+@media (min-width: 640px) { .grid2 { grid-template-columns: 1fr 1fr; } }
+.hr { height: 1px; background: var(--line); border: 0; margin: 0; }
+
+/* hero: next session */
+.hero { padding: 20px 18px; gap: 14px; background: linear-gradient(180deg, var(--surface-2), var(--surface)); }
+.hero h1 { font-size: 38px; letter-spacing: -.03em; line-height: 1; }
+.hero .focus { color: var(--ink-2); font-size: 15px; }
+.rot { display: flex; gap: 4px; }
+.rot i { flex: 1; height: 4px; border-radius: 2px; background: var(--line-2); }
+.rot i.on { background: var(--accent); } .rot i.done { background: var(--ink-3); }
+.exlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.exlist li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 14.5px; align-items: baseline; }
+.exlist li .rx { font-family: var(--f-mono); font-size: 12.5px; color: var(--ink-2); white-space: nowrap; }
+.exlist li .lt { grid-column: 1 / -1; font-size: 12.5px; color: var(--ink-3); margin-top: -2px; }
+.strip { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(64px, 1fr); gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.strip::-webkit-scrollbar { display: none; }
+.sd { border: 1px solid var(--line); border-radius: 10px; padding: 8px 8px; display: flex; flex-direction: column; gap: 1px; background: var(--surface); min-width: 0; }
+.sd small { font-family: var(--f-mono); font-size: 10.5px; color: var(--ink-3); text-transform: uppercase; letter-spacing: .05em; }
+.sd b { font-weight: 600; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sd.now { border-color: var(--accent); background: var(--accent-soft); }
+.sd.done { opacity: .6; }
+.sd.rest b { color: var(--ink-3); font-weight: 500; }
+
+/* stats */
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.stats.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.stat { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.stat b { font-size: 24px; font-weight: 600; letter-spacing: -.02em; line-height: 1.1; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.stat b small { font-size: 13px; font-weight: 500; color: var(--ink-3); margin-left: 2px; letter-spacing: 0; }
+.stat > span { font-size: 12px; color: var(--ink-3); }
+.delta { font-family: var(--f-mono); font-size: 11px; color: var(--ink-2); line-height: 1.35; margin-top: 2px; }
+.stat > span { overflow-wrap: anywhere; }
+@container (min-width: 520px) { .stats.four { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@container (max-width: 400px) { .stat b { font-size: 21px; } .stats { column-gap: 10px; } }
+@container (max-width: 300px) { .stat b { font-size: 19px; } .stat b small { font-size: 11px; margin-left: 1px; } }
+.recov { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 18px; align-items: center; }
+.ring { width: 112px; height: 112px; position: relative; display: grid; place-items: center; flex: none; }
+.ring svg { position: absolute; inset: 0; transform: rotate(-90deg); }
+.ring b { font-size: 26px; font-weight: 600; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.ring b small { font-size: 14px; color: var(--ink-3); font-weight: 500; }
+
+/* pills */
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 500; padding: 3px 10px; border-radius: 99px; white-space: nowrap; background: var(--surface-3); color: var(--ink-2); }
+.pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.pill.good { background: var(--good-soft); color: var(--good-ink); } .pill.warn { background: var(--warn-soft); color: var(--warn-ink); } .pill.bad { background: var(--bad-soft); color: var(--bad-ink); }
+.pill.plain::before { display: none; }
+.pill.acc { background: var(--accent-soft); color: var(--accent); }
+.note { font-size: 13.5px; color: var(--ink-2); padding: 10px 12px; border-radius: 10px; background: var(--surface-2); }
+
+/* buttons */
+.btn { min-height: 46px; padding: 10px 18px; border-radius: 11px; border: 1px solid var(--ink); background: var(--ink); color: var(--bg); font-weight: 600; font-size: 15px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.btn.ghost { background: transparent; color: var(--ink); border-color: var(--line-2); }
+.btn.acc { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.sm { min-height: 36px; padding: 6px 12px; font-size: 13.5px; border-radius: 9px; }
+.btn.wide { width: 100%; min-height: 52px; font-size: 16px; }
+.btn.danger { background: var(--bad); border-color: var(--bad); color: #fff; }
+.btn:disabled { opacity: .4; cursor: default; }
+.btnrow { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.link { background: none; border: 0; padding: 6px 0; color: var(--accent); font-weight: 500; font-size: 14px; min-height: 36px; }
+.link.danger { color: var(--bad-ink); } .link.dim { color: var(--ink-3); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { min-height: 36px; padding: 6px 12px; border-radius: 99px; border: 1px solid var(--line-2); background: transparent; font-size: 13.5px; font-weight: 500; color: var(--ink-2); }
+.chip.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line); }
+.seg button { border: 0; background: transparent; min-height: 30px; padding: 4px 10px; border-radius: 7px; font-size: 12.5px; font-weight: 500; color: var(--ink-3); font-family: var(--f-mono); }
+.seg button.on { background: var(--surface-3); color: var(--ink); }
+
+/* inputs */
+.in { width: 100%; min-height: 46px; border: 1px solid var(--line-2); border-radius: 10px; background: var(--bg); color: var(--ink); font-size: 18px; font-weight: 500; text-align: center; padding: 4px 6px; font-variant-numeric: tabular-nums; }
+.in::placeholder { color: var(--ink-3); opacity: .7; }
+.in.left { text-align: left; font-size: 15px; padding-inline: 12px; }
+select.in { appearance: none; -webkit-appearance: none; text-align: left; font-size: 15px; padding-inline: 12px; background-image: linear-gradient(45deg, transparent 50%, var(--ink-3) 50%), linear-gradient(135deg, var(--ink-3) 50%, transparent 50%); background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%; background-size: 5px 5px; background-repeat: no-repeat; padding-right: 32px; }
+textarea.in { text-align: left; font-size: 15px; min-height: 76px; padding: 10px 12px; resize: vertical; font-weight: 400; }
+.fl { font-size: 12.5px; color: var(--ink-3); display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
+.fields .full { grid-column: 1 / -1; }
+
+/* logging */
+.dnav { display: flex; align-items: center; gap: 8px; }
+.dnav-c { flex: 1; text-align: center; display: flex; flex-direction: column; }
+.dnav-c b { font-weight: 600; font-size: 16px; }
+.dnav-c small { color: var(--ink-3); font-size: 12px; }
+.sess-top { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 63px); z-index: 15; display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line-2); }
+.sess-top .t { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.sess-top .t b { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sess-top .t small { font-size: 12px; color: var(--ink-3); }
+.ex { gap: 10px; }
+.ex-h { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.ex-h h3 { font-size: 17px; min-width: 0; }
+.ex-h .rx { font-family: var(--f-mono); font-size: 12.5px; color: var(--ink-2); white-space: nowrap; }
+.ex-meta { font-size: 12.5px; color: var(--ink-3); margin-top: -6px; }
+.sets { display: flex; flex-direction: column; gap: 6px; }
+.set { display: grid; grid-template-columns: 26px minmax(0, 1fr) minmax(0, 1fr) 22px; gap: 8px; align-items: center; }
+.set.hdr { font-family: var(--f-mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); }
+.set.hdr span { text-align: center; } .set.hdr span:first-child { text-align: left; }
+.sn { font-family: var(--f-mono); font-size: 13px; color: var(--ink-3); }
+.mark { display: grid; place-items: center; color: transparent; }
+.mark svg { width: 18px; height: 18px; }
+.set .in::placeholder { color: var(--ink-3); opacity: .55; }
+.set.done .in { border-color: var(--line-2); background: var(--surface-2); }
+.set.done .mark { color: var(--good-ink); }
+.set.pr .mark { color: var(--accent); }
+.set.pr .in { border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+.ex-foot { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.whoopact { font-size: 13px; color: var(--ink-2); background: var(--surface-2); border-radius: 9px; padding: 8px 10px; }
+
+/* lists */
+.rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.rows > li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.rows > li:first-child { border-top: 0; }
+.rows > li .sub { grid-column: 1 / -1; font-size: 12.5px; color: var(--ink-3); }
+.hrow { width: 100%; text-align: left; display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.hdate { display: flex; flex-direction: column; line-height: 1.2; } .hdate b { font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; } .hdate small { font-family: var(--f-mono); font-size: 10.5px; color: var(--ink-3); text-transform: uppercase; }
+.hmain { display: flex; flex-direction: column; min-width: 0; } .hmain b { font-weight: 600; font-size: 14.5px; } .hmain small { font-size: 12.5px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hist { display: flex; flex-direction: column; gap: 6px; }
+
+/* bars (volume, recovery-by-session) */
+.hbars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.hbars li { display: grid; grid-template-columns: 96px minmax(0, 1fr) 64px; gap: 10px; align-items: center; font-size: 13px; }
+.hbars .lab { color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hbars .trk { position: relative; height: 10px; border-radius: 3px; background: var(--surface-2); }
+.hbars .fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 0 4px 4px 0; background: var(--s1); }
+.hbars .tgt { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--ink-2); border-radius: 1px; }
+.hbars .v { font-family: var(--f-mono); font-size: 12px; text-align: right; color: var(--ink); white-space: nowrap; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--ink-2); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { display: inline-block; }
+.legend .dot { width: 8px; height: 8px; border-radius: 50%; } .legend .ln { width: 16px; height: 2px; border-radius: 1px; } .legend .tk { width: 2px; height: 12px; background: var(--ink-2); }
+
+/* tables */
+.tblwrap { overflow-x: auto; margin-inline: -2px; }
+.tbl { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.tbl th { text-align: left; font-family: var(--f-mono); font-weight: 500; font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); padding: 6px 8px 6px 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.tbl td { padding: 8px 8px 8px 0; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.tbl td.n, .tbl th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tbl tr:last-child td { border-bottom: 0; }
+.tbl.wk { font-size: 13px; } .tbl.wk th, .tbl.wk td { padding-right: 12px; }
+.tbl.wk th:first-child, .tbl.wk td:first-child { position: sticky; left: 0; background: var(--surface); white-space: nowrap; z-index: 1; }
+.tbl .better { color: var(--good-ink); } .tbl .worse { color: var(--warn-ink); }
+
+/* charts */
+.chart { position: relative; width: 100%; }
+.chart svg { display: block; width: 100%; height: 100%; overflow: visible; touch-action: pan-y; }
+.chart .grid { stroke: var(--line); stroke-width: 1; }
+.chart .ax { fill: var(--ink-3); font: 10.5px var(--f-mono); }
+.chart .lbl { fill: var(--ink); font: 500 11px var(--f-mono); }
+.chart .lbl.sm { font-size: 10px; fill: var(--ink-2); }
+.chart .xhair { stroke: var(--ink-3); stroke-dasharray: 3 3; }
+.chart-empty { height: 100%; display: grid; place-items: center; color: var(--ink-3); font-size: 13.5px; text-align: center; border: 1px dashed var(--line-2); border-radius: 10px; padding: 14px; }
+.ctip { position: absolute; top: -6px; transform: translateY(-100%); background: var(--surface-3); border: 1px solid var(--line-2); color: var(--ink); font-size: 12px; line-height: 1.45; padding: 6px 9px; border-radius: 8px; pointer-events: none; white-space: nowrap; z-index: 5; box-shadow: 0 6px 20px rgba(0,0,0,.4); }
+
+/* notes */
+.notes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.notes li { display: flex; flex-direction: column; gap: 6px; padding: 12px 0; border-top: 1px solid var(--line); }
+.notes li:first-child { border-top: 0; padding-top: 0; }
+.note-m { font-family: var(--f-mono); font-size: 11px; color: var(--ink-3); letter-spacing: .02em; }
+.note-t { font-size: 14.5px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.notes .btnrow .link { min-height: 30px; padding: 2px 0; font-size: 13px; }
+.hnote { grid-column: 2 / -1; font-size: 12.5px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: -2px; }
+.lastnote { gap: 4px; padding: 12px 14px; border-style: dashed; }
+.lastnote p { white-space: pre-wrap; color: var(--ink-2); }
+.ex-lastnote { font-size: 12.5px; color: var(--ink-2); margin-top: -4px; padding-left: 10px; border-left: 2px solid var(--line-2); }
+textarea.exnote { min-height: 56px; }
+
+/* trends explorer */
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+select.in.metric { min-height: 52px; font-size: 16px; font-weight: 600; letter-spacing: .01em; background-color: var(--surface-2); border-color: var(--line-2); }
+.ex-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.ex-head { display: flex; gap: 22px; flex-wrap: wrap; }
+.ex-head .stat > span { font-family: var(--f-mono); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; order: -1; }
+.ex-head .stat b { font-size: 34px; }
+.ex-head .stat b.sm { font-size: 20px; padding-top: 8px; }
+.ex-ctl { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.ex-nav { display: flex; align-items: center; gap: 8px; color: var(--ink-2); }
+.iconbtn.sm { width: 32px; height: 32px; border-radius: 8px; font-size: 16px; }
+.pill.plain.good { background: var(--good-soft); color: var(--good-ink); } .pill.plain.warn { background: var(--warn-soft); color: var(--warn-ink); }
+.bk-bar { display: flex; gap: 3px; height: 10px; border-radius: 3px; overflow: hidden; }
+.bk-bar i { display: block; min-width: 3px; }
+.bk { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px 16px; font-size: 13.5px; }
+.bk li { display: grid; grid-template-columns: 10px 52px minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+.bk li i { width: 10px; height: 10px; border-radius: 2px; }
+.bk li b { font-variant-numeric: tabular-nums; font-weight: 600; }
+.bk li span { color: var(--ink-2); }
+@container (max-width: 520px) { .ex-ctl { align-items: flex-start; width: 100%; flex-direction: row; justify-content: space-between; } }
+
+/* editor */
+.dlist { display: flex; flex-direction: column; gap: 8px; }
+.dlist[data-list="item"] { gap: 0; }
+.sess { padding: 0; gap: 0; }
+.sess-h { display: flex; align-items: stretch; min-height: 60px; }
+.sess-t { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 10px; background: none; border: 0; text-align: left; padding: 10px 16px 10px 2px; }
+.sess-t > span:first-child { display: flex; flex-direction: column; min-width: 0; }
+.sess-t b { font-weight: 600; font-size: 16px; }
+.sess-t small { font-size: 12.5px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chev { color: var(--ink-3); display: grid; place-items: center; transition: transform .18s; flex: none; }
+.chev svg { width: 18px; height: 18px; }
+.sess.open .chev { transform: rotate(180deg); }
+.sess-b { display: flex; flex-direction: column; gap: 12px; padding: 4px 16px 16px; border-top: 1px solid var(--line); }
+.grip { flex: none; width: 40px; display: grid; place-items: center; color: var(--ink-3); cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+.grip:hover { color: var(--ink-2); }
+[data-dragitem] { transition: transform .16s ease; }
+[data-dragitem].dragging { transition: none; position: relative; z-index: 10; box-shadow: 0 12px 32px rgba(0,0,0,.55); cursor: grabbing; }
+.card.sess.dragging { border-color: var(--accent); }
+.ed-item.dragging { background: var(--surface-3); border-radius: 10px; }
+body.is-dragging { user-select: none; -webkit-user-select: none; cursor: grabbing; }
+@media (prefers-reduced-motion: reduce) { [data-dragitem], .chev { transition: none; } }
+.ed-item { display: grid; grid-template-columns: 32px minmax(0, 1fr) 56px 34px; gap: 6px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); background: var(--surface); }
+.ed-item .grip { width: 32px; align-self: stretch; }
+.ed-item .in { min-height: 38px; font-size: 14.5px; }
+.ed-item .nm { font-size: 14px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ed-item .nm small { display: block; font-size: 11.5px; color: var(--ink-3); }
+.ed-x { width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: var(--ink-3); display: grid; place-items: center; }
+.opt { text-align: left; display: flex; flex-direction: column; gap: 4px; padding: 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); min-width: 0; }
+.opt b { font-size: 15px; font-weight: 600; } .opt span { font-size: 13px; color: var(--ink-3); }
+.opt.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.opt .seqs { font-family: var(--f-mono); font-size: 11.5px; color: var(--ink-2); }
+details.more > summary { cursor: pointer; list-style: none; color: var(--accent); font-weight: 500; font-size: 14px; min-height: 36px; display: flex; align-items: center; }
+details.more > summary::-webkit-details-marker { display: none; }
+.drop { border: 1px dashed var(--line-2); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.file { font-size: 13.5px; max-width: 100%; color: var(--ink-2); }
+.file::file-selector-button { font: inherit; font-weight: 600; font-size: 13.5px; border-radius: 9px; border: 1px solid var(--line-2); background: var(--surface-3); color: var(--ink); padding: 8px 14px; margin-right: 10px; cursor: pointer; }
+.steps { margin: 0; padding-left: 20px; font-size: 13.5px; color: var(--ink-2); display: flex; flex-direction: column; gap: 3px; }
+.prev { background: var(--surface-2); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 8px; font-size: 13.5px; }
+.exportbox textarea { font-family: var(--f-mono); font-size: 11px; min-height: 120px; }
+
+/* tabs */
+.tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom, 0px); }
+.tabs-in { max-width: 720px; margin: 0 auto; display: grid; grid-template-columns: repeat(5, 1fr); }
+.tabs button { background: none; border: 0; min-height: var(--tabh); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 11px; font-weight: 500; color: var(--ink-3); letter-spacing: .01em; }
+.tabs svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.tabs button[aria-current="page"] { color: var(--ink); }
+.tabs button[aria-current="page"] svg { stroke: var(--accent); }
+
+/* toast */
+.toast { position: fixed; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 74px); transform: translate(-50%, -16px); opacity: 0; pointer-events: none; z-index: 50; background: var(--surface-3); border: 1px solid var(--line-2); color: var(--ink); padding: 10px 16px; border-radius: 12px; font-size: 14px; max-width: calc(100% - 32px); text-align: center; transition: opacity .2s, transform .2s; box-shadow: 0 10px 30px rgba(0,0,0,.5); }
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+.toast.pr { border-color: var(--accent); } .toast.bad { border-color: var(--bad); }
+@media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+@media (max-width: 380px) { .hero h1 { font-size: 32px; } .set { grid-template-columns: 22px minmax(0, 1fr) minmax(0, 1fr) 18px; gap: 6px; } .hbars li { grid-template-columns: 80px minmax(0, 1fr) 56px; } .stats { gap: 8px; } .stat b { font-size: 21px; } }
+</style>
+</head>
+<body>
+<div class="sbar" aria-hidden="true"></div>
+<div class="wrap">
+  <header class="top">
+    <span class="brand"><span id="mark" class="mark-wrap"></span>Orbit</span>
+    <button class="iconbtn" id="gear" data-act="go" data-tab="data" aria-label="Data, imports and backups"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg></button>
+  </header>
+  <main id="view"></main>
+</div>
+<nav class="tabs" aria-label="Sections"><div class="tabs-in">
+  <button data-act="go" data-tab="today"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 8 8"/><path d="M12 8v4l2.5 2"/></svg>Today</button>
+  <button data-act="go" data-tab="log"><svg viewBox="0 0 24 24"><path d="M3 12h2M19 12h2M6 8v8M18 8v8M9 6v12M15 6v12M9 12h6"/></svg>Log</button>
+  <button data-act="go" data-tab="history"><svg viewBox="0 0 24 24"><path d="M5 6h14M5 12h14M5 18h9"/></svg>History</button>
+  <button data-act="go" data-tab="trends"><svg viewBox="0 0 24 24"><path d="M4 19h16"/><path d="M5 15l4-5 4 3 6-7"/></svg>Trends</button>
+  <button data-act="go" data-tab="plan"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>Plan</button>
+</div></nav>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<script>
+'use strict';
+/* ============================================================
+   HELPERS
+   ============================================================ */
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const pad = n => String(n).padStart(2, '0');
+const r1 = x => Math.round(x * 10) / 10;
+const sum = a => a.reduce((s, x) => s + x, 0);
+const mean = a => a.length ? sum(a) / a.length : null;
+const clone = o => JSON.parse(JSON.stringify(o));
+const num = v => { if (v === '' || v == null) return null; const n = parseFloat(String(v).replace(',', '.')); return Number.isFinite(n) ? n : null; };
+function fmt(x, d = 1) { if (x == null || !Number.isFinite(x)) return '–'; return x.toLocaleString('en-AU', { maximumFractionDigits: d, minimumFractionDigits: 0 }); }
+function todayStr() { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
+function toUTC(s) { const [y, m, d] = s.split('-').map(Number); return Date.UTC(y, m - 1, d); }
+function addDays(s, n) { const t = new Date(toUTC(s) + n * 864e5); return `${t.getUTCFullYear()}-${pad(t.getUTCMonth() + 1)}-${pad(t.getUTCDate())}`; }
+function diffDays(a, b) { return Math.round((toUTC(b) - toUTC(a)) / 864e5); }
+function fmtDate(s, o) { return new Date(toUTC(s)).toLocaleDateString('en-AU', { timeZone: 'UTC', day: 'numeric', month: 'short', ...(o || {}) }); }
+function fmtDow(s) { return new Date(toUTC(s)).toLocaleDateString('en-AU', { timeZone: 'UTC', weekday: 'short' }); }
+function dowMon(s) { return (new Date(toUTC(s)).getUTCDay() + 6) % 7; } // Mon = 0
+function weekStart(s) { return addDays(s, -dowMon(s)); }
+function fmtDur(sec) { if (!sec) return ''; const m = Math.round(sec / 60); return m >= 60 ? `${Math.floor(m / 60)} h ${pad(m % 60)}` : `${m} min`; }
+const ICON = {
+  tick: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+  x: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  up: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 15l6-6 6 6"/></svg>',
+  grip: '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>',
+  down: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>',
+};
+
+/* ============================================================
+   PROGRAMME DATA
+   Exercise library: name, muscle group, unit, rep range, and Louis's stated
+   max set ('base'), shown as a reference and counted as the best to beat.
+   Units: kg · plates (20 kg plates per side on plate-loaded machines) · bw
+   ============================================================ */
+const GROUPS = { chest: 'Chest', back: 'Back', delt_f: 'Front delts', delt_s: 'Side delts', delt_r: 'Rear delts', biceps: 'Biceps', triceps: 'Triceps', quads: 'Quads', hams: 'Hamstrings', calves: 'Calves', abs: 'Abs', other: 'Other' };
+const GROUP_ORDER = Object.keys(GROUPS);
+const UNITS = { kg: { label: 'kg', col: 'kg' }, plates: { label: 'plates / side', col: 'Plates' }, bw: { label: 'bodyweight', col: '+kg' } };
+const X = (name, g, u, rest, lo, hi, w, r, note) => ({ name, g, u, rest, lo, hi, base: w == null && r == null ? null : { w, r }, note: note || '' });
+const EXLIB = {
+  incline_db: X('Incline dumbbell press', 'chest', 'kg', 150, 6, 8, 48, 6, 'kg per dumbbell'),
+  chest_press: X('Seated chest press', 'chest', 'plates', 120, 8, 10, 3, 8),
+  cable_fly: X('Cable chest flys', 'chest', 'kg', 90, 8, 12, 25, 8),
+  crunch: X('Crunch machine', 'abs', 'kg', 60, 10, 15, 60, 12),
+  ab_roller: X('Ab roller', 'abs', 'bw', 60, 8, 12, 0, 10),
+  tbar: X('T-bar row', 'back', 'plates', 150, 8, 10, 3.75, 8),
+  pulldown: X('Lat pulldown', 'back', 'kg', 120, 8, 10, 90, 8),
+  seated_row: X('Seated row', 'back', 'kg', 120, 8, 10, 85, 8),
+  pullover: X('Lat pullover', 'back', 'kg', 90, 8, 12, 25, 8),
+  preacher: X('Machine preacher curl', 'biceps', 'kg', 90, 8, 10, 40, 8),
+  spider: X('Spider curls', 'biceps', 'kg', 90, 8, 12, 20, 8, 'Incline bench · kg per dumbbell'),
+  hammer: X('Hammer curls', 'biceps', 'kg', 90, 8, 10, 24, 8, 'kg per dumbbell'),
+  shoulder_press: X('Shoulder press', 'delt_f', 'kg', 150, 8, 10, 40, 8),
+  lat_raise: X('Dumbbell lateral raises', 'delt_s', 'kg', 90, 8, 12, 16, 8, 'kg per dumbbell'),
+  y_raise: X('Cable Y raises', 'delt_s', 'kg', 90, 8, 12, 6.25, 8),
+  rear_fly: X('Cable rear delt flys', 'delt_r', 'kg', 90, 8, 12, 7.5, 8),
+  katana: X('Cable katanas', 'triceps', 'kg', 90, 8, 12, 7.5, 8),
+  skull: X('EZ-bar skullcrushers', 'triceps', 'kg', 120, 8, 10, 35, 8),
+  pushdown: X('Tricep pushdowns', 'triceps', 'kg', 90, 8, 12, 45, 8),
+  hack: X('Hack squat', 'quads', 'plates', 180, 8, 10, 4.75, 8),
+  rdl: X('Romanian deadlift', 'hams', 'kg', 180, 6, 8, 150, 6),
+  leg_ext: X('Leg extension', 'quads', 'kg', 90, 10, 15, 125, 12),
+  lying_curl: X('Lying hamstring curl', 'hams', 'kg', 90, 8, 12, 55, 10),
+  calf: X('Calf raises', 'calves', 'plates', 90, 10, 15, 4, 12),
+  seated_curl: X('Seated leg curl', 'hams', 'kg', 90, 10, 12, null, null, 'Optional swap for the second leg day'),
+};
+const I = (ex, sets = 3) => ({ ex, sets });
+const PRESETS = {
+  ppl4: {
+    name: 'Current split', blurb: 'Your rotation as it is now. Four sessions, legs once per rotation.',
+    order: ['push1', 'pull', 'push2', 'legs'],
+    sessions: {
+      push1: { name: 'Push 1', focus: 'Chest + core', items: [I('incline_db'), I('chest_press'), I('cable_fly'), I('crunch'), I('ab_roller')] },
+      pull: { name: 'Pull', focus: 'Back + biceps', items: [I('tbar'), I('pulldown'), I('seated_row'), I('pullover'), I('preacher'), I('spider'), I('hammer')] },
+      push2: { name: 'Push 2', focus: 'Shoulders + triceps', items: [I('shoulder_press'), I('lat_raise'), I('y_raise'), I('rear_fly'), I('katana'), I('skull'), I('pushdown')] },
+      legs: { name: 'Legs', focus: 'Quads, hamstrings, calves', items: [I('hack'), I('rdl'), I('leg_ext'), I('lying_curl'), I('calf')] },
+    },
+  },
+  ulppl5: {
+    name: 'Upper / Lower / PPL', blurb: 'Same exercises over five sessions. Legs twice per rotation, shorter upper days.',
+    order: ['upper', 'lower', 'push', 'pull', 'legs'],
+    sessions: {
+      upper: { name: 'Upper', focus: 'Heavy compounds + arms', items: [I('incline_db'), I('tbar'), I('shoulder_press'), I('pulldown'), I('skull'), I('preacher')] },
+      lower: { name: 'Lower', focus: 'Hinge + squat, core', items: [I('rdl'), I('hack'), I('lying_curl'), I('calf'), I('crunch')] },
+      push: { name: 'Push', focus: 'Chest, delts, triceps', items: [I('chest_press'), I('cable_fly'), I('lat_raise'), I('y_raise'), I('katana'), I('pushdown')] },
+      pull: { name: 'Pull', focus: 'Back width, rear delts, biceps', items: [I('seated_row'), I('pullover'), I('rear_fly'), I('spider'), I('hammer')] },
+      legs: { name: 'Legs', focus: 'Quads + hamstrings, core', items: [I('hack'), I('seated_curl'), I('leg_ext'), I('calf'), I('ab_roller')] },
+    },
+  },
+};
+function defaultSettings() {
+  const p = PRESETS.ppl4;
+  return { v: 1, preset: 'ppl4', prog: { order: p.order.slice(), sessions: clone(p.sessions) }, ex: clone(EXLIB), plateKg: 20, cardio: { name: 'Stairmaster', min: 30 }, proteinT: null, rotOverride: null, imports: {} };
+}
+function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 }; }
+
+/* ============================================================
+   STATE
+   ============================================================ */
+const STATE = emptyData();
+const ui = { metric: 'rec', per: 'M', off: 0, openSess: new Set(), tab: 'today', logDate: null, range: 90, lift: null, imp: {}, exportText: null, confirm: null, editEx: null, pickSess: null };
+const S = () => STATE.settings;
+const today = () => todayStr();
+function exDef(id) { return S().ex[id] || { name: id, g: 'other', u: 'kg', rest: 90, lo: 8, hi: 12, base: null }; }
+function sessDef(id) { return S().prog.sessions[id] || null; }
+function sessName(w) { return sessDef(w.s)?.name || w.sName || w.s; }
+function order() { return S().prog.order.filter(id => S().prog.sessions[id]); }
+function workoutsSorted() { return Object.values(STATE.w).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0); }
+/* ============================================================
+   ROTATION — the split runs as a sequence, not a calendar.
+   The next session follows the last one logged; a skipped day just waits.
+   ============================================================ */
+function lastWorkoutBefore(date) {
+  let best = null;
+  for (const w of Object.values(STATE.w)) if (w.date < date && sessDef(w.s) && (!best || w.date > best.date)) best = w;
+  return best;
+}
+function nextAfter(sid) { const o = order(); if (!o.length) return null; const i = o.indexOf(sid); return i < 0 ? o[0] : o[(i + 1) % o.length]; }
+function sessionFor(date) {
+  if (STATE.w[date] && sessDef(STATE.w[date].s)) return STATE.w[date].s;
+  const ov = S().rotOverride, last = lastWorkoutBefore(date);
+  if (ov && sessDef(ov.id) && ov.from <= date && (!last || last.date < ov.from)) return ov.id;
+  let s = last ? nextAfter(last.s) : order()[0];
+  // A rest slot in the rotation is used up by any day with no session logged (or one marked as rest).
+  // A missed training slot just waits.
+  if (last) for (let d = addDays(last.date, 1); d < date; d = addDays(d, 1)) { if (STATE.w[d] && !STATE.w[d].rest) continue; if (isRestSlot(s)) s = nextAfter(s); }
+  return s;
+}
+function isRestSlot(id) { return !!sessDef(id)?.rest; }
+function trainIds() { return order().filter(id => !isRestSlot(id)); }
+function nextTraining(id) { const o = order(); if (!o.length) return null; let s = id; for (let i = 0; i <= o.length; i++) { if (s && !isRestSlot(s)) return s; s = nextAfter(s); } return trainIds()[0] || null; }
+function upcoming(n) { // [{date, s, done}] starting today; assumes you train every day from here
+  const out = [], t = today(), rec = STATE.w[t];
+  let s = rec ? (sessDef(rec.s) ? rec.s : '_rest') : sessionFor(t);
+  out.push({ date: t, s, done: !!rec });
+  s = rec ? sessionFor(addDays(t, 1)) : nextAfter(s);
+  for (let i = 1, d = addDays(t, 1); i < n; i++, d = addDays(d, 1)) { out.push({ date: d, s, done: false }); s = nextAfter(s); }
+  return out;
+}
+function slotName(id) { return id === '_rest' ? 'Rest' : sessDef(id)?.name || ''; }
+function rotationCount() { // completed full rotations (training sessions only)
+  const n = trainIds().length; if (!n) return 0;
+  const k = Object.values(STATE.w).filter(w => sessDef(w.s) && !w.rest).length; return Math.floor(k / n);
+}
+
+/* ============================================================
+   LIFT HISTORY, e1RM, PRs, MAINTENANCE STATUS
+   ============================================================ */
+function doneSets(ex) { return (ex.sets || []).filter(s => s.done && s.r > 0); }
+function lastFor(exId, before) {
+  let best = null;
+  for (const w of Object.values(STATE.w)) {
+    if (w.date >= before) continue;
+    const e = (w.ex || []).find(x => x.id === exId && doneSets(x).length);
+    if (e && (!best || w.date > best.date)) best = { date: w.date, sets: doneSets(e) };
+  }
+  return best;
+}
+function e1rm(s) { if (!s || !(s.r > 0)) return 0; const w = s.w || 0; if (w <= 0) return 0; return w * (1 + Math.min(s.r, 15) / 30); }
+function setScore(exId, s) { return exDef(exId).u === 'bw' ? (s.r || 0) + (s.w || 0) / 2.5 : e1rm(s); }
+function maxScore(exId) { const b = exDef(exId).base; return b && b.r > 0 ? setScore(exId, b) : 0; }
+function bestBefore(exId, before) { // best score on dates strictly before, including the stated max
+  let b = maxScore(exId);
+  for (const w of Object.values(STATE.w)) if (w.date < before) for (const e of w.ex || []) if (e.id === exId) for (const s of doneSets(e)) b = Math.max(b, setScore(exId, s));
+  return b;
+}
+function bestSet(exId, before = '9999') { // best before a date: stated max or any logged set
+  let best = exDef(exId).base && exDef(exId).base.r > 0 ? exDef(exId).base : null, sc = best ? setScore(exId, best) : 0;
+  for (const w of Object.values(STATE.w)) if (w.date < before) for (const e of w.ex || []) if (e.id === exId) for (const s of doneSets(e)) { const v = setScore(exId, s); if (v > sc) { sc = v; best = s; } }
+  return best;
+}
+function records(exId) { // heaviest set and best e1RM set, from logs plus the stated max
+  const b = exDef(exId).base, cands = [];
+  if (b && b.r > 0) cands.push({ s: b, date: null });
+  for (const w of Object.values(STATE.w)) for (const e of w.ex || []) if (e.id === exId) for (const s of doneSets(e)) cands.push({ s, date: w.date });
+  if (!cands.length) return null;
+  const heavy = cands.reduce((a, c) => ((c.s.w || 0) > (a.s.w || 0) || ((c.s.w || 0) === (a.s.w || 0) && c.s.r > a.s.r)) ? c : a);
+  const best = cands.reduce((a, c) => setScore(exId, c.s) > setScore(exId, a.s) ? c : a);
+  return { heavy, best, logged: cands.some(c => c.date) };
+}
+function hasRef(exId, before) { return maxScore(exId) > 0 || hasHistory(exId, before); }
+function hasHistory(exId, before) { return Object.values(STATE.w).some(w => w.date < before && (w.ex || []).some(e => e.id === exId && doneSets(e).length)); }
+function liftSeries(exId) {
+  const out = [];
+  for (const w of workoutsSorted()) for (const e of w.ex || []) if (e.id === exId) { const ds = doneSets(e); if (ds.length) out.push({ date: w.date, y: Math.max(...ds.map(s => setScore(exId, s))), top: ds.reduce((a, s) => setScore(exId, s) > setScore(exId, a) ? s : a, ds[0]) }); }
+  return out;
+}
+function maintenance(exId) { // recent 28 days vs days 29–90: is strength holding?
+  const t = today(), ser = liftSeries(exId);
+  const rec = ser.filter(p => diffDays(p.date, t) <= 28), pri = ser.filter(p => { const a = diffDays(p.date, t); return a > 28 && a <= 90; });
+  if (!rec.length) return { state: 'none', last: ser[ser.length - 1] || null };
+  const r = Math.max(...rec.map(p => p.y)); if (!pri.length) return { state: 'new', r, last: ser[ser.length - 1] };
+  const p = Math.max(...pri.map(x => x.y)); const ch = p > 0 ? (r / p - 1) * 100 : 0;
+  return { state: ch > 2.5 ? 'up' : ch >= -2.5 ? 'hold' : ch >= -5 ? 'dip' : 'down', ch, r, p, last: ser[ser.length - 1] };
+}
+const MSTATE = { up: ['good', 'Up'], hold: ['good', 'Holding'], dip: ['warn', 'Dip'], down: ['bad', 'Down'], new: ['', 'New'], none: ['', 'No recent sets'] };
+function fmtLoad(exId, w) {
+  const u = exDef(exId).u;
+  if (u === 'bw') return w ? `BW+${fmt(w, 2)}` : 'BW';
+  if (u === 'plates') return `${fmt(w, 2)} pl`;
+  return `${fmt(w, 2)}`;
+}
+function fmtSet(exId, s) { return exDef(exId).u === 'bw' && !s.w ? `${s.r}` : `${fmtLoad(exId, s.w)}×${s.r}`; }
+function setsTxt(exId, sets) { // compress "48×6, 48×6, 48×6" to "48×6 ×3"
+  const parts = sets.map(s => fmtSet(exId, s)); const out = [];
+  for (const p of parts) { const l = out[out.length - 1]; if (l && l.p === p) l.n++; else out.push({ p, n: 1 }); }
+  return out.map(o => o.n > 1 ? `${o.p} ×${o.n}` : o.p).join(', ');
+}
+function scoreTxt(exId, v) { const u = exDef(exId).u; return u === 'bw' ? `${fmt(v, 0)} reps` : u === 'plates' ? `${fmt(v, 2)} pl` : `${fmt(v, 1)} kg`; }
+
+/* ============================================================
+   WORKOUTS
+   ============================================================ */
+function prefill(exId, n, date) {
+  const last = lastFor(exId, date), out = []; // first time: blank, since the stated numbers are maxes, not working sets
+  for (let i = 0; i < n; i++) {
+    const src = last ? last.sets[Math.min(i, last.sets.length - 1)] : null;
+    out.push({ w: null, r: null, pw: src ? (src.w ?? null) : null, pr: src ? (src.r ?? null) : null, done: false }); // last time's numbers show as hints, not values
+  }
+  return out;
+}
+function normSets(w) { // older sessions stored pre-filled numbers as values; unlogged ones become hints
+  for (const e of w.ex || []) for (const s of e.sets) if (!s.done && !('pw' in s)) { s.pw = s.w ?? null; s.pr = s.r ?? null; s.w = null; s.r = null; }
+}
+function setFromInputs(s, wv, rv, u) { // a row counts as soon as it has reps; blank weight takes the hint
+  s.r = rv > 0 ? rv : null;
+  s.w = wv != null ? wv : null;
+  if (s.r && s.w == null) s.w = s.pw != null ? s.pw : (u === 'bw' ? 0 : null);
+  s.done = !!s.r;
+}
+function newWorkout(date, sid) {
+  const sd = sessDef(sid);
+  return {
+    date, s: sid, sName: sd?.name || sid, startedAt: null, finishedAt: null, dur: null,
+    ex: (sd?.items || []).filter(it => S().ex[it.ex]).map(it => ({ id: it.ex, sets: prefill(it.ex, it.sets, date) })),
+    cardio: { name: S().cardio.name, min: S().cardio.min, lvl: null, done: false }, note: '',
+  };
+}
+function newWorkoutAuto(date, sid) { const w = newWorkout(date, sid); autoCardio(w); return w; }
+function restRecord(date) { // a rest day: fills a planned rest slot if one is due, otherwise the rotation waits
+  const next = sessionFor(date), s = isRestSlot(next) ? next : '_rest';
+  return { date, s, sName: 'Rest day', rest: true, startedAt: null, finishedAt: null, dur: null, ex: [], cardio: { name: S().cardio.name, min: S().cardio.min, lvl: null, done: false }, note: '' };
+}
+function wStats(w) {
+  let sets = 0, kg = 0; const pk = S().plateKg || 20;
+  for (const e of w.ex || []) for (const s of doneSets(e)) { sets++; const u = exDef(e.id).u; const load = u === 'plates' ? (s.w || 0) * 2 * pk : (s.w || 0); kg += load * s.r; }
+  return { sets, kg, cardio: w.cardio?.done ? (w.cardio.min || 0) : 0 };
+}
+function prsIn(w) { // sets in this workout that beat everything before its date
+  const out = [];
+  for (const e of w.ex || []) {
+    if (!hasRef(e.id, w.date)) continue;
+    const prev = bestBefore(e.id, w.date); let run = prev;
+    for (const s of doneSets(e)) { const sc = setScore(e.id, s); if (sc > run + 1e-9) { run = sc; out.push({ id: e.id, s }); } }
+  }
+  return out;
+}
+function whoopActs(date, re) { return (STATE.d[date]?.acts || []).filter(a => re.test(a.n)); }
+const LIFT_RE = /weight|strength|lift|function/i;
+function whoopLiftMin(date) { const a = whoopActs(date, LIFT_RE); return a.length ? sum(a.map(x => x.min || 0)) : null; }
+const CARDIO_RE = { Stairmaster: /stair|climb/i, Treadmill: /tread|run|walk/i };
+function whoopCardio(date, name) { // WHOOP activities matching a cardio type
+  const mins = t => { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); return m ? +m[1] * 60 + +m[2] : null; };
+  const liftEnd = Math.max(-1, ...whoopActs(date, LIFT_RE).map(a => mins(a.t) != null ? mins(a.t) + (a.min || 0) : -1));
+  const re = CARDIO_RE[name] || /cardio/i;
+  // after-lifting window: starts within 20 min of WHOOP's lifting entry ending. With no lifting entry, only named Stairmaster/treadmill activities count.
+  const near = a => liftEnd >= 0 && mins(a.t) != null && mins(a.t) >= liftEnd - 10 && mins(a.t) <= liftEnd + 20;
+  return (STATE.d[date]?.acts || []).filter(a => re.test(a.n) && (liftEnd >= 0 ? near(a) : /stair|climb|tread/i.test(a.n)));
+}
+function autoCardio(w) { // fill cardio from WHOOP unless you've set it yourself; returns true if it changed
+  if (!w || w.cardioOff || w.cardio?.manual) return false;
+  const cur = w.cardio?.name || S().cardio.name, order = [cur, ...Object.keys(CARDIO_RE).filter(n => n !== cur)];
+  for (const name of order) {
+    const acts = whoopCardio(w.date, name), min = Math.round(sum(acts.map(a => a.min || 0)));
+    if (!min) continue;
+    const next = { name, min, lvl: w.cardio?.lvl ?? null, done: true, src: 'whoop' };
+    if (JSON.stringify(next) === JSON.stringify(w.cardio)) return false;
+    w.cardio = next; return true;
+  }
+  return false;
+}
+function sessDur(w) { const m = whoopLiftMin(w.date); return m != null ? m * 60 : (w.dur || null); } // seconds; WHOOP first, older timer logs as fallback
+
+/* ============================================================
+   VOLUME — direct working sets per muscle group
+   ============================================================ */
+function planWeekly(prog) { // sets per week if one session is trained every day
+  const o = prog.order.filter(id => prog.sessions[id]); const out = {}; if (!o.length) return out;
+  for (const id of o) for (const it of prog.sessions[id].items) { const g = exDef(it.ex).g; out[g] = (out[g] || 0) + it.sets; }
+  for (const g in out) out[g] = out[g] * 7 / o.length;
+  return out;
+}
+function doneByGroup(from, to) {
+  const out = {};
+  for (const w of Object.values(STATE.w)) if (w.date >= from && w.date <= to) for (const e of w.ex || []) { const n = doneSets(e).length; if (n) { const g = exDef(e.id).g; out[g] = (out[g] || 0) + n; } }
+  return out;
+}
+
+/* ============================================================
+   DAILY METRICS (WHOOP + MacroFactor)
+   d[date] = { rec, hrv, rhr, slp (min asleep), sp (sleep perf %), str (day strain), kb (kcal burned),
+               wt (scale kg), tw (trend kg), kcal, p, c, f, exp (expenditure), kT, pT, acts:[...] }
+   ============================================================ */
+function dayVal(date, k) { const v = STATE.d[date]?.[k]; return v == null ? null : v; }
+function latestWith(k, onOrBefore = today()) {
+  let best = null; for (const date in STATE.d) if (date <= onOrBefore && STATE.d[date][k] != null && (!best || date > best)) best = date;
+  return best;
+}
+function avgOver(k, end, days, excludeEnd) {
+  const v = []; for (let i = excludeEnd ? 1 : 0; i < days + (excludeEnd ? 1 : 0); i++) { const x = dayVal(addDays(end, -i), k); if (x != null) v.push(x); }
+  return v.length ? { avg: mean(v), n: v.length } : null;
+}
+/* HRV normal range (Plews et al., 2013): 7-day rolling mean of ln(RMSSD) compared with the
+   previous 60 days' mean ± 0.5 SD (the smallest worthwhile change). Shown back in ms. */
+function hrvBand(date) {
+  const ln = d => { const v = dayVal(d, 'hrv'); return v > 0 ? Math.log(v) : null; };
+  const w7 = [], base = [];
+  for (let i = 0; i < 7; i++) { const v = ln(addDays(date, -i)); if (v != null) w7.push(v); }
+  for (let i = 7; i < 67; i++) { const v = ln(addDays(date, -i)); if (v != null) base.push(v); }
+  if (w7.length < 4 || base.length < 20) return null;
+  const m = mean(base), sd = Math.sqrt(sum(base.map(v => (v - m) ** 2)) / (base.length - 1)), r = mean(w7);
+  return { roll: Math.exp(r), lo: Math.exp(m - .5 * sd), hi: Math.exp(m + .5 * sd), state: r < m - .5 * sd ? 'below' : r > m + .5 * sd ? 'above' : 'within' };
+}
+const HRV_STATE = { below: ['warn', 'Below normal'], within: ['good', 'Normal range'], above: ['', 'Above normal'] };
+function weightRate(end = today(), days = 28) { // trend-weight change per week over the last `days`
+  const d1 = latestWith('tw', end); if (!d1) return null;
+  const d0 = latestWith('tw', addDays(d1, -days)); if (!d0 || diffDays(d0, d1) < 14) return null;
+  const a = STATE.d[d0].tw, b = STATE.d[d1].tw, wk = (b - a) / diffDays(d0, d1) * 7;
+  return { wk, pct: wk / b * 100, now: b, weeks: Math.round(diffDays(d0, d1) / 7) };
+}
+function weekRows(n) {
+  const t = today(), rows = [];
+  for (let k = 0; k < n; k++) {
+    const ws = addDays(weekStart(t), -7 * k), we = addDays(ws, 6), end = we > t ? t : we;
+    const days = []; for (let d = ws; d <= end; d = addDays(d, 1)) days.push(d);
+    const wk = Object.values(STATE.w).filter(w => w.date >= ws && w.date <= end && !w.rest);
+    const av = key => { const v = days.map(d => dayVal(d, key)).filter(x => x != null); return v.length ? mean(v) : null; };
+    const twA = dayVal(latestWith('tw', addDays(ws, -1)) || '', 'tw'), twB = dayVal(latestWith('tw', end) || '', 'tw');
+    rows.push({ ws, cur: we > t, sessions: wk.length, sets: sum(wk.map(w => wStats(w).sets)), cardio: sum(wk.map(w => wStats(w).cardio)),
+      rec: av('rec'), hrv: av('hrv'), slp: av('slp'), kcal: av('kcal'), p: av('p'), tw: twB, dtw: twA != null && twB != null && latestWith('tw', end) >= ws ? twB - twA : null });
+  }
+  return rows;
+}
+function recTone(r) { return r == null ? '' : r >= 67 ? 'good' : r >= 34 ? 'warn' : 'bad'; }
+function recWord(r) { return r == null ? '' : r >= 67 ? 'Green' : r >= 34 ? 'Yellow' : 'Red'; }
+function recoveryAfter() { // mean next-morning recovery after each session type
+  const by = {};
+  for (const w of Object.values(STATE.w)) {
+    const r = dayVal(addDays(w.date, 1), 'rec'); if (r == null) continue;
+    const k = sessName(w); (by[k] = by[k] || []).push(r);
+  }
+  return Object.entries(by).map(([k, v]) => ({ k, avg: mean(v), n: v.length }));
+}
+function rangeStart() { return ui.range === 0 ? null : addDays(today(), -ui.range + 1); }
+function datesWith(keys, from) {
+  return Object.keys(STATE.d).filter(d => (!from || d >= from) && d <= today() && keys.some(k => STATE.d[d][k] != null)).sort();
+}
+/* ============================================================
+   IMPORTS — WHOOP export (zip or CSVs) and MacroFactor export (xlsx or csv)
+   Parsing happens in the browser; nothing leaves the page.
+   ============================================================ */
+const LIBS = { xlsx: 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js', jszip: 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js' };
+const libP = {};
+function loadLib(k) {
+  if (k === 'xlsx' && window.XLSX) return Promise.resolve(window.XLSX);
+  if (k === 'jszip' && window.JSZip) return Promise.resolve(window.JSZip);
+  return libP[k] || (libP[k] = new Promise((res, rej) => {
+    const s = document.createElement('script'); s.src = LIBS[k]; s.async = true;
+    s.onload = () => res(k === 'xlsx' ? window.XLSX : window.JSZip);
+    s.onerror = () => { delete libP[k]; rej(new Error('Couldn’t load the file reader. Check your connection and try again.')); };
+    document.head.appendChild(s);
+  }));
+}
+function parseCSV(text) {
+  text = String(text).replace(/^﻿/, '');
+  const rows = []; let row = [], f = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) { if (c === '"') { if (text[i + 1] === '"') { f += '"'; i++; } else q = false; } else f += c; }
+    else if (c === '"') q = true;
+    else if (c === ',') { row.push(f); f = ''; }
+    else if (c === '\n' || c === '\r') { if (c === '\r' && text[i + 1] === '\n') i++; row.push(f); rows.push(row); row = []; f = ''; }
+    else f += c;
+  }
+  if (f !== '' || row.length) { row.push(f); rows.push(row); }
+  return rows.filter(r => r.some(x => String(x).trim() !== ''));
+}
+const norm = h => String(h ?? '').toLowerCase().replace(/[^a-z0-9%]+/g, ' ').trim();
+function isoDate(v) { // → 'YYYY-MM-DD' from ISO text, Excel serial, D/M/Y text or a Date
+  if (v == null || v === '') return null;
+  if (typeof v === 'number' && v > 20000 && v < 80000) { const t = new Date(Date.UTC(1899, 11, 30) + Math.round(v * 864e5)); return `${t.getUTCFullYear()}-${pad(t.getUTCMonth() + 1)}-${pad(t.getUTCDate())}`; }
+  if (v instanceof Date && !isNaN(v)) { const t = new Date(v.getTime() + 12 * 36e5); return `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}`; }
+  const s = String(v).trim();
+  let m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(s); if (m) return `${m[1]}-${pad(+m[2])}-${pad(+m[3])}`;
+  m = /^(\d{1,2})[/.](\d{1,2})[/.](\d{4})/.exec(s); if (m) { let a = +m[1], b = +m[2]; if (a <= 12 && b > 12) [a, b] = [b, a]; return `${m[3]}-${pad(b)}-${pad(a)}`; } // assume D/M/Y unless impossible
+  const t = Date.parse(s); if (!isNaN(t)) { const d = new Date(t); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
+  return null;
+}
+function numCell(v) { if (v == null || v === '') return null; if (typeof v === 'number') return Number.isFinite(v) ? v : null; const n = parseFloat(String(v).replace(/,/g, '')); return Number.isFinite(n) ? n : null; }
+
+/* ---------- WHOOP ---------- */
+const WHOOP_CYCLE = { rec: 'recovery score', hrv: 'heart rate variability', rhr: 'resting heart rate', str: 'day strain', kb: 'energy burned', slp: 'asleep duration', sp: 'sleep performance',
+  sn: 'sleep need', sd: 'sleep debt', se: 'sleep efficiency', sc: 'sleep consistency', deep: 'deep sws duration', rem: 'rem duration', lt: 'light sleep duration', aw: 'awake duration', bed: 'in bed duration', rr: 'respiratory rate' };
+function whoopKind(head) {
+  const h = head.map(norm);
+  if (h.some(x => x.startsWith('recovery score')) && h.some(x => x.startsWith('cycle start time'))) return 'cycles';
+  if (h.some(x => x.startsWith('activity name')) && h.some(x => x.startsWith('workout start time'))) return 'workouts';
+  if (h.some(x => x.startsWith('question text')) && h.some(x => x.startsWith('answered yes'))) return 'journal';
+  return null;
+}
+function parseWhoopRows(rows, acc) {
+  const head = rows[0] || [], kind = whoopKind(head); if (!kind) return false;
+  const h = head.map(norm), col = p => h.findIndex(x => x.startsWith(p));
+  if (kind === 'cycles') {
+    const ci = {}; for (const k in WHOOP_CYCLE) ci[k] = col(WHOOP_CYCLE[k]);
+    const iWake = col('wake onset'), iStart = col('cycle start time'), iOn = col('sleep onset');
+    for (const r of rows.slice(1)) {
+      let date = isoDate(r[iWake]);
+      if (!date) { const st = String(r[iStart] || ''), d0 = isoDate(st); if (!d0) continue; date = +(st.slice(11, 13) || 0) >= 15 ? addDays(d0, 1) : d0; }
+      const o = {}; for (const k in ci) if (ci[k] >= 0) { const v = numCell(r[ci[k]]); if (v != null) o[k] = v; }
+      const clk = v => { const m = /\d{4}-\d{2}-\d{2}[ T](\d{2}:\d{2})/.exec(String(v || '')); return m ? m[1] : null; };
+      if (iOn >= 0 && clk(r[iOn])) o.on = clk(r[iOn]); if (iWake >= 0 && clk(r[iWake])) o.off = clk(r[iWake]);
+      if (Object.keys(o).length) { acc.days[date] = { ...(acc.days[date] || {}), ...o }; acc.cycles++; }
+    }
+  } else if (kind === 'journal') {
+    const iStart = col('cycle start time'), iQ = col('question text'), iY = col('answered yes');
+    for (const r of rows.slice(1)) {
+      if (!/alcohol/i.test(String(r[iQ] || ''))) continue; // only the alcohol question is read
+      const st = String(r[iStart] || ''), d0 = isoDate(st); if (!d0) continue;
+      const date = +(st.slice(11, 13) || 0) >= 15 ? addDays(d0, 1) : d0;
+      acc.days[date] = { ...(acc.days[date] || {}), alc: /^true$|^yes$|^1$/i.test(String(r[iY]).trim()) }; acc.alc = (acc.alc || 0) + 1;
+    }
+  } else {
+    const iS = col('workout start time'), iN = col('activity name'), iD = col('duration'), iSt = col('activity strain'), iK = col('energy burned'), iA = col('average hr'), iM = col('max hr');
+    const iZ = [1, 2, 3, 4, 5].map(k => col('hr zone ' + k));
+    for (const r of rows.slice(1)) {
+      const date = isoDate(r[iS]); if (!date) continue;
+      const a = { n: String(r[iN] || 'Activity'), min: numCell(r[iD]), str: numCell(r[iSt]), kcal: numCell(r[iK]), ahr: numCell(r[iA]), mhr: numCell(r[iM]), t: String(r[iS] || '').slice(11, 16) };
+      if (iZ.every(i => i >= 0)) a.z = iZ.map(i => numCell(r[i]) || 0);
+      (acc.acts[date] = acc.acts[date] || []).push(a); acc.workouts++;
+    }
+  }
+  return true;
+}
+async function readWhoopFiles(files) {
+  const acc = { days: {}, acts: {}, cycles: 0, workouts: 0, files: [] };
+  for (const f of files) {
+    if (/\.zip$/i.test(f.name) || f.type === 'application/zip') {
+      const JSZip = await loadLib('jszip'); const z = await JSZip.loadAsync(f);
+      for (const name of Object.keys(z.files)) if (/\.csv$/i.test(name) && !z.files[name].dir) {
+        if (parseWhoopRows(parseCSV(await z.files[name].async('string')), acc)) acc.files.push(name.split('/').pop());
+      }
+    } else if (parseWhoopRows(parseCSV(await f.text()), acc)) acc.files.push(f.name);
+  }
+  if (!acc.cycles && !acc.workouts && !acc.alc) throw new Error('No WHOOP data found. Choose the export .zip, or physiological_cycles.csv and workouts.csv from inside it.');
+  const out = {};
+  for (const d in acc.days) out[d] = { ...acc.days[d] };
+  for (const d in acc.acts) out[d] = { ...(out[d] || {}), acts: acc.acts[d] };
+  for (const d in out) if (out[d].slp != null) out[d].slp = Math.round(out[d].slp);
+  return { src: 'whoop', days: out, summary: `${acc.cycles} days of recovery and sleep, ${acc.workouts} activities${acc.alc ? `, ${acc.alc} alcohol journal answers` : ''}`, files: acc.files };
+}
+
+/* ---------- MacroFactor ---------- */
+function mfField(hn) { // header (normalised) → field key + unit scale
+  const has = (...w) => w.every(x => hn.includes(x));
+  const lb = /\blbs?\b|pound/.test(hn), kj = /\bkj\b/.test(hn);
+  const wscale = lb ? 0.45359237 : 1, escale = kj ? 1 / 4.184 : 1;
+  if (/^date\b|^day$/.test(hn)) return { k: 'date' };
+  if (has('target') || has('goal')) {
+    if (has('protein')) return { k: 'pT', s: 1 };
+    if (/calorie|energy/.test(hn)) return { k: 'kT', s: escale };
+    return null;
+  }
+  if (has('trend') && has('weight')) return { k: 'tw', s: wscale };
+  if (has('weight') && !has('body fat')) return { k: 'wt', s: wscale };
+  if (has('expenditure') || has('tdee')) return { k: 'exp', s: escale };
+  if (/calorie|energy|kcal/.test(hn)) return { k: 'kcal', s: escale };
+  if (has('protein')) return { k: 'p', s: 1 };
+  if (/carb/.test(hn) && !has('net')) return { k: 'c', s: 1 };
+  if (/^(total )?fats?( g| grams)?$/.test(hn)) return { k: 'f', s: 1 };
+  return null;
+}
+function parseMfRows(rows, acc) {
+  for (let hi = 0; hi < Math.min(rows.length, 12); hi++) {
+    const head = rows[hi].map(norm); const map = head.map(mfField);
+    const di = map.findIndex(m => m && m.k === 'date'); const fields = map.filter(m => m && m.k !== 'date');
+    if (di < 0 || !fields.length) continue;
+    let n = 0;
+    for (const r of rows.slice(hi + 1)) {
+      const date = isoDate(r[di]); if (!date) continue;
+      const o = {};
+      map.forEach((m, i) => { if (!m || m.k === 'date' || o[m.k] != null) return; const v = numCell(r[i]); if (v != null && v > 0) o[m.k] = Math.round(v * m.s * 100) / 100; });
+      if (Object.keys(o).length) { acc.days[date] = { ...(acc.days[date] || {}), ...o }; n++; }
+    }
+    if (n) { fields.forEach(m => acc.found.add(m.k)); return n; }
+  }
+  return 0;
+}
+async function readMfFiles(files) {
+  const acc = { days: {}, found: new Set() }; let rows = 0;
+  for (const f of files) {
+    if (/\.(xlsx|xls)$/i.test(f.name)) {
+      const XLSX = await loadLib('xlsx'); const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' });
+      for (const sn of wb.SheetNames) rows += parseMfRows(XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, raw: true, defval: null }), acc);
+    } else rows += parseMfRows(parseCSV(await f.text()), acc);
+  }
+  if (!rows) throw new Error('No MacroFactor data found. Use Data Export → Quick Export in MacroFactor and choose the .xlsx it creates.');
+  const names = { kcal: 'calories', p: 'protein', c: 'carbs', f: 'fat', wt: 'scale weight', tw: 'trend weight', exp: 'expenditure', kT: 'calorie target', pT: 'protein target' };
+  return { src: 'mf', days: acc.days, summary: `${Object.keys(acc.days).length} days · ${[...acc.found].map(k => names[k] || k).join(', ')}`, files: files.map(f => f.name) };
+}
+function previewRange(days) { const ds = Object.keys(days).sort(); return ds.length ? `${fmtDate(ds[0], { year: 'numeric' })} to ${fmtDate(ds[ds.length - 1], { year: 'numeric' })}` : ''; }
+function applyImport(p) {
+  const months = new Set(); const keysBySrc = { whoop: ['rec', 'hrv', 'rhr', 'str', 'kb', 'slp', 'sp', 'sn', 'sd', 'se', 'sc', 'deep', 'rem', 'lt', 'aw', 'bed', 'rr', 'on', 'off', 'alc', 'acts'], mf: ['kcal', 'p', 'c', 'f', 'wt', 'tw', 'exp', 'kT', 'pT'] }[p.src];
+  for (const date in p.days) {
+    const cur = STATE.d[date] || {}; const nx = { ...cur };
+    for (const k of keysBySrc) if (p.days[date][k] != null) nx[k] = p.days[date][k];
+    STATE.d[date] = nx; months.add(date.slice(0, 7));
+  }
+  S().imports = { ...(S().imports || {}), [p.src]: { at: Date.now(), range: previewRange(p.days), n: Object.keys(p.days).length } };
+  return months;
+}
+/* ============================================================
+   CHARTS — small hand-built SVG charts, one y-axis each, hover crosshair + tooltip
+   cfg: { h, x0, x1, xTicks, xFmt, yMin, yMax, yFmt, series:[{color, pts:[{x,y}], line, dots, r, faint, w, label}],
+          bars:[{x, v, color}], refY:{v, label}, tip(x)->html, hoverXs, empty }
+   ============================================================ */
+function niceTicks(min, max, n = 4) {
+  if (min === max) { min -= 1; max += 1; }
+  const span = max - min, step0 = span / n, mag = 10 ** Math.floor(Math.log10(step0));
+  const err = step0 / mag; const step = (err >= 7.5 ? 10 : err >= 3.5 ? 5 : err >= 1.5 ? 2 : 1) * mag;
+  const lo = Math.floor(min / step) * step, hi = Math.ceil(max / step) * step; const t = [];
+  for (let v = lo; v <= hi + step / 2; v += step) t.push(+v.toFixed(6));
+  return { lo, hi, t };
+}
+const CHART_REG = new Map(); let chartSeq = 0;
+function chartHTML(cfg) { const id = 'ch' + (++chartSeq); CHART_REG.set(id, cfg); return `<div class="chart" id="${id}" style="height:${cfg.h || 180}px" role="img" aria-label="${esc(cfg.label || 'Chart')}"></div>`; }
+function drawCharts(root = document) { root.querySelectorAll('.chart').forEach(el => { const c = CHART_REG.get(el.id); if (c) drawChart(el, c); }); }
+function drawChart(el, cfg) {
+  const W = Math.max(260, el.clientWidth || 340), H = cfg.h || 180;
+  const m = { l: cfg.ml ?? 36, r: cfg.mr ?? 14, t: cfg.barLabel ? 22 : 10, b: 22 };
+  const iw = W - m.l - m.r, ih = H - m.t - m.b;
+  const ys = [];
+  (cfg.series || []).forEach(s => s.pts.forEach(p => p.y != null && ys.push(p.y)));
+  (cfg.bars || []).forEach(b => { ys.push(b.segs ? sum(b.segs.map(s => s.v || 0)) : b.v); if (b.lo != null) ys.push(b.lo); });
+  (cfg.area || []).forEach(a => ys.push(a.lo, a.hi));
+  if (cfg.refY) ys.push(cfg.refY.v);
+  if (!ys.length || (cfg.series || []).every(s => !s.pts.length) && !(cfg.bars || []).length) { el.innerHTML = `<div class="chart-empty">${esc(cfg.empty || 'No data yet')}</div>`; return; }
+  let lo = cfg.yMin ?? Math.min(...ys), hi = cfg.yMax ?? Math.max(...ys);
+  if (cfg.yPad && cfg.yMin == null) lo -= cfg.yPad; if (cfg.yPad && cfg.yMax == null) hi += cfg.yPad;
+  const nt = cfg.yTickVals ? { t: cfg.yTickVals, lo: Math.min(...cfg.yTickVals), hi: Math.max(...cfg.yTickVals) } : niceTicks(lo, hi, cfg.yTicks || 4); const y0 = cfg.yMin ?? nt.lo, y1 = cfg.yMax ?? nt.hi;
+  const X = x => m.l + (cfg.x1 === cfg.x0 ? iw / 2 : (x - cfg.x0) / (cfg.x1 - cfg.x0) * iw);
+  const Y = y => m.t + ih - (y - y0) / (y1 - y0 || 1) * ih;
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">`;
+  for (const t of nt.t) if (t >= y0 - 1e-9 && t <= y1 + 1e-9) s += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(t)}" y2="${Y(t)}" class="grid"/><text x="${m.l - 6}" y="${Y(t) + 3.5}" class="ax" text-anchor="end">${esc((cfg.yFmt || (v => fmt(v, 1)))(t))}</text>`;
+  for (const x of cfg.xTicks || []) s += `<text x="${X(x)}" y="${H - 5}" class="ax" text-anchor="middle">${esc(cfg.xFmt(x))}</text>`;
+  if (cfg.area?.length) {
+    let seg = [], prev = null; const segsA = [];
+    for (const a of cfg.area) { if (prev != null && a.x - prev > (cfg.areaGap || 10)) { segsA.push(seg); seg = []; } seg.push(a); prev = a.x; }
+    if (seg.length) segsA.push(seg);
+    for (const sg of segsA) if (sg.length > 1) s += `<polygon points="${sg.map(a => `${X(a.x).toFixed(1)},${Y(a.hi).toFixed(1)}`).join(' ')} ${sg.slice().reverse().map(a => `${X(a.x).toFixed(1)},${Y(a.lo).toFixed(1)}`).join(' ')}" fill="var(--s1)" fill-opacity=".12" stroke="none"/>`;
+  }
+  if (cfg.bars) {
+    const span = Math.max(1, cfg.x1 - cfg.x0 + 1), bw = Math.max(1.5, Math.min(cfg.barMax || 18, iw / span - 2));
+    const base = Y(Math.max(y0, 0));
+    for (const b of cfg.bars) {
+      let top;
+      if (b.segs) { let acc = 0; const segs = b.segs.filter(g => g.v > 0); segs.forEach((g, i) => { const y0p = Y(acc), y1p = Y(acc + g.v), x = X(b.x) - bw / 2; s += `<rect x="${x}" y="${y1p}" width="${bw}" height="${Math.max(0, y0p - y1p - (i < segs.length - 1 && bw > 3 ? 1.5 : 0))}" fill="${g.color}"/>`; acc += g.v; }); top = Y(acc); }
+      else if (b.lo != null) { const x = X(b.x) - bw / 2, ya = Y(Math.max(b.v, b.lo)), yb = Y(Math.min(b.v, b.lo)); s += `<rect x="${x}" y="${ya}" width="${bw}" height="${Math.max(1, yb - ya)}" rx="${Math.min(4, bw / 2)}" fill="${b.color || 'var(--s1)'}"/>`; top = ya;
+        if (cfg.barLabel) s += `<text x="${X(b.x)}" y="${yb + 13}" class="${cfg.lblCls || 'lbl'}" text-anchor="middle">${esc(cfg.barLabelLo(b))}</text>`; }
+      else { const x = X(b.x) - bw / 2, yt = Y(b.v), h = Math.max(1, base - yt), r = Math.min(3, bw / 2, h); top = yt;
+        s += `<path d="M${x},${base}V${yt + r}Q${x},${yt} ${x + r},${yt}H${x + bw - r}Q${x + bw},${yt} ${x + bw},${yt + r}V${base}Z" fill="${b.color || 'var(--s1)'}"/>`; }
+      if (cfg.barLabel) s += `<text x="${X(b.x)}" y="${top - 6}" class="${cfg.lblCls || 'lbl'}" text-anchor="middle">${esc(cfg.barLabel(b))}</text>`;
+    }
+  }
+  if (cfg.refY) s += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(cfg.refY.v)}" y2="${Y(cfg.refY.v)}" stroke="var(--ink-2)" stroke-dasharray="4 4" stroke-width="1"/>`;
+  for (const se of cfg.series || []) {
+    const pts = se.pts.filter(p => p.y != null);
+    if (se.line !== false && pts.length > 1) {
+      let d = '', prev = null; for (const p of pts) { d += (prev != null && (!se.gap || p.x - prev <= se.gap) ? 'L' : 'M') + X(p.x).toFixed(1) + ',' + Y(p.y).toFixed(1); prev = p.x; }
+      s += `<path d="${d}" fill="none" stroke="${se.color}" stroke-width="${se.w || 2}" stroke-linejoin="round" stroke-linecap="round" ${se.faint ? 'stroke-opacity=".45"' : ''}/>`;
+    }
+    if (se.dots) for (const p of pts) s += `<circle cx="${X(p.x)}" cy="${Y(p.y)}" r="${se.r || 3}" fill="${se.color}" ${se.faint ? 'fill-opacity=".4"' : 'stroke="var(--surface)" stroke-width="2"'}/>`;
+    if (se.labels) for (const p of pts) s += `<text x="${X(p.x)}" y="${Y(p.y) - 9}" class="lbl" text-anchor="middle">${esc(se.labels(p))}</text>`;
+    if (se.end && pts.length) { const p = pts[pts.length - 1]; s += `<circle cx="${X(p.x)}" cy="${Y(p.y)}" r="4" fill="${se.color}" stroke="var(--surface)" stroke-width="2"/>`; }
+  }
+  s += `<line class="xhair" x1="0" x2="0" y1="${m.t}" y2="${m.t + ih}" visibility="hidden"/><rect x="${m.l}" y="${m.t}" width="${iw}" height="${ih}" fill="transparent"/></svg><div class="ctip" hidden></div>`;
+  el.innerHTML = s;
+  if (!cfg.tip) return;
+  const svg = el.querySelector('svg'), tip = el.querySelector('.ctip'), xh = el.querySelector('.xhair');
+  const xs = (cfg.hoverXs || []).slice().sort((a, b) => a - b);
+  const move = ev => {
+    const r = svg.getBoundingClientRect(); const px = (ev.clientX - r.left) * (W / r.width);
+    const xv = cfg.x0 + (px - m.l) / iw * (cfg.x1 - cfg.x0);
+    let best = null, bd = 1e9; for (const x of xs) { const d = Math.abs(x - xv); if (d < bd) { bd = d; best = x; } }
+    if (best == null) return; const html = cfg.tip(best); if (!html) return;
+    xh.setAttribute('x1', X(best)); xh.setAttribute('x2', X(best)); xh.setAttribute('visibility', 'visible');
+    tip.innerHTML = html; tip.hidden = false;
+    const tx = X(best) * (r.width / W), tw = tip.offsetWidth; tip.style.left = Math.max(0, Math.min(r.width - tw, tx - tw / 2)) + 'px';
+  };
+  svg.addEventListener('pointermove', move); svg.addEventListener('pointerdown', move);
+  svg.addEventListener('pointerleave', () => { tip.hidden = true; xh.setAttribute('visibility', 'hidden'); });
+}
+let resizeT; window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(() => drawCharts(), 150); });
+function dateAxis(from, to) { // x = day index from `from`
+  const n = diffDays(from, to); const k = n <= 14 ? 3 : n <= 45 ? 7 : n <= 120 ? 21 : n <= 400 ? 60 : 120; const ticks = [];
+  for (let i = n; i >= 0; i -= k) ticks.unshift(i);
+  if (ticks.length > 1 && ticks[1] - ticks[0] < k * 0.6) ticks.shift();
+  return { x0: 0, x1: Math.max(1, n), xTicks: ticks, xFmt: i => fmtDate(addDays(from, i)) };
+}
+/* ============================================================
+   TRENDS EXPLORER — one metric at a time, WHOOP Trend View style:
+   pick a metric, a period (W / M / 6M / 1Y), page back through periods,
+   headline average with change vs the prior period, chart, breakdown.
+   ============================================================ */
+const PERIODS = { W: [7, 'week'], M: [30, 'month'], '6M': [182, '6 months'], '1Y': [365, 'year'] };
+const hm = m => m == null || !Number.isFinite(m) ? '–' : `${m < 0 ? '−' : ''}${Math.floor(Math.abs(m) / 60)}:${pad(Math.round(Math.abs(m) % 60))}`;
+const clockOf = t => { const m = ((Math.round(t) % 1440) + 1440) % 1440, h = Math.floor(m / 60); return `${(h % 12) || 12}:${pad(m % 60)} ${h >= 12 ? 'pm' : 'am'}`; };
+const tMin = s => { const m = /^(\d{1,2}):(\d{2})/.exec(s || ''); if (!m) return null; let v = +m[1] * 60 + +m[2]; if (v >= 15 * 60) v -= 1440; return v; }; // minutes from midnight; evening negative
+const ZONES = ['Zone 0', 'Zone 1', 'Zone 2', 'Zone 3', 'Zone 4', 'Zone 5'];
+const ZCOL = ['var(--z0)', 'var(--z1)', 'var(--z2)', 'var(--z3)', 'var(--z4)', 'var(--z5)'];
+function zoneMin(date) { // minutes per heart-rate zone from that day's WHOOP activities; zone 0 is the remainder of each activity
+  const acts = (STATE.d[date]?.acts || []).filter(a => a.z && a.min); if (!acts.length) return null;
+  const out = [0, 0, 0, 0, 0, 0];
+  for (const a of acts) { const s = sum(a.z); out[0] += a.min * Math.max(0, 100 - s) / 100; a.z.forEach((p, i) => out[i + 1] += a.min * p / 100); }
+  return out;
+}
+const dv = k => d => dayVal(d, k);
+const sevBreak = (rows) => (vals) => rows.map(([label, test, color]) => ({ label, n: vals.filter(test).length, color }));
+const METRICS = [
+  // Recovery
+  { id: 'rec', g: 'Recovery', label: 'Recovery', unit: '%', src: 'WHOOP', v: dv('rec'), chart: 'bar', better: 1, f: v => fmt(v, 0), yMin: 0, yMax: 100, color: v => `var(--${recTone(v)})`,
+    breakdown: sevBreak([['Green (67–99%)', v => v >= 67, 'var(--good)'], ['Yellow (34–66%)', v => v >= 34 && v < 67, 'var(--warn)'], ['Red (1–33%)', v => v < 34, 'var(--bad)']]) },
+  { id: 'hrv', g: 'Recovery', label: 'Heart rate variability', short: 'HRV', unit: 'ms', src: 'WHOOP', v: dv('hrv'), chart: 'line', band: true, better: 1, f: v => fmt(v, 0) },
+  { id: 'rhr', g: 'Recovery', label: 'Resting heart rate', unit: 'bpm', src: 'WHOOP', v: dv('rhr'), chart: 'line', better: -1, f: v => fmt(v, 0) },
+  { id: 'rr', g: 'Recovery', label: 'Respiratory rate', unit: 'rpm', src: 'WHOOP', v: dv('rr'), chart: 'line', better: 0, f: v => fmt(v, 1) },
+  // Sleep
+  { id: 'sp', g: 'Sleep', label: 'Sleep performance', unit: '%', src: 'WHOOP', v: dv('sp'), chart: 'bar', better: 1, f: v => fmt(v, 0), yMin: 0, yMax: 100,
+    breakdown: sevBreak([['Optimal (85%+)', v => v >= 85, 'var(--good)'], ['Sufficient (70–84%)', v => v >= 70 && v < 85, 'var(--z1)'], ['Poor (under 70%)', v => v < 70, 'var(--warn)']]) },
+  { id: 'hvn', g: 'Sleep', label: 'Hours vs needed (hours)', unit: 'h', src: 'WHOOP', v: d => dayVal(d, 'slp'), v2: d => dayVal(d, 'sn'), chart: 'dual', better: 1, f: v => hm(v), fmtUnit: '' },
+  { id: 'hvnp', g: 'Sleep', label: 'Hours vs needed (%)', unit: '%', src: 'WHOOP', v: d => { const a = dayVal(d, 'slp'), b = dayVal(d, 'sn'); return a != null && b ? a / b * 100 : null; }, chart: 'bar', better: 1, f: v => fmt(v, 0) },
+  { id: 'bed', g: 'Sleep', label: 'Time in bed', unit: '', src: 'WHOOP', v: d => { const a = tMin(dayVal(d, 'on')), b = tMin(dayVal(d, 'off')); return a != null && b != null && b > a ? b - a : null; }, chart: 'range', better: 0, f: v => hm(v) },
+  { id: 'sc', g: 'Sleep', label: 'Sleep consistency', unit: '%', src: 'WHOOP', v: dv('sc'), chart: 'bar', better: 1, f: v => fmt(v, 0), yMin: 0, yMax: 100 },
+  { id: 'resth', g: 'Sleep', label: 'Restorative sleep (hours)', unit: '', src: 'WHOOP', v: d => { const a = dayVal(d, 'deep'), b = dayVal(d, 'rem'); return a != null && b != null ? a + b : null; }, chart: 'stack', better: 1, f: v => hm(v) },
+  { id: 'restp', g: 'Sleep', label: 'Restorative sleep (%)', unit: '%', src: 'WHOOP', v: d => { const a = dayVal(d, 'deep'), b = dayVal(d, 'rem'), t = dayVal(d, 'slp'); return a != null && b != null && t ? (a + b) / t * 100 : null; }, chart: 'bar', better: 1, f: v => fmt(v, 0) },
+  { id: 'se', g: 'Sleep', label: 'Sleep efficiency', unit: '%', src: 'WHOOP', v: dv('se'), chart: 'line', better: 1, f: v => fmt(v, 0) },
+  { id: 'sd', g: 'Sleep', label: 'Sleep debt', unit: '', src: 'WHOOP', v: dv('sd'), chart: 'bar', better: -1, f: v => hm(v) },
+  // Strain
+  { id: 'str', g: 'Strain', label: 'Day strain', unit: '', src: 'WHOOP', v: dv('str'), chart: 'bar', better: 0, delta: 'abs', partial: true, f: v => fmt(v, 1), yMin: 0, yMax: 21,
+    breakdown: sevBreak([['All out (18+)', v => v >= 18, 'var(--z5)'], ['Strenuous (14–18)', v => v >= 14 && v < 18, 'var(--z4)'], ['Moderate (10–14)', v => v >= 10 && v < 14, 'var(--z2)'], ['Light (under 10)', v => v < 10, 'var(--z1)']]) },
+  { id: 'kb', g: 'Strain', label: 'Calories burned', unit: 'kcal', src: 'WHOOP', v: dv('kb'), chart: 'bar', better: 0, partial: true, f: v => fmt(v, 0) },
+  { id: 'z13', g: 'Strain', label: 'Heart rate zones 1–3', unit: 'hr', src: 'WHOOP', v: d => { const z = zoneMin(d); return z ? z[1] + z[2] + z[3] : null; }, zones: [1, 2, 3], chart: 'zones', weekly: true, better: 0, partial: true, f: v => hm(v) },
+  { id: 'z45', g: 'Strain', label: 'Heart rate zones 4–5', unit: 'hr', src: 'WHOOP', v: d => { const z = zoneMin(d); return z ? z[4] + z[5] : null; }, zones: [4, 5], chart: 'zones', weekly: true, better: 0, partial: true, f: v => hm(v) },
+  { id: 'zall', g: 'Strain', label: 'Heart rate zones, all', unit: 'hr', src: 'WHOOP', v: d => { const z = zoneMin(d); return z ? sum(z) : null; }, zones: [0, 1, 2, 3, 4, 5], chart: 'zones', weekly: true, better: 0, partial: true, f: v => hm(v) },
+  { id: 'lift', g: 'Strain', label: 'Strength activity time', unit: 'hr', src: 'WHOOP', v: d => whoopLiftMin(d), chart: 'bar', weekly: true, better: 0, partial: true, f: v => hm(v) },
+  { id: 'vol', g: 'Strain', label: 'Total volume load', unit: 't', src: 'Logbook', v: d => { const w = STATE.w[d]; if (!w || w.rest) return null; const k = wStats(w).kg; return k ? k / 1000 : null; }, chart: 'bar', weekly: true, better: 0, f: v => fmt(v, 1) },
+  // Body + nutrition
+  { id: 'wt', g: 'Body + nutrition', label: 'Weight', unit: 'kg', src: 'MacroFactor', v: dv('tw'), chart: 'weight', better: 0, diff: true, delta: 'abs', f: v => fmt(v, 1) },
+  { id: 'kcal', g: 'Body + nutrition', label: 'Calories in', unit: 'kcal', src: 'MacroFactor', v: dv('kcal'), chart: 'intake', better: 0, partial: true, f: v => fmt(v, 0) },
+  { id: 'exp', g: 'Body + nutrition', label: 'Expenditure', unit: 'kcal', src: 'MacroFactor', v: dv('exp'), chart: 'line', better: 0, diff: true, f: v => fmt(v, 0) },
+  { id: 'p', g: 'Body + nutrition', label: 'Protein', unit: 'g', src: 'MacroFactor', v: dv('p'), chart: 'bar', better: 0, partial: true, f: v => fmt(v, 0) },
+];
+function explorerHTML() {
+  const m = METRICS.find(x => x.id === ui.metric) || METRICS[0], [n0, word] = PERIODS[ui.per] || PERIODS.M, t = today();
+  const n = m.weekly && n0 > 7 ? Math.round(n0 / 7) * 7 : n0; // weekly totals use whole 7-day weeks ending on the period's last day
+  const end = addDays(t, -(ui.off || 0) * n), start = addDays(end, -(n - 1)), pEnd = addDays(start, -1), pStart = addDays(pEnd, -(n - 1));
+  const span = (a, b) => { const o = []; for (let d = a; d <= b; d = addDays(d, 1)) o.push(d); return o; };
+  const days = span(start, end), pdays = span(pStart, pEnd);
+  const use = ds => m.partial ? ds.filter(d => d !== t) : ds;
+  const agg = ds => { const v = use(ds).map(m.v).filter(x => x != null); if (!v.length) return null; return m.weekly ? sum(v) / (use(ds).length / 7) : mean(v); };
+  const cur = agg(days), prev = agg(pdays);
+  const unitTxt = m.weekly && m.unit === 'hr' ? 'hr' : m.unit;
+  // headline
+  let delta = '';
+  if (cur != null && prev != null && prev !== 0) {
+    const absD = cur - prev, rel = absD / Math.abs(prev) * 100, useAbs = m.delta === 'abs';
+    const tone = Math.abs(rel) < 1 || !m.better ? '' : (absD > 0) === (m.better > 0) ? 'good' : 'warn';
+    const shown = useAbs ? (m.unit === 'kg' ? `${fmt(Math.abs(absD), 1)} kg` : fmt(Math.abs(absD), 1)) : `${fmt(Math.abs(rel), 0)}%`;
+    delta = `<span class="pill plain ${tone}">${Math.abs(rel) < 1 ? '•' : absD > 0 ? '▲' : '▼'} ${shown} vs prior ${word}</span>`;
+  }
+  const fmtH = v => v == null ? '–' : m.f(v);
+  const first = days.map(d => m.v(d)).find(x => x != null), last = [...days].reverse().map(d => m.v(d)).find(x => x != null);
+  let extra = '';
+  if (m.diff && first != null && last != null) extra = `<div class="stat"><span>Difference</span><b>${last - first >= 0 ? '+' : '−'}${m.f(Math.abs(last - first))}<small>${esc(m.unit)}</small></b></div>`;
+  if (m.id === 'bed') { const on = use(days).map(d => tMin(dayVal(d, 'on'))).filter(x => x != null), off = use(days).map(d => tMin(dayVal(d, 'off'))).filter(x => x != null);
+    if (on.length) extra = `<div class="stat"><span>Usual times</span><b class="sm">${clockOf(mean(on))}<small>to</small> ${clockOf(mean(off))}</b></div>`; }
+  if (m.id === 'wt') { const wr = weightRate(end); if (wr) extra += `<div class="stat"><span>Rate, last ${wr.weeks} wk</span><b>${wr.wk >= 0 ? '+' : '−'}${fmt(Math.abs(wr.wk), 2)}<small>kg/wk</small></b></div>`; }
+  const sentence = cur == null ? '' : prev == null ? `` : `<p class="small dim">Your ${m.weekly ? 'average weekly total' : 'average'} ${esc(m.short || m.label.toLowerCase())} ${ui.off ? 'in this period' : `this ${word}`} (${fmtH(cur)}${m.unit && !m.weekly ? ' ' + esc(m.unit) : ''}) was ${Math.abs(cur - prev) / Math.abs(prev) < .01 ? 'in line with' : cur > prev ? 'above' : 'below'} the ${word} before (${fmtH(prev)}).</p>`;
+
+  let h = `<section class="card explorer">
+    <label class="vh" for="metric">Metric</label>
+    <select class="in metric" id="metric" data-in="metric">${[...new Set(METRICS.map(x => x.g))].map(g => `<optgroup label="${esc(g)}">${METRICS.filter(x => x.g === g).map(x => `<option value="${x.id}" ${x.id === m.id ? 'selected' : ''}>${esc(x.label)}</option>`).join('')}</optgroup>`).join('')}</select>
+    <div class="ex-top"><div class="stats ex-head"><div class="stat"><span>${m.weekly ? 'Avg. weekly total' : 'Average'}</span><b>${fmtH(cur)}<small>${esc(unitTxt)}</small></b></div>${extra}</div>
+      <div class="ex-ctl"><div class="seg" role="group" aria-label="Period">${Object.keys(PERIODS).map(k => `<button class="${(ui.per || 'M') === k ? 'on' : ''}" data-act="per" data-v="${k}">${k}</button>`).join('')}</div>
+      <div class="ex-nav"><button class="iconbtn sm" data-act="poff" data-n="1" aria-label="Previous period">‹</button><span class="mono xs">${esc(fmtDate(start))} – ${esc(fmtDate(end, { year: '2-digit' }))}</span><button class="iconbtn sm" data-act="poff" data-n="-1" aria-label="Next period" ${ui.off ? '' : 'disabled style="opacity:.3"'}>›</button></div></div></div>
+    ${delta ? `<div>${delta}</div>` : ''}${sentence}`;
+  h += explorerChart(m, days, start, n);
+  if (m.partial && end === t) h += `<p class="xs muted">Average leaves out today, which isn't finished yet.</p>`;
+  // breakdowns
+  const vals = use(days).map(m.v).filter(x => x != null);
+  if (m.breakdown && vals.length) {
+    const rows = m.breakdown(vals), tot = sum(rows.map(r => r.n)) || 1;
+    h += `<div class="sec"><span class="eyebrow">${esc(m.label)} breakdown · days</span><div class="bk-bar">${rows.filter(r => r.n).map(r => `<i style="flex:${r.n};background:${r.color}"></i>`).join('')}</div>
+      <ul class="bk">${rows.map(r => `<li><i style="background:${r.color}"></i><b>${r.n}×</b><span>${esc(r.label)}</span><span class="muted">${fmt(r.n / tot * 100, 0)}%</span></li>`).join('')}</ul></div>`;
+  }
+  if (m.chart === 'zones') {
+    const tz = [0, 0, 0, 0, 0, 0]; let nd = 0; for (const d of use(days)) { const z = zoneMin(d); if (z) { z.forEach((v, i) => tz[i] += v); nd++; } }
+    if (nd) { const wk = use(days).length / 7, zs = m.zones;
+      h += `<div class="sec"><span class="eyebrow">Zone breakdown · avg weekly total</span><div class="bk-bar">${zs.map(i => `<i style="flex:${tz[i] || 0.0001};background:${ZCOL[i]}"></i>`).join('')}</div>
+        <ul class="bk">${zs.map(i => `<li><i style="background:${ZCOL[i]}"></i><b>${hm(tz[i] / wk)}</b><span>${ZONES[i]}</span></li>`).join('')}</ul>
+        <p class="xs muted">Zone time comes from activities WHOOP logged. Zone 0 is the time in each activity below zone 1.</p></div>`; }
+  }
+  if (m.band) h += `<p class="xs muted">Shaded band: your normal range, from the previous 60 days' average ± half a standard deviation of log-transformed HRV (Plews et al., 2013). A 7-day average sitting below it for several days is the signal worth noticing.</p>`;
+  h += `<p class="xs muted">Source: ${esc(m.src)}.</p></section>`;
+  return h;
+}
+function explorerChart(m, days, start, n) {
+  const t = today(), xi = d => diffDays(start, d), ax = dateAxis(start, days[days.length - 1]);
+  if (n <= 7) { ax.xTicks = days.map(xi); ax.xFmt = i => fmtDow(addDays(start, i)); ax.x0 = -0.5; ax.x1 = n - 0.5; }
+  else { ax.x0 = -0.5; ax.x1 = n - 0.5; }
+  const has = days.filter(d => m.v(d) != null), lab = n <= 7;
+  const tipBase = d => `<b>${esc(fmtDate(d, { weekday: 'short' }))}</b>`;
+  const tip = x => { const d = addDays(start, x), v = m.v(d); if (v == null) return ''; return `${tipBase(d)}<br>${esc(m.label)}: ${m.f(v)}${m.unit && m.unit !== 'hr' ? ' ' + esc(m.unit) : ''}${STATE.w[d] && !STATE.w[d].rest ? `<br>${esc(sessName(STATE.w[d]))}` : ''}${dayVal(d, 'alc') ? '<br>Alcohol logged the night before' : ''}`; };
+  const empty = `No ${m.src} data for ${m.label.toLowerCase()} in this period.`;
+  const base = { h: 200, ...ax, hoverXs: has.map(xi), tip, empty, label: m.label };
+  // weekly aggregation for M and longer
+  if (m.weekly && n > 7) {
+    const last = days[days.length - 1], weeks = []; for (let we = last; we >= start; we = addDays(we, -7)) weeks.unshift(addDays(we, -6));
+    const wkDays = ws => { const o = []; for (let i = 0; i < 7; i++) { const d = addDays(ws, i); if (!(m.partial && d === t)) o.push(d); } return o; };
+    const bars = weeks.map((ws, i) => {
+      const ds = wkDays(ws);
+      if (m.chart === 'zones') { const z = [0, 0, 0, 0, 0, 0]; ds.forEach(d => { const q = zoneMin(d); if (q) q.forEach((v, k) => z[k] += v); }); return { x: i, segs: m.zones.map(k => ({ v: z[k] / 60, color: ZCOL[k] })), tot: sum(m.zones.map(k => z[k])) }; }
+      const v = sum(ds.map(m.v).filter(x => x != null)); return { x: i, v: m.unit === 'hr' ? v / 60 : v, tot: v, color: 'var(--s1)' };
+    });
+    const wl = i => { const ws = weeks[i], we = addDays(ws, 6); return weeks.length > 6 ? fmtDate(we) : `${+ws.slice(8)}–${+we.slice(8)}`; };
+    const step = Math.ceil(weeks.length / 4);
+    return chartHTML({ ...base, x0: -0.5, x1: weeks.length - 0.5, xTicks: weeks.map((_, i) => i).filter(i => (weeks.length - 1 - i) % step === 0), xFmt: wl, barMax: 48, yMin: 0,
+      yFmt: v => m.unit === 'hr' ? hm(v * 60) : fmt(v, 1), bars: bars.filter(b => b.tot), hoverXs: bars.filter(b => b.tot).map(b => b.x),
+      tip: i => { const b = bars[i]; return b && b.tot ? `<b>Week of ${esc(fmtDate(weeks[i]))}</b><br>${m.unit === 'hr' ? hm(b.tot) : fmt(b.tot, 1) + ' ' + esc(m.unit)}` : ''; },
+      barLabel: weeks.length <= 6 ? b => m.unit === 'hr' ? hm(b.tot) : fmt(b.tot, 1) : null });
+  }
+  switch (m.chart) {
+    case 'bar': case 'zones': {
+      if (m.chart === 'zones') return chartHTML({ ...base, yMin: 0, yFmt: v => hm(v * 60), bars: has.map(d => { const z = zoneMin(d); return { x: xi(d), segs: m.zones.map(k => ({ v: z[k] / 60, color: ZCOL[k] })), tot: m.v(d) }; }), barLabel: lab ? b => hm(b.tot) : null });
+      const sc = m.unit === 'hr' ? 1 / 60 : 1;
+      return chartHTML({ ...base, yMin: m.yMin ?? 0, yMax: m.yMax, yFmt: v => m.unit === 'hr' || m.id === 'sd' ? hm(v / sc) : fmt(v, 0), refY: m.id === 'p' && S().proteinT ? { v: S().proteinT } : null,
+        bars: has.map(d => ({ x: xi(d), v: m.v(d) * sc, raw: m.v(d), color: m.color ? m.color(m.v(d)) : 'var(--s1)' })), barLabel: lab ? b => m.f(b.raw) : null });
+    }
+    case 'line': {
+      const pts = has.map(d => ({ x: xi(d), y: m.v(d) }));
+      const area = m.band ? days.map(d => { const b = hrvBand(d); return b ? { x: xi(d), lo: b.lo, hi: b.hi } : null; }).filter(Boolean) : null;
+      return chartHTML({ ...base, yPad: m.id === 'rr' ? .3 : 2, yFmt: v => fmt(v, m.id === 'rr' ? 1 : 0), area, areaGap: 3,
+        series: [{ color: 'var(--s1)', pts, gap: n > 60 ? 6 : 3, dots: n <= 31, r: 3, end: true, w: n > 60 ? 1.6 : 2, labels: lab ? p => m.f(p.y) : null }] });
+    }
+    case 'dual': {
+      const a = has.map(d => ({ x: xi(d), y: m.v(d) / 60 })), b = days.filter(d => m.v2(d) != null).map(d => ({ x: xi(d), y: m.v2(d) / 60 }));
+      return `<div class="legend"><span><i class="ln" style="background:var(--s1)"></i>Hours of sleep</span><span><i class="ln" style="background:var(--s3)"></i>Sleep needed</span></div>` +
+        chartHTML({ ...base, yPad: .5, yFmt: v => hm(v * 60), tip: x => { const d = addDays(start, x); return m.v(d) == null ? '' : `${tipBase(d)}<br>Asleep ${hm(m.v(d))} · needed ${hm(m.v2(d))}`; },
+          series: [{ color: 'var(--s3)', pts: b, gap: 3, dots: n <= 31, r: 3, labels: lab ? p => hm(p.y * 60) : null }, { color: 'var(--s1)', pts: a, gap: 3, dots: n <= 31, r: 3, labels: lab ? p => hm(p.y * 60) : null }] });
+    }
+    case 'range': {
+      const rows = has.map(d => ({ d, on: tMin(dayVal(d, 'on')), off: tMin(dayVal(d, 'off')) })).filter(r => r.on != null && r.off != null);
+      if (!rows.length) return chartHTML({ ...base, bars: [] });
+      const lo = Math.floor((Math.min(...rows.map(r => r.on)) - 30) / 120) * 120, hi = Math.ceil((Math.max(...rows.map(r => r.off)) + 30) / 120) * 120;
+      const ticks = []; for (let v = lo; v <= hi; v += (hi - lo > 720 ? 240 : 120)) ticks.push(-v);
+      return chartHTML({ ...base, ml: 52, lblCls: 'lbl sm', yMin: -hi, yMax: -lo, yTickVals: ticks, yFmt: v => clockOf(-v).replace(':00', ''), barMax: 22,
+        bars: rows.map(r => ({ x: xi(r.d), v: -r.on, lo: -r.off, color: 'var(--s1)', r })), barLabel: lab ? b => clockOf(b.r.on).replace(/ (am|pm)$/, '') : null, barLabelLo: b => clockOf(b.r.off).replace(/ (am|pm)$/, ''),
+        tip: x => { const d = addDays(start, x), r = rows.find(q => q.d === d); return r ? `${tipBase(d)}<br>${clockOf(r.on)} to ${clockOf(r.off)} · ${hm(r.off - r.on)} in bed` : ''; } });
+    }
+    case 'stack': return `<div class="legend"><span><i class="dot" style="background:var(--s1)"></i>Deep (SWS)</span><span><i class="dot" style="background:var(--s3)"></i>REM</span></div>` +
+      chartHTML({ ...base, yMin: 0, yFmt: v => hm(v * 60), bars: has.map(d => ({ x: xi(d), segs: [{ v: dayVal(d, 'deep') / 60, color: 'var(--s1)' }, { v: dayVal(d, 'rem') / 60, color: 'var(--s3)' }], tot: m.v(d) })), barLabel: lab ? b => hm(b.tot) : null,
+        tip: x => { const d = addDays(start, x); return m.v(d) == null ? '' : `${tipBase(d)}<br>Deep ${hm(dayVal(d, 'deep'))} · REM ${hm(dayVal(d, 'rem'))}<br>Total ${hm(m.v(d))}`; } });
+    case 'weight': {
+      const sc = days.filter(d => dayVal(d, 'wt') != null).map(d => ({ x: xi(d), y: dayVal(d, 'wt') }));
+      return `<div class="legend"><span><i class="dot" style="background:var(--s1);opacity:.5"></i>Scale weight</span><span><i class="ln" style="background:var(--s1)"></i>Trend weight</span></div>` +
+        chartHTML({ ...base, yPad: .3, yFmt: v => fmt(v, 1), hoverXs: [...new Set([...has, ...days.filter(d => dayVal(d, 'wt') != null)])].map(xi),
+          tip: x => { const d = addDays(start, x); return `${tipBase(d)}${dayVal(d, 'wt') != null ? `<br>Scale ${fmt(dayVal(d, 'wt'), 1)} kg` : ''}${dayVal(d, 'tw') != null ? `<br>Trend ${fmt(dayVal(d, 'tw'), 2)} kg` : ''}`; },
+          series: [{ color: 'var(--s1)', pts: sc, line: false, dots: true, r: 2.5, faint: true }, { color: 'var(--s1)', pts: has.map(d => ({ x: xi(d), y: m.v(d) })), gap: 7, end: true }] });
+    }
+    case 'intake': {
+      const kD = has, eD = days.filter(d => dayVal(d, 'exp') != null);
+      const roll7 = kD.map(d => { const a = avgOver('kcal', d, 7); return { x: xi(d), y: a && a.n >= 3 ? a.avg : null }; });
+      const paired = kD.filter(d => d !== t && dayVal(d, 'exp') != null), bal = paired.length ? mean(paired.map(d => dayVal(d, 'kcal') - dayVal(d, 'exp'))) : null;
+      return `<div class="legend"><span><i class="dot" style="background:var(--s1);opacity:.5"></i>Intake, daily</span>${n > 7 ? '<span><i class="ln" style="background:var(--s1)"></i>Intake, 7-day avg</span>' : ''}<span><i class="ln" style="background:var(--s2)"></i>Expenditure</span></div>` +
+        chartHTML({ ...base, yPad: 100, yFmt: v => fmt(v, 0), hoverXs: [...new Set([...kD, ...eD])].map(xi),
+          tip: x => { const d = addDays(start, x); return `${tipBase(d)}${dayVal(d, 'kcal') != null ? `<br>In ${fmt(dayVal(d, 'kcal'), 0)} kcal` : ''}${dayVal(d, 'exp') != null ? `<br>Expenditure ${fmt(dayVal(d, 'exp'), 0)} kcal` : ''}${dayVal(d, 'p') != null ? `<br>P ${fmt(dayVal(d, 'p'), 0)} · C ${fmt(dayVal(d, 'c'), 0)} · F ${fmt(dayVal(d, 'f'), 0)}` : ''}`; },
+          series: [{ color: 'var(--s1)', pts: kD.map(d => ({ x: xi(d), y: m.v(d) })), line: n <= 7, dots: true, r: n <= 31 ? 3 : 2, faint: n > 7 }, ...(n > 7 ? [{ color: 'var(--s1)', pts: roll7, gap: 8 }] : []), { color: 'var(--s2)', pts: eD.map(d => ({ x: xi(d), y: dayVal(d, 'exp') })), gap: 7, end: true }] }) +
+        (bal != null ? `<p class="xs muted">Average balance ${bal >= 0 ? '+' : '−'}${fmt(Math.abs(bal), 0)} kcal a day across ${paired.length} logged days.</p>` : '');
+    }
+  }
+  return '';
+}
+function alcoholCard() {
+  const rows = Object.keys(STATE.d).filter(d => STATE.d[d].alc != null && STATE.d[d].rec != null);
+  const yes = rows.filter(d => STATE.d[d].alc), no = rows.filter(d => !STATE.d[d].alc);
+  if (yes.length < 3 || no.length < 3) return '';
+  const a = (ds, k) => mean(ds.map(d => STATE.d[d][k]).filter(v => v != null));
+  const last30 = Object.keys(STATE.d).filter(d => d > addDays(today(), -30) && STATE.d[d].alc).length;
+  const rY = a(yes, 'rec'), rN = a(no, 'rec'), hY = a(yes, 'hrv'), hN = a(no, 'hrv'), sY = a(yes, 'rhr'), sN = a(no, 'rhr');
+  const row = (label, v, nn, tone) => `<li><span class="lab">${label}</span><span class="trk"><span class="fill" style="width:${Math.max(2, v)}%;background:var(--${tone})"></span></span><span class="v">${fmt(v, 0)}% <span class="muted">n${nn}</span></span></li>`;
+  return `<section class="card"><div class="card-h"><h2>Alcohol and recovery</h2><span class="eyebrow">WHOOP journal</span></div>
+    <ul class="hbars">${row('After alcohol', rY, yes.length, recTone(rY))}${row('No alcohol', rN, no.length, recTone(rN))}</ul>
+    <div class="stats">${stat(`${rY - rN >= 0 ? '+' : '−'}${fmt(Math.abs(rY - rN), 0)}`, 'pts', 'recovery')}${stat(`${hY - hN >= 0 ? '+' : '−'}${fmt(Math.abs(hY - hN), 0)}`, 'ms', 'HRV')}${stat(`${sY - sN >= 0 ? '+' : '−'}${fmt(Math.abs(sY - sN), 0)}`, 'bpm', 'resting HR')}</div>
+    <p class="xs muted">Average next-morning numbers when you logged alcohol the day before, against nights you didn't, across all imported days. ${last30} alcohol ${last30 === 1 ? 'night' : 'nights'} in the last 30 days.</p></section>`;
+}
+/* ============================================================
+   NOTES — session and exercise notes, compiled by muscle group.
+   Notes flow one way: a workout's own note is never changed from the Notes list.
+   Edits and removals made in the list are stored separately (S().notebook).
+   ============================================================ */
+const NOTE_GROUPS = { ...GROUPS, general: 'General' };
+function notebook() { const nb = S().notebook || (S().notebook = {}); nb.general = nb.general || []; nb.edits = nb.edits || {}; nb.hidden = nb.hidden || {}; return nb; }
+function noteEntries() {
+  const nb = notebook(), out = [];
+  for (const w of Object.values(STATE.w)) {
+    const groups = [...new Set((w.ex || []).filter(e => !w.rest).map(e => exDef(e.id).g))];
+    if (w.note && w.note.trim()) { const k = 's|' + w.date; if (!nb.hidden[k]) out.push({ k, date: w.date, groups: groups.length ? groups : ['general'], src: `${sessName(w)} · session note`, text: nb.edits[k] ?? w.note.trim(), edited: k in nb.edits }); }
+    for (const e of w.ex || []) if (e.note && e.note.trim()) { const k = `e|${w.date}|${e.id}`; if (!nb.hidden[k]) out.push({ k, date: w.date, groups: [exDef(e.id).g], src: `${sessName(w)} · ${exDef(e.id).name}`, text: nb.edits[k] ?? e.note.trim(), edited: k in nb.edits }); }
+  }
+  for (const n of nb.general) out.push({ k: 'g|' + n.id, date: n.date, groups: [n.g || 'general'], src: 'Added in Notes', text: n.text, general: true });
+  return out.sort((a, b) => a.date < b.date ? 1 : a.date > b.date ? -1 : 0);
+}
+function lastSessionNote(w) { // newest earlier note for the same session type
+  let best = null; for (const x of Object.values(STATE.w)) if (x.s === w.s && x.date < w.date && x.note && x.note.trim() && (!best || x.date > best.date)) best = x;
+  return best;
+}
+function lastExerciseNote(exId, before) {
+  let best = null; for (const x of Object.values(STATE.w)) if (x.date < before) for (const e of x.ex || []) if (e.id === exId && e.note && e.note.trim() && (!best || x.date > best.date)) best = { date: x.date, note: e.note.trim() };
+  return best;
+}
+const noteId = k => k.replace(/[^a-z0-9]/gi, '_');
+function vNotes() {
+  const all = noteEntries(), f = ui.noteG || 'all';
+  const has = Object.keys(NOTE_GROUPS).filter(g => all.some(n => n.groups.includes(g)));
+  let h = !ui.noteNew ? `<button class="btn ghost" data-act="notenew" style="align-self:flex-start">+ Add a note</button>` : `<section class="card"><div class="card-h"><h2>Add a note</h2><button class="link dim" data-act="notenew">Cancel</button></div>
+    <div class="fields" style="grid-template-columns:minmax(0,1fr)"><label class="fl">Muscle group<select class="in" id="ng">${Object.entries(NOTE_GROUPS).filter(([g]) => g !== 'other').map(([g, l]) => `<option value="${g}" ${g === (f === 'all' ? 'general' : f) ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
+    <label class="fl">Note<textarea class="in" id="nt" placeholder="Technique cues, machine settings, anything to remember"></textarea></label></div>
+    <div class="btnrow"><button class="btn sm" data-act="noteadd">Add note</button></div></section>`;
+  if (ui.noteNew) setTimeout(() => $('#nt')?.focus(), 30);
+  if (!all.length) return h + `<section class="card"><p class="dim small">Notes from your sessions collect here, sorted by muscle group. Add one at the bottom of a session, or on any exercise with "+ Note".</p></section>`;
+  h += `<div class="chips">${['all', ...has].map(g => `<button class="chip ${f === g ? 'on' : ''}" data-act="notefilter" data-v="${g}">${g === 'all' ? 'All' : esc(NOTE_GROUPS[g])} <span class="muted">${g === 'all' ? all.length : all.filter(n => n.groups.includes(g)).length}</span></button>`).join('')}</div>`;
+  for (const g of (f === 'all' ? has : [f])) {
+    const list = all.filter(n => n.groups.includes(g)); if (!list.length) continue;
+    h += `<section class="sec"><div class="sec-h"><span class="eyebrow">${esc(NOTE_GROUPS[g])}</span><span class="xs muted">${list.length} note${list.length === 1 ? '' : 's'}</span></div><section class="card"><ul class="notes">`;
+    for (const n of list) {
+      const id = noteId(n.k + '_' + g), editing = ui.noteEdit === n.k + '#' + g;
+      h += `<li><div class="note-m">${esc(fmtDate(n.date, { year: '2-digit' }))} · ${esc(n.src)}${n.edited ? ' · edited here' : ''}</div>
+        ${editing ? `<textarea class="in" id="ne_${id}">${esc(n.text)}</textarea>${n.general ? '' : '<p class="xs muted">Edits here only change this list. The session keeps its original note.</p>'}
+          <div class="btnrow"><button class="btn sm" data-act="notesave" data-k="${esc(n.k)}" data-g="${g}" data-id="${id}">Save</button><button class="link dim" data-act="noteedit" data-k="">Cancel</button>
+          <button class="link danger" data-act="notedel" data-k="${esc(n.k)}" style="margin-left:auto">${n.general ? 'Delete note' : 'Remove from list'}</button></div>`
+        : `<p class="note-t">${esc(n.text)}</p><div class="btnrow"><button class="link" data-act="noteedit" data-k="${esc(n.k + '#' + g)}">Edit</button>${n.general ? '' : `<button class="link dim" data-act="openlog" data-d="${n.date}">Open session</button>`}</div>`}</li>`;
+    }
+    h += `</ul></section></section>`;
+  }
+  return h;
+}
+/* ============================================================
+   VIEWS
+   ============================================================ */
+function pill(tone, text) { return `<span class="pill ${tone || ''}">${esc(text)}</span>`; }
+function stat(v, unit, label, extra) { return `<div class="stat"><b>${v}${unit ? `<small>${esc(unit)}</small>` : ''}</b><span>${esc(label)}</span>${extra || ''}</div>`; }
+function deltaTxt(v, base, d = 0, unit = '', invert = false) {
+  if (v == null || base == null) return '';
+  const diff = v - base; if (Math.abs(diff) < 10 ** -d / 2) return `<span class="delta">= 30-day avg</span>`;
+  const better = invert ? diff < 0 : diff > 0;
+  return `<span class="delta" style="color:var(${better ? '--good-ink' : '--warn-ink'})">${diff > 0 ? '+' : '−'}${fmt(Math.abs(diff), d)}${unit} vs 30-day</span>`;
+}
+function ring(v, tone, strain) { // inner ring: recovery (0–100%); outer ring: day strain (0–21), as on the WHOOP home screen
+  const arc = (r, f, col, w) => { const c = 2 * Math.PI * r; return `<circle cx="56" cy="56" r="${r}" fill="none" stroke="var(--surface-3)" stroke-width="${w}"/>` + (f > 0 ? `<circle cx="56" cy="56" r="${r}" fill="none" stroke="${col}" stroke-width="${w}" stroke-linecap="round" stroke-dasharray="${(c * Math.min(1, f)).toFixed(1)} ${c.toFixed(1)}"/>` : ''); };
+  const col = { good: 'var(--good)', warn: 'var(--warn)', bad: 'var(--bad)' }[tone] || 'var(--ink-3)';
+  return `<div class="ring" role="img" aria-label="Recovery ${v == null ? 'unknown' : Math.round(v) + '%'}${strain != null ? `, strain ${fmt(strain, 1)}` : ''}"><svg viewBox="0 0 112 112">${arc(51, strain != null ? strain / 21 : 0, 'var(--s1)', 6)}${arc(40, Math.max(0, Math.min(100, v || 0)) / 100, col, 6)}</svg><b style="color:${col}">${v == null ? '–' : Math.round(v)}<small style="color:inherit;opacity:.75">%</small></b></div>`;
+}
+function rxTxt(it) { const d = exDef(it.ex); return `${it.sets} × ${d.lo}${d.hi > d.lo ? '–' + d.hi : ''}`; }
+function lastLine(exId, before) {
+  const l = lastFor(exId, before), b = bestSet(exId, before), best = b ? `Best ${fmtSet(exId, b)}` : '';
+  if (l) return `Last ${fmtDate(l.date)} · ${setsTxt(exId, l.sets)}${best ? ' · ' + best : ''}`;
+  return best ? `${best} · not logged yet` : 'Not logged yet';
+}
+
+/* ---------- Today ---------- */
+function vToday() {
+  const t = today(), w = STATE.w[t], sid = w ? w.s : sessionFor(t), sd = sessDef(sid), o = order(), idx = o.indexOf(sid);
+  let h = `<div class="page-h"><div><div class="eyebrow">${esc(fmtDow(t))} ${esc(fmtDate(t, { year: 'numeric' }))}</div><h1>Today</h1></div>${o.length ? `<span class="pill plain">Rotation ${rotationCount() + 1}</span>` : ''}</div>`;
+  if (w && w.rest) return h + restHero(w) + stripHTML() + `<div class="grid2">${recoveryCard()}${nutritionCard()}</div>` + weekCard();
+  if (!sd) return h + `<section class="card"><p>Your programme has no sessions. Add one in Plan.</p><button class="btn" data-act="go" data-tab="plan">Open Plan</button></section>`;
+  if (!w && sd.rest) return h + plannedRestHero(sid) + stripHTML() + `<div class="grid2">${recoveryCard()}${nutritionCard()}</div>` + weekCard();
+  const wst = w ? wStats(w) : null, status = w ? (wst.sets ? 'Logged today' : 'Opened today') : 'Next up';
+  h += `<section class="card hero"><div class="card-h"><span class="eyebrow">${status} · ${idx + 1} of ${o.length}</span>${wst?.sets ? pill('good', 'Logged') : ''}</div>
+    <div class="rot">${o.map((id, i) => `<i class="${i === idx ? 'on' : i < idx ? 'done' : ''}"></i>`).join('')}</div>
+    <div><h1>${esc(sd.name)}</h1><p class="focus">${esc(sd.focus || '')}</p></div>`;
+  if (w) {
+    const st = wStats(w);
+    const dur = sessDur(w);
+    h += `<div class="stats">${stat(st.sets, '', 'sets done')}${stat(dur ? fmtDur(dur) : '–', '', dur ? 'duration · WHOOP' : 'duration, after WHOOP import')}${stat(st.cardio || '–', st.cardio ? 'min' : '', w.cardio?.name || 'Cardio')}</div>
+      <button class="btn wide" data-act="go" data-tab="log">${st.sets ? 'Open log' : 'Continue logging'}</button>`;
+  } else {
+    h += `<ul class="exlist">${sd.items.filter(it => S().ex[it.ex]).map(it => `<li><span>${esc(exDef(it.ex).name)}</span><span class="rx">${rxTxt(it)}</span><span class="lt">${esc(lastLine(it.ex, t))}</span></li>`).join('')}
+      <li><span>${esc(S().cardio.name)}</span><span class="rx">${S().cardio.min} min</span></li></ul>
+      <button class="btn wide" data-act="start" data-id="${sid}">Log ${esc(sd.name)}</button>
+      ${ui.pickSess === 'today' ? `<div class="sec"><span class="xs muted">Do a different session today. The rotation carries on from whichever you log.</span><div class="chips">${trainIds().map(id => `<button class="chip ${id === sid ? 'on' : ''}" data-act="setnext" data-id="${id}">${esc(sessDef(id).name)}</button>`).join('')}</div></div>`
+        : `<div class="btnrow" style="justify-content:space-between"><button class="link" data-act="picktoday">Change today's session</button><button class="link dim" data-act="restday">Rest day instead</button></div>`}`;
+  }
+  h += `</section>`;
+  h += stripHTML();
+  h += `<div class="grid2">${recoveryCard()}${nutritionCard()}</div>`;
+  h += weekCard();
+  return h;
+}
+function stripHTML() {
+  const up = upcoming(Math.max(5, order().length + 1));
+  return `<section class="sec"><div class="sec-h"><span class="eyebrow">Coming up</span></div><div class="strip">${up.map((u, i) => `<div class="sd ${i === 0 ? (u.done ? 'done' : 'now') : ''} ${u.s === '_rest' || isRestSlot(u.s) ? 'rest' : ''}"><small>${i === 0 ? 'Today' : i === 1 ? 'Tmrw' : esc(fmtDow(u.date))}</small><b>${esc(slotName(u.s))}</b></div>`).join('')}</div></section>`;
+}
+function restHero(w) {
+  const nx = sessionFor(addDays(w.date, 1));
+  return `<section class="card hero"><div class="card-h"><span class="eyebrow">Rest day${isRestSlot(w.s) ? ' · planned' : ''}</span>${pill('', 'Logged')}</div>
+    <div><h1>Rest</h1><p class="focus">${isRestSlot(w.s) ? 'Planned rest from your rotation.' : 'The rotation waits.'} Tomorrow: ${esc(slotName(nx))}.</p></div>
+    ${w.cardio?.done ? `<p class="small dim">${esc(w.cardio.name)} · ${w.cardio.min || 0} min</p>` : ''}
+    <div class="btnrow" style="justify-content:space-between"><button class="btn sm ghost" data-act="go" data-tab="log">${w.cardio?.done ? 'Open day' : 'Log cardio or notes'}</button><button class="link dim" data-act="unrest">Undo rest day</button></div></section>`;
+}
+function plannedRestHero(sid) {
+  const o = order(), idx = o.indexOf(sid), sd = sessDef(sid);
+  return `<section class="card hero"><div class="card-h"><span class="eyebrow">Planned rest · ${idx + 1} of ${o.length}</span></div>
+    <div class="rot">${o.map((id, i) => `<i class="${i === idx ? 'on' : i < idx ? 'done' : ''}"></i>`).join('')}</div>
+    <div><h1>${esc(sd.name)}</h1><p class="focus">Nothing to log. If you don't train today, the rotation moves on to ${esc(slotName(nextAfter(sid)))} tomorrow.</p></div>
+    <div class="sec"><span class="xs muted">Train anyway</span><div class="chips">${trainIds().map(id => `<button class="chip" data-act="start" data-id="${id}">${esc(sessDef(id).name)}</button>`).join('')}</div></div></section>`;
+}
+function recoveryCard() {
+  const t = today(), d = latestWith('rec') || latestWith('slp');
+  if (!d) return `<section class="card"><div class="card-h"><h2>Recovery</h2><span class="eyebrow">WHOOP</span></div><p class="dim small">Import your WHOOP export to see recovery, HRV, resting heart rate and sleep here.</p><div class="btnrow"><button class="btn sm" data-act="go" data-tab="data">Import WHOOP data</button></div></section>`;
+  const x = STATE.d[d], tone = recTone(x.rec), age = diffDays(d, t);
+  const hb = hrvBand(d), rhrB = avgOver('rhr', d, 30, true), strY = dayVal(addDays(d, -1), 'str');
+  let note = '';
+  if (hb && hb.state === 'below' && age <= 1 && tone !== 'bad') note = `<p class="note">Your 7-day HRV is below your normal range (${fmt(hb.lo, 0)}–${fmt(hb.hi, 0)} ms). A sustained drop often reflects accumulated fatigue, poor sleep or illness, so it's worth watching over the next few days.</p>`;
+  if (tone === 'bad' && age <= 1) note = `<p class="note">Red recovery. The rotation stays the same; a lighter day is reasonable, such as stopping sets 2–3 reps short and keeping the ${esc(S().cardio.name.toLowerCase())} easy. Treat the score as a guide, not a rule.</p>`;
+  return `<section class="card"><div class="card-h"><h2>Recovery</h2>${x.rec != null ? pill(tone, recWord(x.rec)) : ''}</div>
+    <div class="recov">${ring(x.rec, tone, strY)}<div class="stats" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+      ${stat(x.hrv != null ? fmt(x.hrv, 0) : '–', 'ms', 'HRV', hb ? `<span class="delta" style="color:var(${hb.state === 'below' ? '--warn-ink' : hb.state === 'within' ? '--good-ink' : '--ink-2'})">7-day ${HRV_STATE[hb.state][1].toLowerCase()}</span>` : '')}
+      ${stat(x.rhr != null ? fmt(x.rhr, 0) : '–', 'bpm', 'Resting HR', deltaTxt(x.rhr, rhrB?.avg, 0, '', true))}
+      ${stat(x.slp != null ? fmt(x.slp / 60, 1) : '–', 'h', 'Asleep', x.sp != null ? `<span class="delta">${fmt(x.sp, 0)}% of need${x.sd != null ? ` · debt ${fmt(x.sd, 0)} min` : ''}</span>` : '')}
+      ${stat(strY != null ? `<span style="color:var(--s1)">${fmt(strY, 1)}</span>` : '–', '', 'Strain, day before')}
+    </div></div>${note}
+    <div class="btnrow" style="justify-content:space-between"><span class="xs muted">WHOOP · ${esc(fmtDate(d))}${age > 1 ? ` · ${age} days old, import a new export to update` : ''}</span></div></section>`;
+}
+function nutritionCard() {
+  const t = today(), d = latestWith('kcal'), tw = latestWith('tw') || latestWith('wt');
+  if (!d && !tw) return `<section class="card"><div class="card-h"><h2>Nutrition</h2><span class="eyebrow">MacroFactor</span></div><p class="dim small">Import a MacroFactor export to see intake, expenditure and trend weight next to your training.</p><div class="btnrow"><button class="btn sm" data-act="go" data-tab="data">Import MacroFactor data</button></div></section>`;
+  const x = d ? STATE.d[d] : {}, pT = x.pT ?? S().proteinT, kT = x.kT;
+  const twv = tw ? (STATE.d[tw].tw ?? STATE.d[tw].wt) : null, wr = weightRate();
+  const expD = latestWith('exp');
+  return `<section class="card"><div class="card-h"><h2>Nutrition</h2><span class="eyebrow">${d ? esc(d === t ? 'Today so far' : fmtDate(d)) : ''}</span></div>
+    <div class="stats four">
+      ${stat(x.kcal != null ? fmt(x.kcal, 0) : '–', 'kcal', kT ? `of ${fmt(kT, 0)} target` : 'calories')}
+      ${stat(x.p != null ? fmt(x.p, 0) : '–', 'g', pT ? `protein of ${fmt(pT, 0)}` : 'protein')}
+      ${stat(x.c != null ? fmt(x.c, 0) : '–', 'g', 'carbs')}
+      ${stat(x.f != null ? fmt(x.f, 0) : '–', 'g', 'fat')}
+    </div><hr class="hr"><div class="stats">
+      ${stat(twv != null ? fmt(twv, 1) : '–', 'kg', STATE.d[tw]?.tw != null ? 'trend weight' : 'scale weight', wr ? `<span class="delta">${wr.wk >= 0 ? '+' : '−'}${fmt(Math.abs(wr.wk), 2)} kg/wk over ${wr.weeks} wk</span>` : '')}
+      ${stat(expD ? fmt(STATE.d[expD].exp, 0) : '–', 'kcal', 'expenditure')}
+      ${stat(x.kcal != null && expD ? (x.kcal - STATE.d[expD].exp >= 0 ? '+' : '−') + fmt(Math.abs(x.kcal - STATE.d[expD].exp), 0) : '–', '', 'balance')}
+    </div></section>`;
+}
+function weekCard() {
+  const t = today(), ws = weekStart(t);
+  const wk = Object.values(STATE.w).filter(w => w.date >= ws && w.date <= t && !w.rest);
+  const sets = sum(wk.map(w => wStats(w).sets)), card = sum(wk.map(w => wStats(w).cardio));
+  const rec = avgOver('rec', t, dowMon(t) + 1);
+  const prs = wk.flatMap(w => prsIn(w));
+  return `<section class="card"><div class="card-h"><h2>This week</h2><span class="eyebrow">from ${esc(fmtDate(ws))}</span></div>
+    <div class="stats four">${stat(wk.length, '', 'sessions')}${stat(sets, '', 'working sets')}${stat(card, 'min', 'cardio')}${stat(rec ? fmt(rec.avg, 0) : '–', rec ? '%' : '', 'avg recovery')}</div>
+    ${prs.length ? `<div class="sec"><span class="xs muted">New bests this week</span><div class="chips">${prs.slice(0, 6).map(p => `<span class="pill acc">${esc(exDef(p.id).name)} ${esc(fmtSet(p.id, p.s))}</span>`).join('')}</div></div>` : ''}</section>`;
+}
+
+/* ---------- Log ---------- */
+function vLog() {
+  const d = ui.logDate || today(), w = STATE.w[d], t = today();
+  let h = `<div class="dnav"><button class="iconbtn" data-act="logday" data-n="-1" aria-label="Previous day">‹</button><div class="dnav-c"><b>${d === t ? 'Today' : esc(fmtDow(d) + ' ' + fmtDate(d))}</b><small>${esc(fmtDate(d, { weekday: 'long', year: 'numeric' }))}</small></div><button class="iconbtn" data-act="logday" data-n="1" aria-label="Next day" ${d >= t ? 'disabled style="opacity:.3"' : ''}>›</button></div>`;
+  if (w && w.rest) {
+    if (autoCardio(w)) saveW(w.date);
+    h += `<section class="card"><div class="card-h"><h2>Rest day</h2>${isRestSlot(w.s) ? pill('', 'Planned') : ''}</div><p class="small dim">No lifting logged. Cardio and notes below are optional.</p>
+      <div class="btnrow"><button class="link" data-act="unrest">Undo rest day</button></div></section>`;
+    h += cardioCard(w);
+    h += `<section class="card"><label class="fl">Notes<textarea class="in" id="wnote" data-in="note" placeholder="Optional">${esc(w.note || '')}</textarea></label></section>`;
+    h += `<button class="btn wide" data-act="logdone">Done</button>`;
+    return h;
+  }
+  if (!w) {
+    const o = trainIds(), due = sessionFor(d), sid = ui.pickSess && sessDef(ui.pickSess) ? ui.pickSess : nextTraining(due), sd = sessDef(sid);
+    if (!sd) return h + `<section class="card"><p>Add a session in Plan first.</p></section>`;
+    h += `<section class="card"><div class="card-h"><span class="eyebrow">${d === t ? 'Nothing logged yet' : 'No session on this day'}</span>${isRestSlot(due) ? pill('', 'Planned rest') : ''}</div>
+      <div class="chips">${o.map(id => `<button class="chip ${id === sid ? 'on' : ''}" data-act="picksess" data-id="${id}">${esc(sessDef(id).name)}</button>`).join('')}</div>
+      <ul class="exlist">${sd.items.filter(it => S().ex[it.ex]).map(it => `<li><span>${esc(exDef(it.ex).name)}</span><span class="rx">${rxTxt(it)}</span><span class="lt">${esc(lastLine(it.ex, d))}</span></li>`).join('')}</ul>
+      <button class="btn wide" data-act="start" data-id="${sid}">Log ${esc(sd.name)}</button>
+      <button class="link dim" data-act="restday" style="align-self:flex-start">Mark as a rest day</button>
+      <p class="xs muted">Last session's numbers show faintly in each box as a guide. A set counts as soon as you enter its reps; leave the weight blank to use last time's.</p></section>`;
+    return h;
+  }
+  const sd = sessDef(w.s), st = wStats(w);
+  h += `<div class="sess-top"><div class="t"><b>${esc(sessName(w))}</b><small>${esc(sd?.focus || '')} · ${st.sets} set${st.sets === 1 ? '' : 's'}${st.kg ? ` · ${fmt(st.kg / 1000, 1)} t moved` : ''}</small></div>
+    ${sessDur(w) ? pill('acc', fmtDur(sessDur(w))) : ''}</div>`;
+  const ln = lastSessionNote(w);
+  if (ln) h += `<section class="card flat lastnote"><span class="eyebrow">Last ${esc(sessName(ln))} · ${esc(fmtDate(ln.date))}</span><p class="small">${esc(ln.note.trim())}</p></section>`;
+  const lifts = whoopActs(w.date, LIFT_RE);
+  if (lifts.length) h += lifts.map(a => `<p class="whoopact">WHOOP · ${esc(a.n)}${a.t ? ` from ${esc(a.t)}` : ''}${a.min ? ` · ${fmt(a.min, 0)} min` : ''}${a.str != null ? ` · strain ${fmt(a.str, 1)}` : ''}${a.ahr ? ` · avg ${fmt(a.ahr, 0)} bpm` : ''}${a.kcal ? ` · ${fmt(a.kcal, 0)} kcal` : ''}</p>`).join('');
+  normSets(w); if (autoCardio(w)) saveW(w.date);
+  const prSet = new Set(prsIn(w).map(p => p.s));
+  w.ex.forEach((e, i) => { h += exCard(w, e, i, prSet); });
+  const inW = new Set(w.ex.map(e => e.id));
+  const opts = Object.entries(S().ex).filter(([id]) => !inW.has(id)).sort((a, b) => a[1].name.localeCompare(b[1].name));
+  h += `<section class="card flat"><label class="fl">Add an exercise to this session<select class="in" id="addex" data-in="addex"><option value="">Choose…</option>${opts.map(([id, x]) => `<option value="${id}">${esc(x.name)}</option>`).join('')}</select></label></section>`;
+  h += cardioCard(w);
+  h += `<section class="card"><label class="fl">Session notes<textarea class="in" id="wnote" data-in="note" placeholder="Anything worth remembering next time">${esc(w.note || '')}</textarea></label></section>`;
+  h += `<button class="btn wide" data-act="logdone">Done</button>`;
+  h += ui.confirm === 'delw' ? `<section class="card"><p>Delete this session and its sets?</p><div class="btnrow"><button class="btn danger sm" data-act="delw">Delete session</button><button class="link dim" data-act="confirm" data-v="">Keep it</button></div></section>`
+    : `<button class="link danger" data-act="confirm" data-v="delw" style="align-self:flex-start">Delete this session</button>`;
+  return h;
+}
+function exCard(w, e, i, prSet) {
+  const def = exDef(e.id), u = UNITS[def.u] || UNITS.kg;
+  const ph = (v, dflt) => v != null ? fmt(v, 2).replace(/,/g, '') : dflt;
+  return `<section class="card ex" id="ex${i}"><div class="ex-h"><h3>${esc(def.name)}</h3><span class="rx">${def.lo}${def.hi > def.lo ? '–' + def.hi : ''} reps</span></div>
+    <p class="ex-meta">${esc(lastLine(e.id, w.date))}${def.note ? ` · ${esc(def.note)}` : ''}</p>
+    ${(() => { const ln = e.note == null ? lastExerciseNote(e.id, w.date) : null; return ln ? `<p class="ex-lastnote">Note from ${esc(fmtDate(ln.date))}: ${esc(ln.note)}</p>` : ''; })()}
+    <div class="sets"><div class="set hdr"><span>Set</span><span>${esc(u.col)}</span><span>Reps</span><span></span></div>
+    ${e.sets.map((s, j) => `<div class="set ${s.done ? 'done' : ''} ${prSet.has(s) ? 'pr' : ''}" id="row${i}_${j}"><span class="sn">${j + 1}</span>
+      <input class="in" id="w${i}_${j}" inputmode="decimal" enterkeyhint="next" data-in="w" data-e="${i}" data-s="${j}" value="${s.w ?? ''}" placeholder="${ph(s.pw, def.u === 'bw' ? '0' : '–')}" aria-label="Set ${j + 1} ${esc(u.label)}">
+      <input class="in" id="r${i}_${j}" inputmode="numeric" enterkeyhint="next" data-in="r" data-e="${i}" data-s="${j}" value="${s.r ?? ''}" placeholder="${ph(s.pr, '–')}" aria-label="Set ${j + 1} reps">
+      <span class="mark" aria-hidden="true">${ICON.tick}</span></div>`).join('')}</div>
+    ${e.note != null || ui.exNote === i ? `<label class="fl">Exercise note<textarea class="in exnote" id="xn${i}" data-in="exnote" data-e="${i}" placeholder="Seat height, grip, how it felt">${esc(e.note || '')}</textarea></label>` : ''}
+    <div class="ex-foot"><button class="link" data-act="addset" data-e="${i}">+ Set</button>${e.note == null && ui.exNote !== i ? `<button class="link dim" data-act="exnote" data-e="${i}">+ Note</button>` : ''}${e.sets.length > 1 ? `<button class="link dim" data-act="remset" data-e="${i}">Remove last set</button>` : ''}<button class="link dim" data-act="remex" data-e="${i}" style="margin-left:auto">Remove</button></div></section>`;
+}
+function cardioTypes() { return Object.keys(CARDIO_RE); }
+function cardioCard(w) {
+  if (w.cardio === null) return `<section class="card flat"><div class="card-h"><h2>Cardio</h2>${pill('', 'Removed')}</div><p class="small dim">No cardio for this session.</p>
+    <div class="chips">${cardioTypes().map(n => `<button class="chip" data-act="cardiotype" data-v="${esc(n)}">+ ${esc(n)}</button>`).join('')}</div></section>`;
+  const c = w.cardio || { name: S().cardio.name, min: S().cardio.min };
+  const acts = whoopCardio(w.date, c.name);
+  const wmin = Math.round(sum(acts.map(a => a.min || 0)));
+  return `<section class="card"><div class="card-h"><h2>${esc(c.name)}</h2>${c.done ? pill('good', c.src === 'whoop' && !c.manual ? 'Logged from WHOOP' : 'Done') : pill('', 'After lifting')}</div>
+    <div class="chips" role="group" aria-label="Cardio type">${cardioTypes().map(n => `<button class="chip ${n === c.name ? 'on' : ''}" data-act="cardiotype" data-v="${esc(n)}">${esc(n)}</button>`).join('')}</div>
+    <div class="fields" style="grid-template-columns:repeat(2,minmax(0,1fr))"><label class="fl">Minutes<input class="in" id="cmin" inputmode="numeric" data-in="cmin" value="${c.min ?? ''}"></label><label class="fl">Level or note<input class="in" id="clvl" data-in="clvl" value="${esc(c.lvl ?? '')}" placeholder="optional"></label></div>
+    ${acts.map(a => `<p class="whoopact">WHOOP · ${esc(a.n)}${a.t ? ` from ${esc(a.t)}` : ''}${a.min ? ` · ${fmt(a.min, 0)} min` : ''}${a.str != null ? ` · strain ${fmt(a.str, 1)}` : ''}${a.ahr ? ` · avg ${fmt(a.ahr, 0)} bpm` : ''}${a.kcal ? ` · ${fmt(a.kcal, 0)} kcal` : ''}</p>`).join('')}
+    <div class="btnrow"><button class="btn ${c.done ? 'ghost' : ''}" data-act="cardio">${c.done ? 'Mark not done' : `Log ${esc(c.name.toLowerCase())}`}</button>${!c.done && wmin ? `<button class="btn ghost" data-act="cardiowhoop" data-v="${wmin}">Log WHOOP's ${wmin} min</button>` : ''}<button class="link danger" data-act="cardiorem" style="margin-left:auto">Remove</button></div></section>`;
+}
+
+/* ---------- History ---------- */
+function vHistory() {
+  const ws = workoutsSorted().reverse(), nNotes = noteEntries().length;
+  let h = `<div class="page-h"><div><div class="eyebrow">${ws.filter(w => !w.rest).length} sessions logged</div><h1>History</h1></div>
+    <div class="seg" role="group" aria-label="View"><button class="${ui.hist !== 'notes' ? 'on' : ''}" data-act="histview" data-v="sessions">Sessions</button><button class="${ui.hist === 'notes' ? 'on' : ''}" data-act="histview" data-v="notes">Notes${nNotes ? ` ${nNotes}` : ''}</button></div></div>`;
+  if (ui.hist === 'notes') return h + vNotes();
+  if (!ws.length) return h + `<section class="card"><p class="dim">Sessions you log appear here, grouped by week.</p><button class="btn sm" data-act="go" data-tab="log" style="align-self:flex-start">Log today</button></section>`;
+  let wk = null;
+  for (const w of ws) {
+    const s = weekStart(w.date);
+    if (s !== wk) {
+      if (wk) h += `</div>`;
+      wk = s; const inW = ws.filter(x => weekStart(x.date) === s && !x.rest);
+      h += `<div class="sec-h"><span class="eyebrow">Week of ${esc(fmtDate(s))}</span><span class="xs muted">${inW.length} sessions · ${sum(inW.map(x => wStats(x).sets))} sets</span></div><div class="hist">`;
+    }
+    const st = wStats(w), prs = prsIn(w).length, rec = dayVal(w.date, 'rec');
+    h += `<button class="hrow" data-act="openlog" data-d="${w.date}"><span class="hdate"><b>${esc(w.date.slice(8))}</b><small>${esc(fmtDow(w.date))}</small></span>
+      <span class="hmain"><b${w.rest ? ' class="dim"' : ''}>${esc(sessName(w))}</b><small>${w.rest ? (st.cardio ? `${st.cardio} min ${esc(w.cardio.name.toLowerCase())}` : 'No training') : `${st.sets} sets`}${sessDur(w) ? ` · ${fmtDur(sessDur(w))}` : ''}${!w.rest && st.cardio ? ` · ${st.cardio} min ${esc(w.cardio.name.toLowerCase())}` : ''}${prs ? ` · ${prs} best${prs > 1 ? 's' : ''}` : ''}</small></span>
+      ${rec != null ? pill(recTone(rec), `${Math.round(rec)}%`) : '<span></span>'}${w.note && w.note.trim() ? `<span class="hnote">${esc(w.note.trim())}</span>` : ''}</button>`;
+  }
+  return h + `</div>`;
+}
+
+/* ---------- Trends ---------- */
+function vTrends() {
+  const t = today(), from0 = null;
+  const from = Object.keys(STATE.w).sort()[0] || addDays(t, -29);
+  const ax = dateAxis(from, t), xi = d => diffDays(from, d);
+  let h = `<div class="page-h"><div><div class="eyebrow">WHOOP · MacroFactor · logbook</div><h1>Trends</h1></div></div>`;
+  h += explorerHTML();
+  h += alcoholCard();
+
+  // Weekly summary
+  const nW = ui.weeksAll ? 26 : 8, wrows = weekRows(nW).filter(r => r.sessions || r.rec != null || r.kcal != null || r.tw != null);
+  if (wrows.length) {
+    const c = (v, d = 0, u = '') => v == null ? '<span class="muted">–</span>' : fmt(v, d) + u;
+    h += `<section class="sec"><div class="sec-h"><span class="eyebrow">Weekly summary</span><span class="xs muted">weeks start Monday</span></div><section class="card"><div class="tblwrap"><table class="tbl wk"><thead><tr><th>Week</th><th class="n">Sessions</th><th class="n">Sets</th><th class="n">Cardio</th><th class="n">Recovery</th><th class="n">HRV</th><th class="n">Sleep</th><th class="n">kcal</th><th class="n">Protein</th><th class="n">Weight Δ</th></tr></thead><tbody>
+      ${wrows.map(r => `<tr><td>${esc(fmtDate(r.ws))}${r.cur ? ' <span class="xs muted">so far</span>' : ''}</td><td class="n">${r.sessions || '<span class="muted">–</span>'}</td><td class="n">${r.sets || '<span class="muted">–</span>'}</td><td class="n">${r.cardio ? r.cardio + ' min' : '<span class="muted">–</span>'}</td>
+        <td class="n">${r.rec != null ? `<span style="color:var(--${recTone(r.rec)}-ink)">${fmt(r.rec, 0)}%</span>` : '<span class="muted">–</span>'}</td><td class="n">${c(r.hrv, 0)}</td><td class="n">${r.slp != null ? fmt(r.slp / 60, 1) + ' h' : '<span class="muted">–</span>'}</td><td class="n">${c(r.kcal, 0)}</td><td class="n">${c(r.p, 0, ' g')}</td><td class="n">${r.dtw != null ? (r.dtw >= 0 ? '+' : '−') + fmt(Math.abs(r.dtw), 2) : '<span class="muted">–</span>'}</td></tr>`).join('')}
+      </tbody></table></div><div class="btnrow" style="justify-content:space-between"><span class="xs muted">Daily averages, except sessions, sets and cardio (totals). Weight Δ is MacroFactor's trend weight change.</span><button class="link" data-act="weeksall">${ui.weeksAll ? 'Show 8 weeks' : 'Show 26 weeks'}</button></div></section></section>`;
+  }
+
+  // Personal records
+  const ids = [...new Set(order().flatMap(id => sessDef(id).items.map(it => it.ex)))].filter(id => S().ex[id]);
+  const others = Object.keys(S().ex).filter(id => !ids.includes(id) && records(id)?.logged);
+  const prIds = [...ids, ...others].filter(id => records(id));
+  const when = c => c.date ? esc(fmtDate(c.date, { year: '2-digit' })) : 'stated';
+  h += `<section class="sec"><div class="sec-h"><span class="eyebrow">Personal records</span><span class="xs muted">all time</span></div><section class="card">
+    <div class="tblwrap"><table class="tbl"><thead><tr><th>Lift</th><th class="n">Heaviest</th><th class="n">Best e1RM</th></tr></thead><tbody>
+    ${prIds.map(id => { const r = records(id), u = exDef(id).u; return `<tr><td>${esc(exDef(id).name)}</td>
+      <td class="n">${esc(u === 'bw' ? (r.heavy.s.w ? fmtSet(id, r.heavy.s) : `${r.heavy.s.r} reps`) : u === 'kg' ? `${fmt(r.heavy.s.w, 2)} kg × ${r.heavy.s.r}` : `${fmt(r.heavy.s.w, 2)} pl × ${r.heavy.s.r}`)}<br><span class="xs muted">${when(r.heavy)}</span></td>
+      <td class="n">${u === 'bw' ? '–' : esc(scoreTxt(id, setScore(id, r.best.s)))}<br><span class="xs muted">${u === 'bw' ? '' : esc(fmtSet(id, r.best.s)) + ' · '}${when(r.best)}</span></td></tr>`; }).join('')}
+    </tbody></table></div>
+    <p class="xs muted">"Stated" means the max you entered in Plan, which stays the record until a logged set beats it. Estimated 1RM uses the Epley formula and gets less reliable above about 10 reps.</p></section></section>`;
+
+  // Strength maintenance
+  const rows = ids.map(id => ({ id, m: maintenance(id) }));
+  const logged = rows.filter(r => r.m.state !== 'none' || r.m.last);
+  h += `<section class="sec"><div class="sec-h"><span class="eyebrow">Strength · maintenance check</span></div>`;
+  if (!logged.length) h += `<section class="card"><p class="dim small">Once you've logged a few sessions, each lift shows whether your best estimated 1-rep max over the last 4 weeks is holding against the 2 months before it.</p></section>`;
+  else {
+    h += `<section class="card"><p class="xs muted">Best estimated 1RM (Epley) in the last 28 days vs days 29–90 of logged sessions. Within ±2.5% counts as holding, since day-to-day strength varies by about that much. Bodyweight lifts compare best reps.</p><div class="tblwrap"><table class="tbl"><thead><tr><th>Lift</th><th class="n">Top set</th><th class="n">28-day change</th></tr></thead><tbody>
+      ${logged.map(({ id, m }) => { const [tone, word] = MSTATE[m.state]; return `<tr><td>${esc(exDef(id).name)}</td><td class="n">${m.last ? esc(fmtSet(id, m.last.top)) : '–'}</td><td class="n">${tone ? pill(tone, `${word} ${(m.ch >= 0 ? '+' : '−') + fmt(Math.abs(m.ch), 1)}%`) : `<span class="xs muted">${word}</span>`}</td></tr>`; }).join('')}
+      </tbody></table></div></section>`;
+    const pick = ui.lift && S().ex[ui.lift] ? ui.lift : logged[0].id, ser = liftSeries(pick).filter(p => !from0 || p.date >= from0);
+    h += `<section class="card"><label class="fl">Lift<select class="in" id="liftpick" data-in="lift">${logged.map(r => `<option value="${r.id}" ${r.id === pick ? 'selected' : ''}>${esc(exDef(r.id).name)}</option>`).join('')}</select></label>
+      <div class="card-h"><span class="small dim">${exDef(pick).u === 'bw' ? 'Best reps per session' : `Estimated 1RM per session (${exDef(pick).u === 'plates' ? 'plates / side' : 'kg'})`}</span>${maxScore(pick) ? `<div class="legend"><span><i class="ln" style="background:var(--ink-2)"></i>Your max ${esc(fmtSet(pick, exDef(pick).base))}</span></div>` : ''}</div>
+      ${chartHTML({ h: 170, ...ax, refY: maxScore(pick) ? { v: maxScore(pick) } : null, yPad: exDef(pick).u === 'plates' ? .1 : 1, yFmt: v => fmt(v, exDef(pick).u === 'plates' ? 2 : 0), series: [{ color: 'var(--s1)', pts: ser.map(p => ({ x: xi(p.date), y: p.y })), dots: true, r: 3.5, end: true }], hoverXs: ser.map(p => xi(p.date)), tip: x => { const p = ser.find(q => xi(q.date) === x); return p ? `<b>${esc(fmtDate(p.date))}</b><br>${esc(fmtSet(pick, p.top))} · ${esc(scoreTxt(pick, p.y))}` : ''; }, empty: 'No sets for this lift in this range', label: 'Lift trend' })}</section>`;
+  }
+  h += `</section>`;
+
+  // Recovery after each session type
+  {
+    const ra = recoveryAfter().filter(r => r.n >= 2).sort((a, b) => b.avg - a.avg);
+    if (ra.length >= 2) h += `<section class="card"><div class="card-h"><h2>Recovery the morning after</h2><span class="eyebrow">all time</span></div><p class="xs muted">Average next-day WHOOP recovery after each session type. Small samples move a lot; read it as a hint.</p>
+      <ul class="hbars">${ra.map(r => `<li><span class="lab">${esc(r.k)}</span><span class="trk"><span class="fill" style="width:${Math.max(2, r.avg)}%;background:var(--${recTone(r.avg)})"></span></span><span class="v">${fmt(r.avg, 0)}% <span class="muted">n${r.n}</span></span></li>`).join('')}</ul></section>`;
+  }
+
+  // Volume
+  const plan = planWeekly(S().prog), done = doneByGroup(addDays(t, -6), t), gs = GROUP_ORDER.filter(g => plan[g] || done[g]);
+  const mx = Math.max(1, ...gs.map(g => Math.max(plan[g] || 0, done[g] || 0)));
+  h += `<section class="sec"><div class="sec-h"><span class="eyebrow">Volume · last 7 days</span></div><section class="card"><div class="legend"><span><i class="ln" style="background:var(--s1);height:8px;width:12px"></i>Sets done</span><span><i class="tk"></i>Plan, if trained daily</span></div>
+    <ul class="hbars">${gs.map(g => `<li><span class="lab">${esc(GROUPS[g])}</span><span class="trk"><span class="fill" style="width:${(done[g] || 0) / mx * 100}%"></span>${plan[g] ? `<span class="tgt" style="left:calc(${plan[g] / mx * 100}% - 1px)"></span>` : ''}</span><span class="v">${done[g] || 0} <span class="muted">/ ${fmt(plan[g] || 0, 0)}</span></span></li>`).join('')}</ul>
+    <p class="xs muted">Direct working sets only. Compounds also train other muscles (rows hit rear delts, presses hit triceps), so real totals run higher.</p></section></section>`;
+  return h;
+}
+
+/* ---------- Plan ---------- */
+function progSig(p) { return JSON.stringify({ o: p.order, s: Object.fromEntries(Object.entries(p.sessions).map(([k, v]) => [k, v.items.map(i => i.ex + i.sets)])) }); }
+function vPlan() {
+  const cur = S().prog, sig = progSig(cur), o = order();
+  const match = Object.keys(PRESETS).find(k => progSig(PRESETS[k]) === sig);
+  let h = `<div class="page-h"><div><div class="eyebrow">${match ? esc(PRESETS[match].name) : 'Custom split'} · ${trainIds().length} sessions${o.length > trainIds().length ? ` + ${o.length - trainIds().length} rest` : ''}</div><h1>Plan</h1></div></div>`;
+  h += `<section class="sec"><div class="sec-h"><span class="eyebrow">Split</span></div><div class="grid2">${Object.entries(PRESETS).map(([k, p]) => `<button class="opt ${match === k ? 'on' : ''}" data-act="preset" data-id="${k}"><b>${esc(p.name)}</b><span class="seqs">${p.order.map(id => esc(p.sessions[id].name)).join(' → ')}</span><span>${esc(p.blurb)}</span></button>`).join('')}</div>
+    ${ui.confirm && ui.confirm.startsWith('preset:') ? `<div class="prev"><p>Switch to <b>${esc(PRESETS[ui.confirm.slice(7)].name)}</b>? Your session lists are replaced; logged sessions and history stay as they are.</p><div class="btnrow"><button class="btn sm" data-act="usepreset" data-id="${ui.confirm.slice(7)}">Switch</button><button class="link dim" data-act="confirm" data-v="">Cancel</button></div></div>` : ''}</section>`;
+
+  // weekly sets comparison
+  const cols = [['ppl4', PRESETS.ppl4], ['ulppl5', PRESETS.ulppl5]]; if (!match) cols.push(['yours', cur]);
+  const vols = cols.map(([, p]) => planWeekly(p));
+  const gs = GROUP_ORDER.filter(g => vols.some(v => v[g]));
+  h += `<section class="card"><div class="card-h"><h2>Weekly sets by muscle</h2><span class="eyebrow">training daily</span></div>
+    <div class="tblwrap"><table class="tbl"><thead><tr><th>Muscle</th>${cols.map(([k, p]) => `<th class="n">${k === 'yours' ? 'Yours' : k === 'ppl4' ? 'Current' : 'U/L/PPL'}</th>`).join('')}</tr></thead><tbody>
+    ${gs.map(g => `<tr><td>${esc(GROUPS[g])}</td>${vols.map((v, i) => { const base = vols[0][g] || 0, x = v[g] || 0; const tag = i && x > base + .5 ? ' <span class="xs" style="color:var(--accent)">▲</span>' : i && x < base - .5 ? ' <span class="xs muted">▼</span>' : ''; return `<td class="n">${fmt(x, 1)}${tag}</td>`; }).join('')}</tr>`).join('')}
+    </tbody></table></div>
+    <p class="xs muted">Direct sets per week, assuming you train every day. Growth research on trained lifters points to roughly 10–20 hard sets per muscle per week (Schoenfeld et al., 2017; Baz-Valle et al., 2022). Holding muscle and strength takes far less: studies have kept both on a third to a ninth of the original volume, as long as the sets stay heavy (Bickel et al., 2011; Spiering et al., 2021). Both splits clear that bar easily.</p></section>`;
+
+  // sessions editor
+  h += `<section class="sec"><div class="sec-h"><span class="eyebrow">Sessions, in rotation order</span><span class="btnrow"><button class="link" data-act="addrest">+ Rest day</button><button class="link" data-act="addsess">+ Session</button></span></div>`;
+  const delBtn = sid => ui.confirm === 'dels:' + sid ? `<span class="btnrow"><button class="btn danger sm" data-act="delsess" data-id="${sid}">${sessDef(sid).rest ? 'Remove' : 'Delete'}</button><button class="link dim" data-act="confirm" data-v="">Keep</button></span>` : `<button class="link danger" data-act="confirm" data-v="dels:${sid}">${sessDef(sid).rest ? 'Remove rest day' : 'Delete session'}</button>`;
+  h += `<div class="dlist" data-list="sess">`;
+  o.forEach(sid => {
+    const sd = sessDef(sid), open = ui.openSess.has(sid), nSets = sum(sd.items.map(i => i.sets));
+    const meta = sd.rest ? 'Rest slot' : `${esc(sd.focus || '')}${sd.focus ? ' · ' : ''}${sd.items.length} exercises · ${nSets} sets`;
+    h += `<section class="card sess ${open ? 'open' : ''} ${sd.rest ? 'flat' : ''}" data-dragitem data-id="${sid}">
+      <div class="sess-h"><span class="grip" data-grip="sess" aria-label="Drag to reorder ${esc(sd.name)}" role="button" tabindex="-1">${ICON.grip}</span>
+        <button class="sess-t" data-act="togglesess" data-id="${sid}" aria-expanded="${open}"><span><b>${esc(sd.name)}</b><small>${meta}</small></span><span class="chev">${ICON.down}</span></button></div>`;
+    if (open) {
+      if (sd.rest) h += `<div class="sess-b"><p class="xs muted">Any day you don't log a session fills this slot, and the rotation moves on. Train on the day instead and it's skipped.</p><div class="btnrow" style="justify-content:flex-end">${delBtn(sid)}</div></div>`;
+      else h += `<div class="sess-b"><div class="fields" style="grid-template-columns:minmax(0,1fr) minmax(0,1.4fr)"><label class="fl">Name<input class="in left" id="sn_${sid}" data-in="sname" data-id="${sid}" value="${esc(sd.name)}"></label><label class="fl">Focus<input class="in left" id="sf_${sid}" data-in="sfocus" data-id="${sid}" value="${esc(sd.focus || '')}"></label></div>
+        <div class="dlist" data-list="item" data-id="${sid}">${sd.items.map((it, j) => { const d = exDef(it.ex); return `<div class="ed-item" data-dragitem data-j="${j}"><span class="grip" data-grip="item" aria-label="Drag to reorder ${esc(d.name)}" role="button" tabindex="-1">${ICON.grip}</span><span class="nm">${esc(d.name)}<small>${esc(GROUPS[d.g] || '')} · ${d.lo}–${d.hi} reps</small></span>
+          <input class="in" id="ss_${sid}_${j}" inputmode="numeric" data-in="isets" data-id="${sid}" data-j="${j}" value="${it.sets}" aria-label="Sets for ${esc(d.name)}">
+          <button class="ed-x" data-act="remitem" data-id="${sid}" data-j="${j}" aria-label="Remove ${esc(d.name)}">${ICON.x}</button></div>`; }).join('')}</div>
+        <label class="fl">Add exercise<select class="in" id="sa_${sid}" data-in="additem" data-id="${sid}"><option value="">Choose…</option>${Object.entries(S().ex).sort((a, b) => a[1].name.localeCompare(b[1].name)).map(([id, x]) => `<option value="${id}">${esc(x.name)}</option>`).join('')}</select></label>
+        <div class="btnrow" style="justify-content:flex-end">${delBtn(sid)}</div></div>`;
+    }
+    h += `</section>`;
+  });
+  h += `</div><p class="xs muted">Drag the handle to reorder sessions, or exercises inside a session. Tap a session to open it.</p>`;
+  h += `</section>`;
+
+  // exercise library
+  const exs = Object.entries(S().ex).sort((a, b) => GROUP_ORDER.indexOf(a[1].g) - GROUP_ORDER.indexOf(b[1].g) || a[1].name.localeCompare(b[1].name));
+  h += `<section class="sec"><div class="sec-h"><span class="eyebrow">Exercises</span><button class="link" data-act="newex">+ Exercise</button></div><section class="card"><ul class="rows">
+    ${exs.map(([id, x]) => ui.editEx === id ? `<li style="display:block">${exEditor(id, x)}</li>` : `<li><span>${esc(x.name)}</span><button class="link" data-act="editex" data-id="${id}">Edit</button><span class="sub">${esc(GROUPS[x.g] || '')} · ${esc(UNITS[x.u]?.label || x.u)} · ${x.lo}–${x.hi} reps${x.base && x.base.r ? ` · max ${esc(fmtSet(id, x.base))}` : ''}</span></li>`).join('')}
+  </ul></section></section>`;
+
+  // settings
+  h += `<section class="sec"><div class="sec-h"><span class="eyebrow">Settings</span></div><section class="card"><div class="fields">
+    <label class="fl">Cardio after lifting<select class="in" id="st_cn" data-in="cname">${cardioTypes().map(n => `<option value="${n}" ${n === S().cardio.name ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+    <label class="fl">Cardio minutes<input class="in" id="st_cm" inputmode="numeric" data-in="cmindef" value="${S().cardio.min}"></label>
+    <label class="fl">Plate weight (kg)<input class="in" id="st_pk" inputmode="decimal" data-in="platekg" value="${S().plateKg}"></label>
+    <label class="fl">Protein target (g)<input class="in" id="st_pt" inputmode="numeric" data-in="proteint" value="${S().proteinT ?? ''}" placeholder="from MacroFactor"></label>
+  </div><p class="xs muted">Plate weight converts plate-loaded machines to kg for session tonnage. Protein target is used when your MacroFactor export has no target column.</p></section></section>`;
+  return h;
+}
+function exEditor(id, x) {
+  return `<div class="sec"><div class="fields">
+    <label class="fl full">Name<input class="in left" id="xe_n" value="${esc(x.name)}"></label>
+    <label class="fl">Muscle<select class="in" id="xe_g">${GROUP_ORDER.map(g => `<option value="${g}" ${g === x.g ? 'selected' : ''}>${GROUPS[g]}</option>`).join('')}</select></label>
+    <label class="fl">Load unit<select class="in" id="xe_u">${Object.entries(UNITS).map(([k, u]) => `<option value="${k}" ${k === x.u ? 'selected' : ''}>${u.label}</option>`).join('')}</select></label>
+    <label class="fl">Reps from<input class="in" id="xe_lo" inputmode="numeric" value="${x.lo}"></label>
+    <label class="fl">Reps to<input class="in" id="xe_hi" inputmode="numeric" value="${x.hi}"></label>
+    <label class="fl">Max ${x.u === 'bw' ? 'added kg' : x.u === 'plates' ? 'plates / side' : 'kg'}<input class="in" id="xe_bw" inputmode="decimal" value="${x.base?.w ?? ''}" placeholder="optional"></label>
+    <label class="fl">Max reps<input class="in" id="xe_br" inputmode="numeric" value="${x.base?.r ?? ''}" placeholder="optional"></label>
+    <label class="fl">Note<input class="in left" id="xe_note" value="${esc(x.note || '')}" placeholder="optional"></label>
+  </div><div class="btnrow"><button class="btn sm" data-act="saveex" data-id="${id}">Save</button><button class="link dim" data-act="editex" data-id="">Cancel</button>
+  ${Object.values(S().prog.sessions).some(s => s.items.some(i => i.ex === id)) ? '' : `<button class="link danger" data-act="delex" data-id="${id}" style="margin-left:auto">Delete</button>`}</div></div>`;
+}
+
+/* ---------- Data ---------- */
+function vData() {
+  const im = S().imports || {};
+  const last = k => im[k] ? `Last import ${new Date(im[k].at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })} · ${im[k].n} days · ${esc(im[k].range)}` : 'Not imported yet';
+  let h = `<div class="page-h"><div><div class="eyebrow">Imports, backups, storage</div><h1>Data</h1></div></div>`;
+  if (window.GH_SYNC) h += GH.card(); else h += `<section class="card"><div class="card-h"><h2>Where your data lives</h2><span id="sync2">${Cloud.ready ? pill('good', 'Synced') : pill('', 'This browser')}</span></div><p class="small dim">${Cloud.ready ? 'Saved to your private storage for this app on claude.ai, so it follows you between phone and desktop. A copy is also kept in this browser.' : 'Saving in this browser only. Cloud sync starts when the app is opened from claude.ai while signed in.'}</p></section>`;
+  const impBox = src => { const p = ui.imp[src]; if (!p) return '';
+    return `<div class="prev" id="imp-${src}"><div class="card-h"><b>Ready to import</b></div><p><b>${esc(p.summary)}</b></p><p class="dim">${esc(previewRange(p.days))}</p><p class="xs muted">From ${esc(p.files.join(', '))}. Matching days are updated with these values; everything else stays.</p>
+      <div class="btnrow"><button class="btn" data-act="doimport" data-v="${src}">Import</button><button class="link dim" data-act="cancelimp" data-v="${src}">Cancel</button></div></div>`; };
+  h += `<section class="card"><div class="card-h"><h2>WHOOP</h2><span class="eyebrow">recovery · HRV · sleep · strain</span></div>
+    <ol class="steps"><li>In the WHOOP app, open the menu and choose <b>Data Export</b>.</li><li>WHOOP emails you a download link, usually within minutes.</li><li>Save the file, then choose it below. The .zip works as is, or pick <span class="mono">physiological_cycles.csv</span>, <span class="mono">workouts.csv</span> and <span class="mono">journal_entries.csv</span> from inside it. Only the alcohol answer is read from the journal.</li></ol>
+    <div class="drop" data-drop="whoop"><input type="file" class="file" id="f_whoop" accept=".zip,.csv,text/csv,application/zip" multiple data-in="fwhoop"><span class="xs muted">${last('whoop')}</span></div>${impBox('whoop')}</section>`;
+  h += `<section class="card"><div class="card-h"><h2>MacroFactor</h2><span class="eyebrow">intake · weight · expenditure</span></div>
+    <ol class="steps"><li>In MacroFactor, go to <b>More → Data Management → Data Export</b>.</li><li>Include nutrition, scale weight, weight trend and expenditure, choose a time frame, then save the spreadsheet.</li><li>Choose it below. Re-importing is safe: matching days are updated, not duplicated.</li></ol>
+    <div class="drop" data-drop="mf"><input type="file" class="file" id="f_mf" accept=".xlsx,.xls,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple data-in="fmf"><span class="xs muted">${last('mf')}</span></div>${impBox('mf')}</section>`;
+  h += `<section class="card"><div class="card-h"><h2>Backups</h2></div><p class="small dim">A full backup restores everything here. The CSV is every logged set, for a spreadsheet.</p>
+    <div class="btnrow"><button class="btn sm ghost" data-act="export" data-v="json">Save full backup (.json)</button><button class="btn sm ghost" data-act="export" data-v="csv">Save sets (.csv)</button></div>
+    ${ui.exportText ? `<div class="exportbox sec"><span class="xs muted">Saving files isn't available here. Copy this instead.</span><textarea class="in" id="exporttext" readonly>${esc(ui.exportText)}</textarea><button class="btn sm" data-act="copyexport">Copy</button></div>` : ''}
+    <label class="fl">Restore from a backup<input type="file" class="file" id="f_backup" accept=".json,application/json" data-in="fbackup"></label></section>`;
+  h += `<section class="card"><div class="card-h"><h2>Start over</h2></div>
+    ${ui.confirm === 'reset' ? `<p class="small">This deletes every session, import and setting, here and in cloud storage. Save a backup first if you might want it.</p><div class="btnrow"><button class="btn danger sm" data-act="reset">Delete everything</button><button class="link dim" data-act="confirm" data-v="">Cancel</button></div>`
+      : `<button class="link danger" data-act="confirm" data-v="reset" style="align-self:flex-start">Delete all data</button>`}</section>`;
+  return h;
+}
+const VIEWS = { today: vToday, log: vLog, history: vHistory, trends: vTrends, plan: vPlan, data: vData };
+/* ============================================================
+   PERSISTENCE — browser copy + private claude.ai storage
+   Cloud layout (per viewer, private): data/users/<id>/settings
+   and month buckets data/users/<id>/log/{wk|dy}/<YYYY-MM> = { items: { date: … } }
+   ============================================================ */
+const LS_KEY = 'rotation-logbook-v1';
+const Cloud = { db: null, uid: null, ready: false, failed: false, writing: 0, loaded: { settings: false, wk: false, dy: false }, cloud: { settings: undefined, wk: {}, dy: {} } };
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+let lsT;
+function cacheLocal() { clearTimeout(lsT); lsT = setTimeout(() => { try { localStorage.setItem(LS_KEY, JSON.stringify({ settings: STATE.settings, w: STATE.w, d: STATE.d })); } catch (e) { } }, 250); }
+function loadLocal() { try { const s = localStorage.getItem(LS_KEY); if (!s) return null; const o = JSON.parse(s); return o && o.settings ? o : null; } catch (e) { return null; } }
+function migrateSettings(s) {
+  const d = defaultSettings(), out = { ...d, ...(s || {}) };
+  out.ex = { ...(s?.ex || d.ex) };
+  out.prog = s?.prog && s.prog.order && s.prog.sessions ? s.prog : d.prog;
+  for (const sd of Object.values(out.prog.sessions)) for (const it of sd.items) if (!out.ex[it.ex] && EXLIB[it.ex]) out.ex[it.ex] = clone(EXLIB[it.ex]);
+  out.cardio = { ...d.cardio, ...(s?.cardio || {}) };
+  if (!['Stairmaster', 'Treadmill'].includes(out.cardio.name)) out.cardio.name = /tread/i.test(out.cardio.name) ? 'Treadmill' : 'Stairmaster';
+  return out;
+}
+const base = () => `data/users/${Cloud.uid}`;
+const setPath = () => `${base()}/settings`;
+const monPath = (kind, ym) => `${base()}/log/${kind}/${ym}`;
+const KIND = { wk: 'w', dy: 'd' };
+function monthItems(kind, ym) { const src = STATE[KIND[kind]], o = {}; for (const k in src) if (k.slice(0, 7) === ym) o[k] = src[k]; return o; }
+function docFor(path) {
+  if (path === setPath()) return clone(STATE.settings);
+  const [kind, ym] = path.split('/').slice(-2); const items = monthItems(kind, ym);
+  return Object.keys(items).length ? { items: clone(items) } : null;
+}
+const Wq = { pending: new Set(), inflight: new Set(), until: new Map(), timer: null, local: [] };
+function changed(kind, key, whole) { // kind: 'settings' | 'wk' | 'dy'; key: date or month; whole: the month is replaced outright
+  bump(); cacheLocal();
+  if (window.GH_SYNC) { GH.changed(kind, key, whole); return; }
+  if (!Cloud.uid) { Wq.local.push([kind, key]); return; }
+  const p = kind === 'settings' ? setPath() : monPath(kind, key.slice(0, 7));
+  Wq.pending.add(p); Wq.until.set(p, Infinity);
+  clearTimeout(Wq.timer); Wq.timer = setTimeout(flush, 600);
+}
+function bump() { STATE.v++; }
+function isProtected(p) { const u = Wq.until.get(p); if (u == null) return false; if (u === Infinity || Date.now() < u) return true; Wq.until.delete(p); return false; }
+function flush() { if (!Cloud.ready) return; for (const p of [...Wq.pending]) if (!Wq.inflight.has(p)) { Wq.pending.delete(p); writeOne(p); } }
+async function writeOne(p) {
+  Wq.inflight.add(p); Cloud.writing++; renderSync();
+  const ref = Cloud.db.doc(p), op = () => { const data = docFor(p); return data ? ref.set(data) : ref.delete(); };
+  try { await op().catch(async e => { if (e && e.code === 'unavailable') { await sleep(400 + Math.random() * 600); return op(); } throw e; }); Cloud.failed = false; }
+  catch (e) { Cloud.failed = true; console.warn('save failed', p, e); toast(e?.code === 'quota_exceeded' ? 'Cloud storage is full. Save a backup and delete old data.' : 'Couldn’t save to the cloud. Your data is kept in this browser.', 'bad'); }
+  finally { Wq.inflight.delete(p); Cloud.writing--; if (!Wq.pending.has(p)) Wq.until.set(p, Date.now() + 6000); renderSync(); if (Wq.pending.has(p)) flush(); }
+}
+const saveW = date => changed('wk', date);
+const saveSettings = () => changed('settings', '');
+function saveMonths(kind, months, whole) { for (const m of months) changed(kind, m, whole); }
+
+async function connectCloud() {
+  if (!window.claude || typeof window.claude.use !== 'function') { renderSync(); return; }
+  let db = null, user = null;
+  try { [db, user] = await Promise.all([window.claude.use('db'), window.claude.use('user')]); } catch (e) { }
+  if (!db || !user) { renderSync(); return; }
+  let uid = null; try { uid = await user.id(); } catch (e) { }
+  if (!uid) { renderSync(); return; }
+  Cloud.db = db; Cloud.uid = uid;
+  // anything changed before the cloud answered gets queued now
+  for (const [k, key] of Wq.local) { const p = k === 'settings' ? setPath() : monPath(k, key.slice(0, 7)); Wq.pending.add(p); Wq.until.set(p, Infinity); }
+  Wq.local = [];
+  const onErr = e => { console.warn('sync error', e); if (e?.code === 'revoked') { Cloud.ready = false; renderSync(); } };
+  db.doc(setPath()).onSnapshot(snap => {
+    if (snap.metadata.hasPendingWrites) return;
+    Cloud.cloud.settings = snap.exists ? clone(snap.data()) : null; Cloud.loaded.settings = true; afterSnap();
+  }, onErr);
+  for (const kind of ['wk', 'dy']) db.collection(`${base()}/log/${kind}`).limit(1000).onSnapshot(snap => {
+    if (snap.metadata.hasPendingWrites) return;
+    const m = {}; snap.docs.forEach(d => { if (d.exists) m[d.id] = clone(d.data()); });
+    Cloud.cloud[kind] = m; Cloud.loaded[kind] = true; afterSnap();
+  }, onErr);
+}
+function afterSnap() {
+  if (!Cloud.ready) {
+    if (!(Cloud.loaded.settings && Cloud.loaded.wk && Cloud.loaded.dy)) return;
+    Cloud.ready = true; firstSync();
+  } else applyCloud();
+}
+function firstSync() {
+  const c = Cloud.cloud;
+  if (c.settings && !isProtected(setPath())) STATE.settings = migrateSettings(c.settings);
+  else if (!c.settings) { Wq.pending.add(setPath()); Wq.until.set(setPath(), Infinity); }
+  for (const kind of ['wk', 'dy']) {
+    const tgt = STATE[KIND[kind]], localMonths = new Set(Object.keys(tgt).map(k => k.slice(0, 7)));
+    for (const ym in c[kind]) {
+      const p = monPath(kind, ym); if (isProtected(p)) continue;
+      const items = c[kind][ym].items || {}; let extra = false;
+      for (const k of Object.keys(tgt)) if (k.slice(0, 7) === ym && !items[k]) extra = true;
+      Object.assign(tgt, clone(items));
+      if (extra) { Wq.pending.add(p); Wq.until.set(p, Infinity); }
+      localMonths.delete(ym);
+    }
+    for (const ym of localMonths) { const p = monPath(kind, ym); Wq.pending.add(p); Wq.until.set(p, Infinity); }
+  }
+  bump(); cacheLocal(); flush(); renderSync(); render();
+}
+function applyCloud() {
+  let ch = false; const c = Cloud.cloud;
+  if (c.settings && !isProtected(setPath()) && JSON.stringify(c.settings) !== JSON.stringify(STATE.settings)) { STATE.settings = migrateSettings(c.settings); ch = true; }
+  for (const kind of ['wk', 'dy']) {
+    const tgt = STATE[KIND[kind]], months = new Set([...Object.keys(c[kind]), ...Object.keys(tgt).map(k => k.slice(0, 7))]);
+    for (const ym of months) {
+      if (isProtected(monPath(kind, ym))) continue;
+      const items = c[kind][ym]?.items || {}, local = monthItems(kind, ym);
+      if (JSON.stringify(items) === JSON.stringify(local)) continue;
+      for (const k in local) delete tgt[k];
+      Object.assign(tgt, clone(items)); ch = true;
+    }
+  }
+  if (ch) { bump(); cacheLocal(); render(); }
+}
+function renderSync() {
+  const el = $('#sync'); if (!el) return;
+  const [cls, txt] = Cloud.failed ? ['bad', 'Not synced'] : Cloud.writing ? ['busy', 'Saving'] : Cloud.ready ? ['ok', 'Synced'] : Cloud.uid ? ['busy', 'Connecting'] : ['', 'This device'];
+  el.className = 'sync ' + cls; el.textContent = txt;
+}
+
+/* ---------- export / import backups ---------- */
+function exportJson() { return JSON.stringify({ app: 'orbit', version: 1, exportedAt: new Date().toISOString(), settings: STATE.settings, workouts: STATE.w, days: STATE.d }, null, 1); }
+function csvEsc(v) { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; }
+function exportCsv() {
+  const rows = [['date', 'session', 'exercise', 'set', 'load', 'unit', 'reps', 'e1rm'].join(',')];
+  for (const w of workoutsSorted()) for (const e of w.ex || []) doneSets(e).forEach((s, i) => rows.push([w.date, sessName(w), exDef(e.id).name, i + 1, s.w ?? '', exDef(e.id).u, s.r, exDef(e.id).u === 'bw' ? '' : r1(e1rm(s)) || ''].map(csvEsc).join(',')));
+  for (const w of workoutsSorted()) if (w.cardio?.done) rows.push([w.date, sessName(w), w.cardio.name, 1, '', 'min', w.cardio.min ?? '', ''].map(csvEsc).join(','));
+  return rows.join('\n');
+}
+async function offerFile(filename, text) {
+  let dl = null; try { dl = window.claude && await window.claude.use('downloads'); } catch (e) { }
+  if (dl) { try { await dl.save({ filename, data: text }); toast('Saved ' + esc(filename)); ui.exportText = null; return; } catch (e) { if (e?.code === 'declined') return; if (e?.code === 'rate_limited') { toast('A save prompt is already open.'); return; } } }
+  if (!window.claude) { // plain web page: a real file
+    const type = filename.endsWith('.csv') ? 'text/csv' : 'application/json', blob = new Blob([text], { type });
+    const standalone = navigator.standalone || matchMedia('(display-mode: standalone)').matches;
+    if (standalone && navigator.canShare) { try { const file = new File([blob], filename, { type }); if (navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return; } } catch (e) { if (e?.name === 'AbortError') return; } }
+    const a = document.createElement('a'), url = URL.createObjectURL(blob); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 4000); toast('Saved ' + esc(filename)); return;
+  }
+  ui.exportText = text; render(true);
+}
+function restoreBackup(o) {
+  if (!o || !['orbit', 'rotation-logbook'].includes(o.app) || !o.settings || typeof o.workouts !== 'object' || typeof o.days !== 'object') throw new Error('This file isn’t an Orbit backup.');
+  const okDate = k => /^\d{4}-\d{2}-\d{2}$/.test(k);
+  const w = {}, d = {}; for (const k in o.workouts) if (okDate(k) && o.workouts[k]?.ex) w[k] = o.workouts[k]; for (const k in o.days) if (okDate(k)) d[k] = o.days[k];
+  const oldMonths = { wk: new Set(Object.keys(STATE.w).map(k => k.slice(0, 7))), dy: new Set(Object.keys(STATE.d).map(k => k.slice(0, 7))) };
+  STATE.settings = migrateSettings(o.settings); STATE.w = w; STATE.d = d;
+  saveSettings();
+  for (const kind of ['wk', 'dy']) { const ms = new Set([...oldMonths[kind], ...Object.keys(STATE[KIND[kind]]).map(k => k.slice(0, 7))]); saveMonths(kind, ms, true); }
+  return Object.keys(w).length;
+}
+async function resetAll() {
+  const months = { wk: new Set([...Object.keys(STATE.w).map(k => k.slice(0, 7)), ...Object.keys(Cloud.cloud.wk)]), dy: new Set([...Object.keys(STATE.d).map(k => k.slice(0, 7)), ...Object.keys(Cloud.cloud.dy)]) };
+  if (window.GH_SYNC) for (const p in GH.meta.known) { const o = GH.parse(p); if (o && o.kind !== 'settings') months[o.kind].add(o.ym); }
+  const fresh = emptyData(); STATE.settings = fresh.settings; STATE.w = {}; STATE.d = {};
+  try { localStorage.removeItem(LS_KEY); } catch (e) { }
+  saveSettings(); for (const k of ['wk', 'dy']) saveMonths(k, months[k], true);
+}
+
+/* ============================================================
+   RENDER
+   ============================================================ */
+let pendingRender = false;
+function editingInView() { const a = document.activeElement; return a && $('#view')?.contains(a) && /INPUT|TEXTAREA|SELECT/.test(a.tagName) && a.type !== 'file'; }
+function render(force) {
+  if (!force && editingInView()) { pendingRender = true; return; }
+  pendingRender = false;
+  const v = $('#view'); CHART_REG.clear();
+  v.innerHTML = (VIEWS[ui.tab] || vToday)();
+  drawCharts(v);
+  document.querySelectorAll('.tabs [data-tab]').forEach(b => b.setAttribute('aria-current', b.dataset.tab === ui.tab ? 'page' : 'false'));
+  const g = $('#gear'); g.setAttribute('aria-current', ui.tab === 'data' ? 'page' : 'false'); g.setAttribute('aria-label', ui.tab === 'data' ? 'Back' : 'Data, imports and backups');
+  renderSync(); renderMark();
+}
+function renderMark() { // header ring: where today sits in the rotation, one segment per slot (rest slots included)
+  const el = $('#mark'); if (!el) return;
+  const o = order(), n = o.length, t = today(), rec = STATE.w[t], sid = rec && sessDef(rec.s) ? rec.s : sessionFor(t), k = Math.max(0, o.indexOf(sid)) + 1;
+  // explicit arcs: equal segments, gaps centred on 12 o'clock and every 360/n degrees after it
+  const r = 9, gapDeg = n > 1 ? Math.min(25, 360 / n * 0.35) : 0, pt = a => [12 + r * Math.sin(a * Math.PI / 180), 12 - r * Math.cos(a * Math.PI / 180)];
+  let arcs = '';
+  for (let i = 0; i < n; i++) {
+    const a0 = i * 360 / n + gapDeg / 2, a1 = (i + 1) * 360 / n - gapDeg / 2, [x0, y0] = pt(a0), [x1, y1] = pt(a1);
+    arcs += `<path d="M${x0.toFixed(3)} ${y0.toFixed(3)}A${r} ${r} 0 ${a1 - a0 > 180 ? 1 : 0} 1 ${x1.toFixed(3)} ${y1.toFixed(3)}" fill="none" stroke="${i < k ? 'var(--logo)' : 'var(--line-2)'}" stroke-width="2.4" stroke-linecap="round"/>`;
+  }
+  if (n === 1) arcs = `<circle cx="12" cy="12" r="${r}" fill="none" stroke="var(--logo)" stroke-width="2.4"/>`;
+  el.innerHTML = `<svg class="mark" viewBox="0 0 24 24" fill="none" role="img" aria-label="${esc(sessDef(sid)?.name || '')}, ${k} of ${n} in the rotation"><title>${esc(sessDef(sid)?.name || '')} · ${k} of ${n}</title>${arcs}<circle cx="12" cy="12" r="2.5" fill="var(--ink)"/></svg>`;
+}
+document.addEventListener('focusout', () => setTimeout(() => { if (pendingRender && !editingInView()) render(); }, 60));
+function go(tab) { ui.exNote = null; ui.noteEdit = null; if (tab === 'trends' && ui.tab !== 'trends') { ui.metric = 'rec'; ui.per = 'M'; ui.off = 0; } if (tab === 'data' && ui.tab === 'data') tab = ui.prevTab || 'today'; else if (tab === 'data') ui.prevTab = ui.tab; ui.tab = tab; ui.confirm = null; ui.pickSess = null; ui.editEx = null; if (tab === 'log' && !ui.logDate) ui.logDate = today(); window.scrollTo(0, 0); render(true); if (tab === 'log') wakeLock(); }
+let toastT;
+function toast(html, kind) { const t = $('#toast'); t.innerHTML = html; t.className = 'toast show ' + (kind || ''); clearTimeout(toastT); toastT = setTimeout(() => t.className = 'toast', kind === 'pr' ? 4000 : 2600); }
+let wl = null; async function wakeLock() { try { if ('wakeLock' in navigator && !wl) { wl = await navigator.wakeLock.request('screen'); wl.addEventListener('release', () => wl = null); } } catch (e) { } }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && ui.tab === 'log') wakeLock(); });
+
+/* ============================================================
+   ACTIONS
+   ============================================================ */
+const logW = () => STATE.w[ui.logDate || today()];
+const ACT = {
+  go: el => go(el.dataset.tab),
+  start: el => {
+    const date = ui.tab === 'log' ? (ui.logDate || today()) : today(), sid = el.dataset.id;
+    if (STATE.w[date] && !STATE.w[date].rest) { ui.logDate = date; go('log'); return; }
+    if (!sessDef(sid) || isRestSlot(sid)) return;
+    const w = newWorkoutAuto(date, sid);
+    STATE.w[date] = w; if (S().rotOverride) { S().rotOverride = null; saveSettings(); }
+    saveW(date); ui.logDate = date; go('log');
+  },
+  restday: () => { const date = ui.tab === 'log' ? (ui.logDate || today()) : today(); if (STATE.w[date]) return; STATE.w[date] = restRecord(date); saveW(date); toast('Rest day logged'); render(true); },
+  unrest: () => { const date = ui.tab === 'log' ? (ui.logDate || today()) : today(); if (STATE.w[date]?.rest) { delete STATE.w[date]; saveW(date); } render(true); },
+  addrest: () => { const id = 'r' + Date.now().toString(36); S().prog.sessions[id] = { name: 'Rest', focus: 'Recovery', items: [], rest: true }; S().prog.order.push(id); saveSettings(); toast('Rest day added to the end of the rotation'); render(true); },
+  togglesess: el => { const id = el.dataset.id; ui.openSess.has(id) ? ui.openSess.delete(id) : ui.openSess.add(id); ui.confirm = null; render(true); },
+  picktoday: () => { ui.pickSess = 'today'; render(true); },
+  setnext: el => { S().rotOverride = { id: el.dataset.id, from: today() }; ui.pickSess = null; saveSettings(); render(true); },
+  picksess: el => { ui.pickSess = el.dataset.id; render(true); },
+  logday: el => { const d = addDays(ui.logDate || today(), +el.dataset.n); if (d > today()) return; ui.logDate = d; ui.pickSess = null; ui.confirm = null; window.scrollTo(0, 0); render(true); },
+  openlog: el => { ui.logDate = el.dataset.d; go('log'); },
+  addset: el => { const w = logW(), e = w.ex[+el.dataset.e]; const l = e.sets[e.sets.length - 1]; e.sets.push({ w: null, r: null, pw: l ? (l.w ?? l.pw) : null, pr: l ? (l.r ?? l.pr) : null, done: false }); saveW(w.date); render(true); setTimeout(() => $(`#r${el.dataset.e}_${e.sets.length - 1}`)?.focus(), 30); },
+  remset: el => { const w = logW(), e = w.ex[+el.dataset.e]; if (e.sets.length > 1) e.sets.pop(); saveW(w.date); render(true); },
+  remex: el => { const w = logW(), i = +el.dataset.e, e = w.ex[i]; if (doneSets(e).length && ui.confirm !== 'remex' + i) { ui.confirm = 'remex' + i; toast('Tap Remove again to drop logged sets'); return; } w.ex.splice(i, 1); ui.confirm = null; saveW(w.date); render(true); },
+  cardiotype: el => { const w = logW(), name = el.dataset.v, wm = Math.round(sum(whoopCardio(w.date, name).map(a => a.min || 0)));
+    w.cardioOff = false; w.cardio = { ...(w.cardio || { min: S().cardio.min, lvl: null, done: false }), name, manual: true }; if (wm) { w.cardio.min = wm; w.cardio.done = true; w.cardio.src = 'whoop'; }
+    saveW(w.date); render(true); },
+  cardiorem: () => { const w = logW(); w.cardio = null; w.cardioOff = true; saveW(w.date); render(true); },
+  cardiowhoop: el => { const w = logW(); w.cardio = w.cardio || { name: S().cardio.name }; w.cardio.min = +el.dataset.v; w.cardio.done = true; w.cardio.src = 'whoop'; saveW(w.date); render(true); },
+  cardio: () => { const w = logW(); w.cardio = w.cardio || { name: S().cardio.name, min: S().cardio.min }; w.cardio.min = num($('#cmin')?.value) ?? w.cardio.min; w.cardio.done = !w.cardio.done; w.cardio.manual = true; saveW(w.date); render(true); },
+  confirm: el => { ui.confirm = el.dataset.v || null; render(true); },
+  delw: () => { const d = ui.logDate || today(); delete STATE.w[d]; ui.confirm = null; saveW(d); toast('Session deleted'); render(true); },
+  per: el => { ui.per = el.dataset.v; ui.off = 0; render(true); },
+  poff: el => { ui.off = Math.max(0, (ui.off || 0) + +el.dataset.n); render(true); },
+  logdone: () => {
+    const a = document.activeElement; if (a && a.blur) a.blur(); // make sure the last edit is saved
+    const w = logW(); if (w && !w.rest) { const st = wStats(w); toast(`${esc(sessName(w))} saved · ${st.sets} set${st.sets === 1 ? '' : 's'}`); }
+    ui.logDate = null; go('today');
+  },
+  histview: el => { ui.hist = el.dataset.v; ui.noteEdit = null; render(true); },
+  notefilter: el => { ui.noteG = el.dataset.v; ui.noteEdit = null; render(true); },
+  notenew: () => { ui.noteNew = !ui.noteNew; render(true); },
+  noteadd: () => { const t = ($('#nt')?.value || '').trim(); if (!t) { toast('Write the note first', 'bad'); return; } notebook().general.push({ id: Date.now().toString(36), g: $('#ng').value, text: t, date: today() }); ui.noteNew = false; saveSettings(); toast('Note added'); render(true); },
+  noteedit: el => { ui.noteEdit = el.dataset.k || null; render(true); },
+  notesave: el => { const k = el.dataset.k, t = ($('#ne_' + el.dataset.id)?.value || '').trim(), nb = notebook();
+    if (k.startsWith('g|')) { const n = nb.general.find(x => 'g|' + x.id === k); if (n) n.text = t || n.text; } else nb.edits[k] = t;
+    ui.noteEdit = null; saveSettings(); render(true); },
+  notedel: el => { const k = el.dataset.k, nb = notebook();
+    if (k.startsWith('g|')) nb.general = nb.general.filter(x => 'g|' + x.id !== k); else { nb.hidden[k] = true; delete nb.edits[k]; toast('Removed from Notes. The session keeps its note.'); }
+    ui.noteEdit = null; saveSettings(); render(true); },
+  exnote: el => { ui.exNote = +el.dataset.e; render(true); setTimeout(() => $('#xn' + el.dataset.e)?.focus(), 30); },
+  weeksall: () => { ui.weeksAll = !ui.weeksAll; render(true); },
+  range: el => { ui.range = +el.dataset.v; render(true); },
+  preset: el => { ui.confirm = 'preset:' + el.dataset.id; render(true); },
+  usepreset: el => {
+    const p = PRESETS[el.dataset.id]; S().preset = el.dataset.id; S().prog = { order: p.order.slice(), sessions: clone(p.sessions) };
+    for (const sd of Object.values(S().prog.sessions)) for (const it of sd.items) if (!S().ex[it.ex] && EXLIB[it.ex]) S().ex[it.ex] = clone(EXLIB[it.ex]);
+    S().rotOverride = null; ui.confirm = null; saveSettings(); toast(`Switched to ${esc(p.name)}`); render(true);
+  },
+  addsess: () => { const id = 's' + Date.now().toString(36); ui.openSess.add(id); S().prog.sessions[id] = { name: 'New session', focus: '', items: [] }; S().prog.order.push(id); saveSettings(); render(true); },
+  delsess: el => { const id = el.dataset.id; S().prog.order = S().prog.order.filter(x => x !== id); delete S().prog.sessions[id]; ui.confirm = null; saveSettings(); render(true); },
+  remitem: el => { sessDef(el.dataset.id).items.splice(+el.dataset.j, 1); saveSettings(); render(true); },
+  newex: () => { const id = 'x' + Date.now().toString(36); S().ex[id] = X('New exercise', 'other', 'kg', 90, 8, 12, null, null); ui.editEx = id; saveSettings(); render(true); },
+  editex: el => { ui.editEx = el.dataset.id || null; render(true); },
+  saveex: el => {
+    const x = S().ex[el.dataset.id]; if (!x) return;
+    x.name = ($('#xe_n').value || '').trim() || x.name; x.g = $('#xe_g').value; x.u = $('#xe_u').value;
+    const lo = parseInt($('#xe_lo').value, 10), hi = parseInt($('#xe_hi').value, 10), bw = num($('#xe_bw').value), br = parseInt($('#xe_br').value, 10);
+    if (lo > 0) x.lo = lo; if (hi >= x.lo) x.hi = hi; else x.hi = x.lo; x.note = ($('#xe_note').value || '').trim();
+    x.base = br > 0 ? { w: bw ?? (x.u === 'bw' ? 0 : null), r: br } : null;
+    ui.editEx = null; saveSettings(); render(true);
+  },
+  delex: el => { delete S().ex[el.dataset.id]; ui.editEx = null; saveSettings(); render(true); },
+  doimport: el => { const src = el.dataset.v, p = ui.imp[src]; if (!p) return; const months = applyImport(p); saveMonths('dy', months);
+    if (src === 'whoop') for (const w of Object.values(STATE.w)) if (p.days[w.date] && autoCardio(w)) saveW(w.date); saveSettings(); delete ui.imp[src]; toast(`Imported ${Object.keys(p.days).length} days from ${src === 'whoop' ? 'WHOOP' : 'MacroFactor'}`); render(true); },
+  cancelimp: el => { delete ui.imp[el.dataset.v]; render(true); },
+  export: el => el.dataset.v === 'csv' ? offerFile(`orbit-sets-${today()}.csv`, exportCsv()) : offerFile(`orbit-backup-${today()}.json`, exportJson()),
+  copyexport: async () => { const ta = $('#exporttext'); try { await navigator.clipboard.writeText(ta.value); toast('Copied'); } catch (e) { ta.select(); toast('Selected. Copy it with your keyboard or the share menu.'); } },
+  reset: async () => { await resetAll(); ui.confirm = null; toast('Everything deleted'); go('today'); },
+};
+document.addEventListener('click', ev => {
+  const el = ev.target.closest('[data-act]'); if (!el || el.disabled) return;
+  const f = ACT[el.dataset.act]; if (f) { ev.preventDefault(); f(el); }
+});
+
+const INP = {
+  w: el => setInput(el, true),
+  r: el => setInput(el, true),
+  addex: el => { const id = el.value; if (!id) return; const w = logW(); w.ex.push({ id, sets: prefill(id, 3, w.date) }); saveW(w.date); render(true); setTimeout(() => $('#ex' + (w.ex.length - 1))?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50); },
+  note: el => { const w = logW(); w.note = el.value; saveW(w.date); },
+  exnote: el => { const w = logW(), e = w.ex[+el.dataset.e]; const v = el.value.trim(); if (v) e.note = el.value; else delete e.note; ui.exNote = null; saveW(w.date); },
+  cmin: el => { const w = logW(); w.cardio = w.cardio || { name: S().cardio.name, done: false }; w.cardio.min = num(el.value); w.cardio.manual = true; saveW(w.date); },
+  clvl: el => { const w = logW(); w.cardio = w.cardio || { name: S().cardio.name, min: S().cardio.min, done: false }; w.cardio.lvl = el.value.trim() || null; saveW(w.date); },
+  lift: el => { ui.lift = el.value; render(true); },
+  metric: el => { ui.metric = el.value; ui.off = 0; render(true); },
+  sname: el => { const sd = sessDef(el.dataset.id); sd.name = el.value.trim() || sd.name; saveSettings(); },
+  sfocus: el => { sessDef(el.dataset.id).focus = el.value.trim(); saveSettings(); },
+  isets: el => { const n = parseInt(el.value, 10); if (n >= 1 && n <= 12) { sessDef(el.dataset.id).items[+el.dataset.j].sets = n; saveSettings(); render(); } },
+  additem: el => { if (!el.value) return; sessDef(el.dataset.id).items.push({ ex: el.value, sets: 3 }); saveSettings(); render(true); },
+  cname: el => { S().cardio.name = el.value; saveSettings(); },
+  cmindef: el => { const n = parseInt(el.value, 10); if (n > 0) { S().cardio.min = n; saveSettings(); } },
+  platekg: el => { const n = num(el.value); if (n > 0) { S().plateKg = n; saveSettings(); } },
+  proteint: el => { const n = num(el.value); S().proteinT = n > 0 ? n : null; saveSettings(); },
+  fwhoop: el => readFiles(el, readWhoopFiles),
+  fmf: el => readFiles(el, readMfFiles),
+  fbackup: async el => {
+    const f = el.files?.[0]; if (!f) return;
+    try { const n = restoreBackup(JSON.parse(await f.text())); toast(`Restored ${n} sessions`); go('today'); }
+    catch (e) { toast(esc(e.message || 'That file couldn’t be read.'), 'bad'); el.value = ''; }
+  },
+};
+async function readFiles(el, reader) {
+  const files = [...(el.files || [])]; if (!files.length) return;
+  toast('Reading…');
+  try { const p = await reader(files); ui.imp[p.src] = p; $('#toast').className = 'toast'; render(true); setTimeout(() => $('#imp-' + p.src)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50); }
+  catch (e) { console.warn(e); toast(esc(e.message || 'That file couldn’t be read.'), 'bad'); el.value = ''; }
+}
+/* ---------- drag to reorder (sessions, and exercises within a session) ---------- */
+let drag = null;
+document.addEventListener('pointerdown', ev => {
+  const g = ev.target.closest('[data-grip]'); if (!g || ev.button > 0) return;
+  const el = g.closest('[data-dragitem]'), list = el?.parentElement; if (!el || !list) return;
+  const sibs = [...list.children].filter(c => c.hasAttribute('data-dragitem')); if (sibs.length < 2) return;
+  const rects = sibs.map(s => s.getBoundingClientRect());
+  const gap = rects.length > 1 ? Math.max(0, rects[1].top - rects[0].bottom) : 8;
+  drag = { el, list, sibs, rects, gap, from: sibs.indexOf(el), to: sibs.indexOf(el), y0: ev.clientY, kind: g.dataset.grip, pid: ev.pointerId };
+  try { g.setPointerCapture(ev.pointerId); } catch (e) { }
+  el.classList.add('dragging'); document.body.classList.add('is-dragging'); ev.preventDefault();
+});
+document.addEventListener('pointermove', ev => {
+  if (!drag || ev.pointerId !== drag.pid) return;
+  const { rects, from, sibs, el, gap } = drag;
+  const top = rects[0].top, bot = rects[rects.length - 1].bottom;
+  const dy = Math.max(top - rects[from].top, Math.min(bot - rects[from].bottom, ev.clientY - drag.y0));
+  el.style.transform = `translateY(${dy}px)`;
+  const mid = rects[from].top + rects[from].height / 2 + dy;
+  let to = 0; for (let i = 0; i < rects.length; i++) if (i !== from && mid > rects[i].top + rects[i].height / 2) to++;
+  drag.to = to;
+  const shift = rects[from].height + gap;
+  sibs.forEach((s, i) => { if (i === from) return; const t = from < to && i > from && i <= to ? -shift : from > to && i >= to && i < from ? shift : 0; s.style.transform = t ? `translateY(${t}px)` : ''; });
+  if (ev.clientY < 80) window.scrollBy(0, -8); else if (ev.clientY > window.innerHeight - 90) window.scrollBy(0, 8);
+});
+function endDrag(ev) {
+  if (!drag || (ev && ev.pointerId !== drag.pid)) return;
+  const { from, to, kind, list, sibs } = drag; drag = null;
+  document.body.classList.remove('is-dragging'); sibs.forEach(s => { s.style.transform = ''; s.classList.remove('dragging'); });
+  if (from === to || !ev || ev.type === 'pointercancel') { render(true); return; }
+  if (kind === 'sess') { const ids = sibs.map(s => s.dataset.id); const [m] = ids.splice(from, 1); ids.splice(to, 0, m); S().prog.order = ids; }
+  else { const items = sessDef(list.dataset.id).items; const [m] = items.splice(from, 1); items.splice(to, 0, m); }
+  saveSettings(); render(true);
+}
+document.addEventListener('pointerup', endDrag); document.addEventListener('pointercancel', endDrag);
+
+/* ---------- set rows: saved and counted as you type ---------- */
+function setInput(el, final) {
+  const w = logW(); if (!w) return; const i = +el.dataset.e, j = +el.dataset.s, e = w.ex[i], s = e?.sets[j]; if (!s) return;
+  const def = exDef(e.id), wasDone = s.done, prevBest = final ? Math.max(bestBefore(e.id, w.date), ...e.sets.filter((x, k) => k !== j && x.done && x.r > 0).map(x => setScore(e.id, x))) : 0;
+  setFromInputs(s, num($(`#w${i}_${j}`)?.value), parseInt($(`#r${i}_${j}`)?.value, 10), def.u);
+  const row = $(`#row${i}_${j}`); if (row) row.classList.toggle('done', s.done);
+  if (final && s.done && s.w != null && $(`#w${i}_${j}`) && $(`#w${i}_${j}`).value === '') $(`#w${i}_${j}`).value = fmt(s.w, 2).replace(/,/g, '');
+  const st = wStats(w), sm = $('.sess-top .t small'); if (sm) sm.textContent = sm.textContent.replace(/\d+ sets?/, `${st.sets} set${st.sets === 1 ? '' : 's'}`);
+  saveW(w.date);
+  if (final && s.done && hasRef(e.id, w.date) && setScore(e.id, s) > prevBest + 1e-9) { row?.classList.add('pr'); toast(`New best · ${esc(def.name)} ${esc(fmtSet(e.id, s))}`, 'pr'); }
+  else if (final && row && !s.done) row.classList.remove('pr');
+}
+document.addEventListener('input', ev => { const el = ev.target; if (el.matches && el.matches('.set .in')) setInput(el, false); });
+document.addEventListener('change', ev => { const el = ev.target.closest('[data-in]'); if (!el) return; const f = INP[el.dataset.in]; if (f) f(el); });
+document.addEventListener('keydown', ev => {
+  if (ev.key !== 'Enter' || !ev.target.matches('.set .in')) return;
+  ev.preventDefault(); const all = [...document.querySelectorAll('.set .in')], k = all.indexOf(ev.target);
+  if (all[k + 1]) all[k + 1].focus(); else ev.target.blur();
+});
+
+/* ============================================================
+   BOOT
+   ============================================================ */
+(function boot() {
+  const loc = loadLocal();
+  if (loc) { STATE.settings = migrateSettings(loc.settings); STATE.w = loc.w || {}; STATE.d = loc.d || {}; }
+  const h = (location.hash || '').slice(1); if (VIEWS[h]) ui.tab = h;
+  if (ui.tab === 'log') ui.logDate = today();
+  render(true);
+  connectCloud();
+})();
+/* ============================================================
+   GITHUB SYNC (GitHub Pages build only)
+   Data lives in a private repo the owner controls:
+     orbit/settings.json, orbit/wk/YYYY-MM.json, orbit/dy/YYYY-MM.json
+   Each sync: read the branch head; if it moved, fetch only changed files and merge
+   them in (dates edited here and not yet pushed win); then commit everything
+   edited here as one commit. A rejected ref update means another device pushed
+   first, so pull again and retry. The token is kept in this browser only.
+   ============================================================ */
+window.GH_SYNC = true;
+const GH_CFG = 'orbit-gh-cfg', GH_META = 'orbit-gh-meta', GH_API = 'https://api.github.com';
+function b64(text) { const by = new TextEncoder().encode(text); let s = ''; for (let i = 0; i < by.length; i += 0x8000) s += String.fromCharCode.apply(null, by.subarray(i, i + 0x8000)); return btoa(s); }
+const GH = {
+  cfg: null, meta: null, busy: false, again: false, timer: null, poll: null,
+  state: 'off', err: null, // off | syncing | ok | offline | error
+  load() {
+    try { this.cfg = JSON.parse(localStorage.getItem(GH_CFG) || 'null'); } catch (e) { this.cfg = null; }
+    try { this.meta = JSON.parse(localStorage.getItem(GH_META) || 'null'); } catch (e) { this.meta = null; }
+    if (!this.meta || !this.cfg || this.meta.repo !== this.repoKey()) this.meta = this.freshMeta();
+  },
+  repoKey() { return this.cfg ? `${this.cfg.owner}/${this.cfg.repo}`.toLowerCase() : ''; },
+  freshMeta() { return { repo: this.repoKey(), head: null, tree: null, known: {}, dirty: {}, first: true, at: null }; },
+  saveMeta() { try { localStorage.setItem(GH_META, JSON.stringify(this.meta)); } catch (e) { } },
+  on() { return !!(this.cfg && this.cfg.token); },
+
+  /* ---------- paths ---------- */
+  path(kind, ym) { return kind === 'settings' ? 'orbit/settings.json' : `orbit/${kind}/${ym}.json`; },
+  parse(p) { const m = /^orbit\/(wk|dy)\/(\d{4}-\d{2})\.json$/.exec(p); return m ? { kind: m[1], ym: m[2] } : p === 'orbit/settings.json' ? { kind: 'settings' } : null; },
+  content(p) { const o = this.parse(p); if (!o) return null; if (o.kind === 'settings') return JSON.stringify(STATE.settings); const it = monthItems(o.kind, o.ym); return Object.keys(it).length ? JSON.stringify({ items: it }) : null; },
+
+  /* ---------- local edits ---------- */
+  changed(kind, key, whole) {
+    if (!this.meta) return;
+    this.mark(kind, key, whole); this.saveMeta();
+    if (!this.on()) return;
+    clearTimeout(this.timer); this.timer = setTimeout(() => this.sync(), 1500);
+    if (this.state !== 'error') this.setState('syncing');
+  },
+  mark(kind, key, whole) {
+    const d = this.meta.dirty;
+    if (kind === 'settings') d[this.path('settings')] = true;
+    else {
+      const ym = key.slice(0, 7), p = this.path(kind, ym);
+      if (whole || d[p] === '*') d[p] = '*';
+      else {
+        const set = new Set(Array.isArray(d[p]) ? d[p] : []);
+        if (key.length === 10) set.add(key); else for (const k in monthItems(kind, ym)) set.add(k);
+        d[p] = [...set];
+      }
+    }
+  },
+
+  /* ---------- HTTP ---------- */
+  async req(method, url, body) {
+    const r = await fetch(GH_API + url, { method, cache: 'no-store', headers: { Accept: 'application/vnd.github+json', Authorization: 'Bearer ' + this.cfg.token, 'X-GitHub-Api-Version': '2022-11-28', ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+    let data = null; try { data = await r.json(); } catch (e) { }
+    if (!r.ok) { const e = new Error(data?.message || 'HTTP ' + r.status); e.status = r.status; e.ratelimit = r.status === 403 && r.headers.get('x-ratelimit-remaining') === '0'; throw e; }
+    return data;
+  },
+  repoUrl(rest) { return `/repos/${encodeURIComponent(this.cfg.owner)}/${encodeURIComponent(this.cfg.repo)}${rest}`; },
+  branch() { return this.cfg.branch || 'main'; },
+  async head() { // null when the repo has no commits yet
+    try { const r = await this.req('GET', this.repoUrl(`/git/ref/heads/${this.branch()}`)); return r.object.sha; }
+    catch (e) { if (e.status === 409 || e.status === 404) { if (e.status === 404) await this.req('GET', this.repoUrl('')); return null; } throw e; }
+  },
+  async blobText(sha) { const b = await this.req('GET', this.repoUrl(`/git/blobs/${sha}`)); const bin = atob((b.content || '').replace(/\s/g, '')); return new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0))); },
+  async gitSha(text) { const bytes = new TextEncoder().encode(text), hdr = new TextEncoder().encode(`blob ${bytes.length}\0`), all = new Uint8Array(hdr.length + bytes.length); all.set(hdr); all.set(bytes, hdr.length); const h = await crypto.subtle.digest('SHA-1', all); return [...new Uint8Array(h)].map(x => x.toString(16).padStart(2, '0')).join(''); },
+
+  /* ---------- pull + merge ---------- */
+  async pull() {
+    const m = this.meta, head = await this.head();
+    if (!head) { // empty repo: everything here is new
+      if (m.first) this.markAllLocal();
+      m.head = null; m.tree = null; m.known = {}; m.first = false; return false;
+    }
+    if (head === m.head && !m.first) return false;
+    const commit = await this.req('GET', this.repoUrl(`/git/commits/${head}`));
+    const tree = await this.req('GET', this.repoUrl(`/git/trees/${commit.tree.sha}?recursive=1`));
+    const remote = {}; for (const t of tree.tree || []) if (t.type === 'blob' && this.parse(t.path)) remote[t.path] = t.sha;
+    const fetchList = Object.keys(remote).filter(p => remote[p] !== m.known[p]);
+    const texts = {}; let i = 0;
+    await Promise.all(Array.from({ length: Math.min(6, fetchList.length) }, async () => { while (i < fetchList.length) { const p = fetchList[i++]; texts[p] = await this.blobText(remote[p]); } }));
+    let ch = false;
+    for (const p of fetchList) { let o = null; try { o = JSON.parse(texts[p]); } catch (e) { continue; } if (this.merge(p, o)) ch = true; }
+    if (!m.first) for (const p in m.known) if (!remote[p] && this.removeRemote(p)) ch = true; // deleted on another device
+    if (m.first) this.markLocalOnly(remote);
+    m.head = head; m.tree = commit.tree.sha; m.known = remote; m.first = false;
+    if (ch) { bump(); cacheLocal(); render(); }
+    return ch;
+  },
+  merge(p, o) {
+    const info = this.parse(p), dirty = this.meta.dirty[p], first = this.meta.first;
+    if (info.kind === 'settings') {
+      if (dirty && !first) return false; // edited here: this device's settings win
+      if (JSON.stringify(o) === JSON.stringify(STATE.settings)) return false;
+      STATE.settings = migrateSettings(o); delete this.meta.dirty[p]; return true;
+    }
+    if (dirty === '*') return false; // replaced wholesale here (restore / delete all)
+    const tgt = STATE[KIND[info.kind]], items = o?.items || {}, local = monthItems(info.kind, info.ym);
+    const keep = new Set(Array.isArray(dirty) ? dirty : []);
+    const next = { ...items };
+    if (first) { for (const k in local) if (!items[k]) { next[k] = local[k]; keep.add(k); } } // first connect: union, the repo wins on overlaps
+    else for (const k of keep) { if (local[k]) next[k] = local[k]; else delete next[k]; }
+    if (JSON.stringify(next) === JSON.stringify(local)) return false;
+    for (const k in local) delete tgt[k];
+    Object.assign(tgt, clone(next));
+    if (first && keep.size) this.meta.dirty[p] = [...keep];
+    return true;
+  },
+  removeRemote(p) {
+    const info = this.parse(p); if (!info || info.kind === 'settings' || this.meta.dirty[p]) return false;
+    const tgt = STATE[KIND[info.kind]]; let ch = false;
+    for (const k in monthItems(info.kind, info.ym)) { delete tgt[k]; ch = true; }
+    return ch;
+  },
+  markAllLocal() {
+    this.meta.dirty[this.path('settings')] = true;
+    for (const kind of ['wk', 'dy']) for (const k in STATE[KIND[kind]]) this.mark(kind, k);
+  },
+  markLocalOnly(remote) {
+    if (!remote[this.path('settings')]) this.meta.dirty[this.path('settings')] = true;
+    for (const kind of ['wk', 'dy']) { const months = new Set(Object.keys(STATE[KIND[kind]]).map(k => k.slice(0, 7))); for (const ym of months) if (!remote[this.path(kind, ym)]) this.mark(kind, ym); }
+  },
+
+  /* ---------- push ---------- */
+  async push() {
+    const m = this.meta, paths = Object.keys(m.dirty); if (!paths.length) return true;
+    const taking = m.dirty; m.dirty = {};
+    try {
+      const entries = [], newKnown = { ...m.known };
+      for (const p of paths) {
+        const text = this.content(p);
+        if (text == null) { if (m.known[p]) { entries.push({ path: p, mode: '100644', type: 'blob', sha: null }); delete newKnown[p]; } continue; }
+        const sha = await this.gitSha(text); if (sha === m.known[p]) continue;
+        entries.push({ path: p, mode: '100644', type: 'blob', content: text }); newKnown[p] = sha;
+      }
+      if (!entries.length) { this.saveMeta(); return true; }
+      if (!m.head) { // the Git Data API refuses empty repos, so seed the first commit through the contents API
+        const first = entries.find(e => e.content) || { path: 'orbit/settings.json', content: JSON.stringify(STATE.settings) };
+        const r = await this.req('PUT', this.repoUrl(`/contents/${first.path}`), { message: 'Orbit: start sync', content: b64(first.content), branch: this.branch() });
+        m.head = r.commit.sha; m.tree = r.commit.tree.sha; m.known = { [first.path]: r.content.sha };
+        this.restore(taking); this.saveMeta(); return false; // the rest goes as one commit next round
+      }
+      const tree = await this.req('POST', this.repoUrl('/git/trees'), { base_tree: m.tree, tree: entries });
+      const commit = await this.req('POST', this.repoUrl('/git/commits'), { message: `Orbit: ${entries.length} file${entries.length === 1 ? '' : 's'} from ${this.device()}`, tree: tree.sha, parents: [m.head] });
+      await this.req('PATCH', this.repoUrl(`/git/refs/heads/${this.branch()}`), { sha: commit.sha, force: false });
+      m.head = commit.sha; m.tree = tree.sha; m.known = newKnown; this.saveMeta(); return true;
+    } catch (e) {
+      this.restore(taking); this.saveMeta();
+      if (e.status === 422 || e.status === 409) return false; // another device got there first
+      throw e;
+    }
+  },
+  restore(taking) { const d = this.meta.dirty; for (const p in taking) { const cur = d[p], t = taking[p]; d[p] = cur === undefined ? t : (cur === '*' || t === '*') ? '*' : (cur === true || t === true) ? true : [...new Set([...t, ...cur])]; } },
+  device() { return /iPhone|iPad|Android/i.test(navigator.userAgent) ? 'phone' : 'browser'; },
+
+  /* ---------- loop ---------- */
+  async sync() {
+    if (!this.on()) return;
+    if (this.busy) { this.again = true; return; }
+    if (navigator.onLine === false) { this.setState('offline'); return; }
+    this.busy = true; clearTimeout(this.timer); this.setState('syncing');
+    try {
+      for (let tries = 0; tries < 4; tries++) { await this.pull(); if (await this.push()) break; }
+      this.meta.at = Date.now(); this.err = null; this.saveMeta();
+      this.setState(Object.keys(this.meta.dirty).length ? 'syncing' : 'ok');
+    } catch (e) {
+      console.warn('GitHub sync', e.status || '', e.message);
+      if (!e.status) this.setState('offline');
+      else { this.err = e.status === 401 ? 'GitHub rejected the token. It may have expired: make a new one and reconnect.' : e.status === 404 ? 'Repo not found, or the token can’t see it.' : e.ratelimit ? 'GitHub rate limit reached. Sync resumes shortly.' : e.status === 403 ? 'The token can’t write to this repo. Give it Contents: read and write.' : 'GitHub said: ' + e.message; this.setState('error'); }
+    } finally {
+      this.busy = false; this.saveMeta();
+      if (this.again) { this.again = false; setTimeout(() => this.sync(), 300); }
+      else if (Object.keys(this.meta.dirty).length && this.state === 'syncing') { clearTimeout(this.timer); this.timer = setTimeout(() => this.sync(), 1500); }
+    }
+  },
+  setState(s) { this.state = s; const el = $('#ghstat'); if (el) el.innerHTML = this.pill(); const at = $('#ghat'); if (at) at.textContent = this.atText(); const er = $('#gherr'); if (er) { er.textContent = this.state === 'error' ? this.err || '' : ''; er.hidden = this.state !== 'error'; } },
+  pill() { return ({ ok: pill('good', 'Synced'), syncing: pill('', 'Syncing'), offline: pill('warn', 'Offline'), error: pill('bad', 'Not synced'), off: pill('', 'This browser') })[this.on() ? this.state : 'off']; },
+  atText() { const a = this.meta?.at; if (!a) return 'Not synced yet'; const s = (Date.now() - a) / 1000; return 'Last synced ' + (s < 60 ? 'just now' : s < 3600 ? Math.round(s / 60) + ' min ago' : new Date(a).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })); },
+
+  async connect(owner, repo, token) {
+    this.cfg = { owner, repo, token, branch: 'main' };
+    let r;
+    try { r = await this.req('GET', this.repoUrl('')); }
+    catch (e) { this.cfg = null; throw new Error(e.status === 401 ? 'GitHub rejected that token.' : e.status === 404 ? `Can’t find ${owner}/${repo} with that token.` : 'Couldn’t reach GitHub. Check your connection.'); }
+    if (!r.private) { this.cfg = null; throw new Error(`${owner}/${repo} is public. Make it private first: your health data would be visible to anyone.`); }
+    if (r.permissions && !r.permissions.push) { this.cfg = null; throw new Error('That token can read the repo but not write to it. Give it Contents: read and write.'); }
+    this.cfg.branch = r.default_branch || 'main';
+    try { localStorage.setItem(GH_CFG, JSON.stringify(this.cfg)); } catch (e) { }
+    this.meta = this.freshMeta(); this.saveMeta();
+    this.start(); await this.sync();
+  },
+  disconnect() { this.stop(); this.cfg = null; this.meta = this.freshMeta(); try { localStorage.removeItem(GH_CFG); localStorage.removeItem(GH_META); } catch (e) { } this.state = 'off'; },
+  start() {
+    this.stop();
+    this.poll = setInterval(() => { if (document.visibilityState === 'visible') this.sync(); }, 60000);
+  },
+  stop() { clearInterval(this.poll); clearTimeout(this.timer); },
+  boot() {
+    this.load();
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') this.sync(); else if (Object.keys(this.meta?.dirty || {}).length) this.sync(); });
+    window.addEventListener('online', () => this.sync());
+    window.addEventListener('offline', () => { if (this.on()) this.setState('offline'); });
+    if (this.on()) { this.start(); this.sync(); }
+  },
+  card() {
+    if (!this.on()) return `<section class="card"><div class="card-h"><h2>Sync</h2><span id="ghstat">${pill('', 'This browser')}</span></div>
+      <p class="small dim">Connect your private GitHub repo to keep this phone and your browser in step. Data is saved to <span class="mono">orbit-data</span> as small JSON files, and also kept in this browser.</p>
+      <div class="grid2 sec"><label class="fl">GitHub username<input class="in left" id="gh_o" value="${esc(ui.ghO ?? 'BigYellowBoi')}" autocapitalize="off" autocomplete="off" spellcheck="false"></label>
+      <label class="fl">Data repo<input class="in left" id="gh_r" value="${esc(ui.ghR ?? 'orbit-data')}" autocapitalize="off" autocomplete="off" spellcheck="false"></label></div>
+      <label class="fl">Access token<input class="in left" id="gh_t" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…"></label>
+      <p class="xs muted">A fine-grained token with <b>Contents: read and write</b> on the data repo only. It stays in this browser and is sent only to GitHub.</p>
+      <div class="btnrow"><button class="btn sm" data-act="ghconnect">Connect</button></div></section>`;
+    return `<section class="card"><div class="card-h"><h2>Sync</h2><span id="ghstat">${this.pill()}</span></div>
+      <p class="small dim">Saving to <span class="mono">${esc(this.cfg.owner)}/${esc(this.cfg.repo)}</span> on GitHub and to this browser. Changes sync within a couple of seconds, and every device catches up when it’s opened.</p>
+      <p class="xs muted" id="ghat">${esc(this.atText())}</p><p class="small" id="gherr" style="color:var(--bad-ink)" ${this.state === 'error' ? '' : 'hidden'}>${esc(this.err || '')}</p>
+      ${ui.confirm === 'ghoff' ? `<p class="small">Stop syncing on this device? Data here and in the repo stays as it is.</p><div class="btnrow"><button class="btn sm danger" data-act="ghoff">Disconnect</button><button class="link dim" data-act="confirm" data-v="">Cancel</button></div>`
+      : `<div class="btnrow"><button class="btn sm ghost" data-act="ghnow">Sync now</button><button class="link dim" data-act="confirm" data-v="ghoff" style="margin-left:auto">Disconnect</button></div>`}</section>`;
+  },
+};
+Object.assign(ACT, {
+  ghconnect: async el => {
+    const o = ($('#gh_o')?.value || '').trim(), r = ($('#gh_r')?.value || '').trim(), t = ($('#gh_t')?.value || '').trim();
+    ui.ghO = o; ui.ghR = r;
+    if (!o || !r || !t) { toast('Fill in all three fields', 'bad'); return; }
+    el.disabled = true; el.textContent = 'Connecting…';
+    try { await GH.connect(o, r, t); toast(GH.state === 'error' ? esc(GH.err) : 'Sync is on', GH.state === 'error' ? 'bad' : ''); }
+    catch (e) { toast(esc(e.message), 'bad'); }
+    render(true);
+  },
+  ghnow: () => GH.sync(),
+  ghoff: () => { GH.disconnect(); ui.confirm = null; toast('Sync is off on this device'); render(true); },
+});
+GH.boot();
+if (ui.tab === 'data') render(true);
+</script>
+</body>
+</html>
