@@ -237,8 +237,8 @@ GH.boot();
 async function checkUpdate() {
   try {
     const r = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' }); if (!r.ok) return;
-    const j = await r.json(); if (j.v && newerVer(j.v, APP_VERSION) && ui.update !== j.v) { ui.update = j.v; render(); }
+    const j = await r.json(); if (j.v && newerVer(j.v, APP_VERSION) && ui.update !== j.v) { ui.update = j.v; renderUpdate(); render(); }
   } catch (e) { }
 }
-checkUpdate(); document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(); });
+checkUpdate(); document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(); }); setInterval(checkUpdate, 15 * 60 * 1000);
 if (ui.tab === 'data') render(true);

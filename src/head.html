@@ -70,8 +70,9 @@ button { cursor: pointer; }
 button.pill { border: 0; font: inherit; font-size: 12.5px; font-weight: 500; cursor: pointer; }
 .tbl.lifts tr.sel td { background: var(--accent-soft); }
 .tbl.lifts tr.sel td:first-child { box-shadow: inset 2px 0 0 var(--accent); padding-left: 8px; }
-.upd { flex-direction: row; justify-content: space-between; align-items: center; text-align: left; border-color: var(--accent); background: var(--accent-soft); color: var(--ink); font: inherit; }
-.upd span { color: var(--ink-2); }
+.updp { position: fixed; left: 12px; right: 12px; max-width: 696px; margin: 0 auto; bottom: calc(var(--tabh) + max(8px, calc(env(safe-area-inset-bottom, 0px) - 8px)) + 10px); z-index: 45;
+  display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; background: var(--surface-3); border: 1px solid var(--accent); box-shadow: 0 10px 30px rgba(0,0,0,.5); }
+.updp > div { flex: 1; min-width: 0; display: flex; flex-direction: column; } .updp b { font-size: 14.5px; } .updp span { font-size: 12.5px; color: var(--ink-2); }
 .hr { height: 1px; background: var(--line); border: 0; margin: 0; }
 
 /* hero: next session */

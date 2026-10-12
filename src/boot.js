@@ -159,26 +159,12 @@ async function resetAll() {
 /* ============================================================
    RENDER
    ============================================================ */
-/* Scrolling: the claude.ai artifact scrolls the page. The home-screen app (html.shell) scrolls <body> as an inner
-   container instead, so iOS can't add its status-bar inset to the page at launch. */
-const SHELL = document.documentElement.classList.contains('shell');
-const scroller = () => SHELL ? $('#scroll') : window;
-const scrollY0 = () => SHELL ? $('#scroll').scrollTop : window.scrollY;
-const scrollToY = (top, smooth) => scroller().scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' });
-/* Display diagnostics (Data screen): what the phone reports, to debug iOS home-screen layout from screenshots. */
-function diagNums() {
-  const pr = css => { const d = document.createElement('div'); d.style.cssText = 'position:fixed;left:0;top:0;width:1px;visibility:hidden;pointer-events:none;' + css; document.body.appendChild(d); const r = d.getBoundingClientRect(); d.remove(); return r; };
-  const vh = u => Math.round(pr(`height:100${u}`).height);
-  const r = sel => $(sel)?.getBoundingClientRect(), vv = window.visualViewport;
-  return { layout: SHELL ? 'pinned' : 'standard', standalone: !!navigator.standalone || matchMedia('(display-mode: standalone)').matches,
-    screen: `${screen.width}×${screen.height}`, inner: `${innerWidth}×${innerHeight}`, client: document.documentElement.clientHeight, vv: vv ? `${Math.round(vv.height)} @${Math.round(vv.offsetTop)}` : '–',
-    vh: vh('vh'), dvh: vh('dvh'), svh: vh('svh'), lvh: vh('lvh'), safeTop: Math.round(parseFloat(getComputedStyle($('.top')).paddingTop) - 12), safeBottom: Math.round(parseFloat(getComputedStyle($('.tabs')).paddingBottom)),
-    scroll: Math.round(scrollY0()), winScroll: Math.round(window.scrollY), docH: document.documentElement.scrollHeight,
-    headerBottom: Math.round(r('.top')?.bottom), firstTop: Math.round(r('#view > *')?.top), tabs: `${Math.round(r('.tabs')?.top)}–${Math.round(r('.tabs')?.bottom)}` };
-}
+/* Scrolling: the page scrolls. All scroll calls go through these helpers. */
+const scroller = () => window;
+const scrollY0 = () => window.scrollY;
+const scrollToY = (top, smooth) => window.scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' });
 function resetScroll() { // to the top, and stop any momentum still running (iOS keeps flinging unless overflow is cut for a frame)
-  if (!SHELL) { const de = document.documentElement; de.style.overflow = 'hidden'; window.scrollTo(0, 0); requestAnimationFrame(() => { de.style.overflow = ''; window.scrollTo(0, 0); }); return; }
-  const s = $('#scroll'); s.style.overflowY = 'hidden'; s.scrollTop = 0; requestAnimationFrame(() => { s.style.overflowY = ''; });
+  const de = document.documentElement; de.style.overflow = 'hidden'; window.scrollTo(0, 0); requestAnimationFrame(() => { de.style.overflow = ''; window.scrollTo(0, 0); });
 }
 let pendingRender = false;
 function editingInView() { const a = document.activeElement; return a && $('#view')?.contains(a) && /INPUT|TEXTAREA|SELECT/.test(a.tagName) && a.type !== 'file'; }
@@ -193,7 +179,13 @@ function render(force) {
   drawCharts(v);
   document.querySelectorAll('.tabs [data-tab]').forEach(b => b.setAttribute('aria-current', b.dataset.tab === (ui.tab === 'log' ? 'history' : ui.tab) ? 'page' : 'false'));
   const g = $('#gear'); g.setAttribute('aria-current', ui.tab === 'data' ? 'page' : 'false'); g.setAttribute('aria-label', ui.tab === 'data' ? 'Back' : 'Data, imports and backups');
-  renderSync(); renderMark();
+  renderSync(); renderMark(); renderUpdate();
+}
+function renderUpdate() { // the update prompt floats above the tab bar on every screen
+  let el = $('#updp'); const show = ui.update && ui.updLater !== ui.update;
+  if (!show) { if (el) el.remove(); return; }
+  if (!el) { el = document.createElement('div'); el.id = 'updp'; el.className = 'updp'; el.setAttribute('role', 'alertdialog'); el.setAttribute('aria-label', 'Update available'); document.body.appendChild(el); }
+  el.innerHTML = `<div><b>Update available</b><span>Orbit v${esc(ui.update)} is ready. Your data stays.</span></div><button class="link dim" data-act="updlater">Later</button><button class="btn sm acc" data-act="update">Update</button>`;
 }
 function renderMark() { // header ring: where today sits in the rotation, one segment per slot (rest slots included)
   const el = $('#mark'); if (!el) return;
@@ -254,10 +246,8 @@ const ACT = {
   goal: el => { if (el.dataset.v === 'grow' && S().goal !== 'grow') S().growFrom = today(); S().goal = el.dataset.v; saveSettings(); render(true); },
   goalflip: () => { S().goal = S().goal === 'grow' ? 'hold' : 'grow'; if (S().goal === 'grow') S().growFrom = today(); saveSettings(); toast(S().goal === 'grow' ? `Aim set to overload, +${fmt((S().progRate ?? 0.005) * 100, 2)}% a week` : 'Aim set to maintenance'); render(true); },
   prograte: el => { S().progRate = +el.dataset.v; if (S().goal === 'grow') S().growFrom = today(); saveSettings(); render(true); },
-  hdr: el => { const v = el.dataset.v; try { localStorage.setItem('orbit-hdr', v); } catch (e) { } const c = document.documentElement.classList; c.remove('hdr-t1', 'hdr-t2'); if (v !== 'low') c.add('hdr-' + v); render(true); },
-  layout: el => { try { localStorage.setItem('orbit-layout', el.dataset.v); } catch (e) { } location.reload(); },
-  diagrefresh: () => render(true),
   update: () => { location.replace(location.pathname + '?v=' + encodeURIComponent(ui.update || Date.now())); },
+  updlater: () => { ui.updLater = ui.update; renderUpdate(); },
   edittoday: () => { ui.editToday = true; render(true); },
   pastlog: () => { ui.logDate = addDays(today(), -1); ui.pickSess = null; go('log'); },
   exhist: el => { const i = +el.dataset.e; ui.exHist = ui.exHist === i ? null : i; render(true); },
@@ -436,10 +426,9 @@ document.addEventListener('keydown', ev => {
    ============================================================ */
 (function boot() {
   try { history.scrollRestoration = 'manual'; } catch (e) { }
-  const top = () => { window.scrollTo(0, 0); scrollToY(0); }; // opening the app always starts at the top
+  const top = () => window.scrollTo(0, 0); // opening the app always starts at the top
   // iOS home-screen launches can sit at an offset that a plain scrollTo(0, 0) treats as already done; a 1px nudge forces a real scroll
-  window.addEventListener('load', () => setTimeout(() => { if (!SHELL) { window.scrollTo(0, 1); window.scrollTo(0, 0); } }, 60));
-  setTimeout(() => { window.__launch = diagNums(); }, 0); setTimeout(() => { window.__launch1 = diagNums(); }, 1000);
+  window.addEventListener('load', () => setTimeout(() => { window.scrollTo(0, 1); window.scrollTo(0, 0); }, 60));
   window.addEventListener('pageshow', top); window.addEventListener('load', top);
   const loc = loadLocal();
   if (loc) { STATE.settings = migrateSettings(loc.settings); STATE.w = loc.w || {}; STATE.d = loc.d || {}; }
