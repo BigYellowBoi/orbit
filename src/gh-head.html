@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="shell">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -15,5 +15,7 @@
 <style>
 html, body { margin: 0; }
 html { -webkit-text-size-adjust: 100%; }
-body { min-height: 100dvh; }
+/* app shell: the page itself never scrolls; <body> is the scroller */
+html.shell { height: 100%; overflow: hidden; }
+html.shell body { height: 100%; overflow-y: auto; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; }
 </style>

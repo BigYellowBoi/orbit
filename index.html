@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="shell">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -15,7 +15,9 @@
 <style>
 html, body { margin: 0; }
 html { -webkit-text-size-adjust: 100%; }
-body { min-height: 100dvh; }
+/* app shell: the page itself never scrolls; <body> is the scroller */
+html.shell { height: 100%; overflow: hidden; }
+html.shell body { height: 100%; overflow-y: auto; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; }
 </style>
 <title>Orbit</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1774,16 +1776,22 @@ async function resetAll() {
 /* ============================================================
    RENDER
    ============================================================ */
+/* Scrolling: the claude.ai artifact scrolls the page. The home-screen app (html.shell) scrolls <body> as an inner
+   container instead, so iOS can't add its status-bar inset to the page at launch. */
+const SHELL = document.documentElement.classList.contains('shell');
+const scroller = () => SHELL ? document.body : window;
+const scrollY0 = () => SHELL ? document.body.scrollTop : window.scrollY;
+const scrollToY = (top, smooth) => scroller().scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' });
 let pendingRender = false;
 function editingInView() { const a = document.activeElement; return a && $('#view')?.contains(a) && /INPUT|TEXTAREA|SELECT/.test(a.tagName) && a.type !== 'file'; }
 function render(force) {
   if (!force && editingInView()) { pendingRender = true; return; }
   pendingRender = false;
-  const v = $('#view'), y = window.scrollY; CHART_REG.clear();
+  const v = $('#view'), y = scrollY0(); CHART_REG.clear();
   v.style.minHeight = v.offsetHeight + 'px'; // hold the page height while the view is swapped, so the scroll position can't be clamped
   v.innerHTML = (VIEWS[ui.tab] || vToday)();
   v.style.minHeight = '';
-  if (Math.abs(window.scrollY - y) > 1) window.scrollTo(0, y); // a re-render keeps your place; changing tabs scrolls to the top in go()
+  if (Math.abs(scrollY0() - y) > 1) scrollToY(y); // a re-render keeps your place; changing tabs scrolls to the top in go()
   drawCharts(v);
   document.querySelectorAll('.tabs [data-tab]').forEach(b => b.setAttribute('aria-current', b.dataset.tab === (ui.tab === 'log' ? 'history' : ui.tab) ? 'page' : 'false'));
   const g = $('#gear'); g.setAttribute('aria-current', ui.tab === 'data' ? 'page' : 'false'); g.setAttribute('aria-label', ui.tab === 'data' ? 'Back' : 'Data, imports and backups');
@@ -1812,7 +1820,7 @@ function go(tab) {
   if (tab === 'data' && ui.tab === 'data') tab = ui.prevTab || 'today'; else if (tab === 'data') ui.prevTab = ui.tab;
   if (tab === 'today') ui.logDate = null;
   ui.tab = tab; ui.confirm = null; ui.pickSess = null; ui.editEx = null;
-  window.scrollTo(0, 0); render(true); if (logging()) wakeLock();
+  scrollToY(0); render(true); if (logging()) wakeLock();
 }
 let toastT;
 function toast(html, kind) { const t = $('#toast'); t.innerHTML = html; t.className = 'toast show ' + (kind || ''); clearTimeout(toastT); toastT = setTimeout(() => t.className = 'toast', kind === 'pr' ? 4000 : 2600); }
@@ -1841,7 +1849,7 @@ const ACT = {
   picktoday: () => { ui.pickSess = 'today'; render(true); },
   setnext: el => { S().rotOverride = { id: el.dataset.id, from: today() }; ui.pickSess = null; saveSettings(); render(true); },
   picksess: el => { ui.pickSess = el.dataset.id; render(true); },
-  logday: el => { const d = addDays(ui.logDate || today(), +el.dataset.n); if (d >= today()) { go('today'); return; } ui.logDate = d; ui.pickSess = null; ui.confirm = null; window.scrollTo(0, 0); render(true); },
+  logday: el => { const d = addDays(ui.logDate || today(), +el.dataset.n); if (d >= today()) { go('today'); return; } ui.logDate = d; ui.pickSess = null; ui.confirm = null; scrollToY(0); render(true); },
   openlog: el => { ui.logDate = el.dataset.d; go('log'); },
   pastlog: () => { ui.logDate = addDays(today(), -1); ui.pickSess = null; go('log'); },
   exhist: el => { const i = +el.dataset.e; ui.exHist = ui.exHist === i ? null : i; render(true); },
@@ -1863,7 +1871,7 @@ const ACT = {
   logdone: () => {
     const a = document.activeElement; if (a && a.blur) a.blur(); // make sure the last edit is saved
     const w = logW(); if (w && !w.rest) { const st = wStats(w); toast(`${esc(sessName(w))} saved · ${st.sets} set${st.sets === 1 ? '' : 's'}`); }
-    if (ui.tab === 'today') { window.scrollTo({ top: 0, behavior: 'smooth' }); render(true); } else go('history');
+    if (ui.tab === 'today') { scrollToY(0, true); render(true); } else go('history');
   },
   histview: el => { ui.hist = el.dataset.v; ui.noteEdit = null; render(true); },
   notefilter: el => { ui.noteG = el.dataset.v; ui.noteEdit = null; render(true); },
@@ -1972,12 +1980,12 @@ document.addEventListener('pointermove', ev => {
   const shift = rects[from].height + gap;
   sibs.forEach((s, i) => { if (i === from) return; const t = from < to && i > from && i <= to ? -shift : from > to && i >= to && i < from ? shift : 0; s.style.transform = t ? `translateY(${t}px)` : ''; });
   const hb = $('.top')?.getBoundingClientRect().bottom || 60; // auto-scroll only when the finger reaches the header or the tab bar
-  if (ev.clientY < hb + 24) window.scrollBy(0, -8); else if (ev.clientY > window.innerHeight - 90) window.scrollBy(0, 8);
+  if (ev.clientY < hb + 24) scroller().scrollBy(0, -8); else if (ev.clientY > window.innerHeight - 90) scroller().scrollBy(0, 8);
 });
 function endDrag(ev) {
   if (!drag || (ev && ev.pointerId !== drag.pid)) return;
   const { from, to, kind, list, sibs } = drag; drag = null;
-  const y = window.scrollY, keep = () => { if (Math.abs(window.scrollY - y) > 1) window.scrollTo(0, y); };
+  const y = scrollY0(), keep = () => { if (Math.abs(scrollY0() - y) > 1) scrollToY(y); };
   if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
   requestAnimationFrame(keep); setTimeout(keep, 80); setTimeout(keep, 250); // iOS can jump to the top after the dragged row is replaced
   document.body.classList.remove('is-dragging'); sibs.forEach(s => { s.style.transform = ''; s.classList.remove('dragging'); });
@@ -2013,7 +2021,7 @@ document.addEventListener('keydown', ev => {
    ============================================================ */
 (function boot() {
   try { history.scrollRestoration = 'manual'; } catch (e) { }
-  const top = () => window.scrollTo(0, 0); // opening the app always starts at the top
+  const top = () => { window.scrollTo(0, 0); scrollToY(0); }; // opening the app always starts at the top
   window.addEventListener('pageshow', top); window.addEventListener('load', top);
   const loc = loadLocal();
   if (loc) { STATE.settings = migrateSettings(loc.settings); STATE.w = loc.w || {}; STATE.d = loc.d || {}; }
