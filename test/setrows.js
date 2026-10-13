@@ -1,5 +1,5 @@
 // Set rows (v1.40): PLAYWRIGHT=/path/to/playwright node test/setrows.js (after tools/build.sh)
-// Removing a warm-up, the Workout duration label, and the keyboard bar that steps through set fields on touch screens.
+// Removing a warm-up and the Workout duration label.
 const { chromium, devices } = require(process.env.PLAYWRIGHT || 'playwright');
 const path = require('path');
 const url = 'file://' + path.resolve(__dirname, '../index.html');
@@ -20,10 +20,9 @@ const active = p => p.evaluate(() => document.activeElement?.id || null);
 (async () => {
   const b = await chromium.launch();
 
-  /* ---------- iPhone: warm-up remove, label, keyboard bar ---------- */
+  /* ---------- iPhone: warm-up remove, label ---------- */
   {
     const { p, errs } = await open(b, { ...devices['iPhone 13 Pro Max'] });
-    ok(await p.evaluate(() => matchMedia('(pointer: coarse)').matches), 'emulated phone has a coarse pointer');
     await p.tap('[data-act="start"]');
     await p.evaluate(() => { const w = STATE.w[today()]; w.ex[0].sets[0].w = 60; w.ex[0].sets[0].r = 8; w.ex[0].sets[0].done = true; saveW(w.date); render(true); });
     const ex = await p.evaluate(() => STATE.w[today()].ex.findIndex(e => document.querySelector(`#ex${STATE.w[today()].ex.indexOf(e)} [data-act="addwarm"]`)));
@@ -41,48 +40,18 @@ const active = p => p.evaluate(() => document.activeElement?.id || null);
 
     ok(/Workout duration/.test(await p.textContent('#view')), 'duration reads Workout duration');
 
-    // keyboard bar
-    ok(!(await p.$('#kbar.on')), 'no bar without a focused field');
-    await p.tap('#w0_1');
-    ok(await p.isVisible('#kbar.on'), 'bar shows while a set field is focused');
-    ok(await p.evaluate(() => { const f = document.querySelector('#nextset'); return !f || getComputedStyle(f).pointerEvents === 'none'; }), 'next-set button steps aside while the bar is up');
-    await p.keyboard.type('62.5');
-    await p.tap('#kbar [data-k="1"]');
-    ok(await active(p) === 'r0_1', '› goes from weight to reps on the same set');
-    ok(await p.evaluate(() => STATE.w[today()].ex[0].sets[1].w) === 62.5, 'the weight was kept');
-    await p.keyboard.type('9');
-    await p.tap('#kbar [data-k="1"]');
-    const next = await active(p);
-    ok(next && next !== 'r0_1' && /^w\d+_\d+$/.test(next), '› from reps goes on to the next weight field: ' + next);
-    ok(await p.evaluate(() => { const s = STATE.w[today()].ex[0].sets[1]; return s.r === 9 && s.done; }), 'reps saved and the set ticked on the way');
-    await p.tap('#kbar [data-k="-1"]');
-    ok(await active(p) === 'r0_1', '‹ goes back');
-    const box = await p.evaluate(() => { const r = document.activeElement.getBoundingClientRect(), k = document.querySelector('#kbar').getBoundingClientRect(); return [r.top, r.bottom, k.top]; });
-    ok(box[1] <= box[2], 'the focused field sits above the bar');
-    // walk to the very last field: › disabled there
-    const n = await p.evaluate(() => document.querySelectorAll('#view .set:not(.hdr) .in').length);
-    await p.evaluate(() => { const f = [...document.querySelectorAll('#view .set:not(.hdr) .in')]; f[f.length - 2].focus(); });
-    await p.tap('#kbar [data-k="1"]');
-    ok(await p.evaluate(() => { const f = [...document.querySelectorAll('#view .set:not(.hdr) .in')]; return document.activeElement === f[f.length - 1]; }), `› reaches the last of ${n} fields, across exercises`);
-    ok(await p.evaluate(() => document.querySelector('#kbar [data-k="1"]').disabled), '› is off on the last field');
-    ok(!(await p.$('#kbar .kd')) && await p.evaluate(() => { const k = document.querySelector('#kbar'), r = k.getBoundingClientRect(); return [...k.querySelectorAll('button')].every(x => x.getBoundingClientRect().left > r.left + r.width / 2); }), 'no Done button, arrows on the right');
-    await p.evaluate(() => document.activeElement.blur()); // the number pad's own Done
-    await p.waitForTimeout(80);
-    ok(!(await p.$('#kbar.on')), 'bar hides when the field closes');
-    // a non-set field (session notes) gets no bar
-    await p.tap('#wnote'); await p.waitForTimeout(50);
-    ok(!(await p.$('#kbar.on')), 'no bar on the notes field');
+    // the v1.40 keyboard bar is gone (iOS has its own field arrows)
+    await p.tap('#w0_1'); await p.waitForTimeout(50);
+    ok(!(await p.$('#kbar')), 'no keyboard bar on a focused set field');
     await p.screenshot({ path: path.resolve(__dirname, '../dist/setrows_phone.png') });
     ok(!errs.length, 'no page errors on the phone: ' + errs.join(' | '));
     await p.close();
   }
 
-  /* ---------- desktop mouse: no bar, warm-up remove works by click ---------- */
+  /* ---------- desktop mouse: warm-up remove works by click ---------- */
   {
     const { p, errs } = await open(b, { viewport: { width: 1280, height: 900 } });
     await p.click('[data-act="start"]');
-    await p.click('#w0_0');
-    ok(!(await p.$('#kbar.on')), 'no keyboard bar with a mouse');
     const n0 = (await sets(p, 0)).length;
     await p.click('#ex0 [data-act="addwarm"]'); await p.click('#ex0 .rmw');
     ok((await sets(p, 0)).length === n0, 'click removes a warm-up on desktop');
