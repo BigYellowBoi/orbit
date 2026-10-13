@@ -439,6 +439,21 @@ function setInput(el, final) {
   else if (final && row && !s.done) row.classList.remove('pr');
 }
 document.addEventListener('input', ev => { const el = ev.target; if (el.matches && el.matches('.set .in')) setInput(el, false); });
+/* ---------- a picked day in Coming up: any other tap drops it and today is highlighted again ----------
+   Done in place (no re-render) and only once the tap's click has landed, so whatever you tapped still works. */
+let pickTap = null, pickT = null;
+function unpick() {
+  clearTimeout(pickT); pickT = null; if (!ui.restPick) return; ui.restPick = null;
+  $('.pickrow')?.remove(); document.querySelectorAll('.strip .sd.pick').forEach(e => e.classList.remove('pick'));
+  document.querySelectorAll('.strip .sd[data-now]').forEach(e => e.classList.add('now'));
+}
+document.addEventListener('pointerdown', ev => { pickTap = ui.restPick ? { x: ev.clientX, y: ev.clientY } : null; }, true);
+document.addEventListener('pointerup', ev => {
+  const p = pickTap; pickTap = null; if (!p || !ui.restPick || Math.hypot(ev.clientX - p.x, ev.clientY - p.y) > 10) return; // a scroll isn't a tap
+  if (ev.target.closest('.strip button.sd, .pickrow [data-act]')) return; // other days and the row's own button handle themselves
+  clearTimeout(pickT); pickT = setTimeout(unpick, 350); // fallback when the tap lands on something with no click
+}, true);
+document.addEventListener('click', () => { if (pickT) unpick(); }, true);
 /* ---------- exercise search (Plan): filters rows in place so the input keeps focus ---------- */
 function filterEx() {
   const list = $('#exlist'); if (!list) return; let n = 0;

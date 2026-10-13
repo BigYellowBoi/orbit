@@ -134,7 +134,7 @@ button.pill { border: 0; font: inherit; font-size: 12.5px; font-weight: 500; cur
 .sd.rest b { color: var(--ink-3); font-weight: 500; }
 button.sd { font: inherit; color: inherit; text-align: left; cursor: pointer; }
 .sd.planned { border-style: dashed; }
-.sd.pick { border-color: var(--accent); }
+.sd.pick { border-color: var(--accent); background: var(--accent-soft); } /* the picked day takes today's highlight */
 .pickrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); font-size: 13.5px; }
 .pickrow .btn { flex: none; }
 .restchip { display: inline-flex; align-items: center; gap: 6px; padding-right: 3px; }
@@ -488,7 +488,7 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.19'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.20'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
@@ -1470,9 +1470,9 @@ function stripHTML() { // the next days; tap one to plan it as a rest day (or un
   const up = upcoming(Math.max(5, order().length + 1)), t = today(), pick = up.find((u, i) => i > 0 && u.date === ui.restPick);
   const later = (S().restPlan || []).filter(d => d >= t).sort(), lab = d => `${fmtDow(d)} ${fmtDate(d)}`;
   let h = `<section class="sec"><div class="sec-h"><span class="eyebrow">Coming up</span><button class="link" data-act="restplan">${ui.restPlanOpen ? 'Done' : `Plan rest${later.length ? ` (${later.length})` : ''}`}</button></div><div class="strip">${up.map((u, i) => {
-    const cls = `sd ${i === 0 ? (u.done ? 'done' : 'now') : ''} ${u.s === '_rest' || isRestSlot(u.s) ? 'rest' : ''} ${u.planned ? 'planned' : ''} ${pick && pick.date === u.date ? 'pick' : ''}`;
+    const cls = `sd ${i === 0 ? (u.done ? 'done' : pick ? '' : 'now') : ''} ${u.s === '_rest' || isRestSlot(u.s) ? 'rest' : ''} ${u.planned ? 'planned' : ''} ${pick && pick.date === u.date ? 'pick' : ''}`;
     const inner = `<small>${i === 0 ? 'Today' : i === 1 ? 'Tmrw' : esc(fmtDow(u.date))}</small><b>${esc(slotName(u.s))}</b>`;
-    return i > 0 ? `<button class="${cls}" data-act="strippick" data-date="${u.date}" aria-label="${esc(lab(u.date))}: ${esc(slotName(u.s))}">${inner}</button>` : `<div class="${cls}">${inner}</div>`; }).join('')}</div>`;
+    return i > 0 ? `<button class="${cls}" data-act="strippick" data-date="${u.date}" aria-label="${esc(lab(u.date))}: ${esc(slotName(u.s))}">${inner}</button>` : `<div class="${cls}"${u.done ? '' : ' data-now="1"'}>${inner}</div>`; }).join('')}</div>`;
   if (pick) h += `<div class="pickrow"><span><b>${esc(lab(pick.date))}</b> · ${pick.planned ? 'planned rest' : isRestSlot(pick.s) ? 'rest from your rotation' : esc(slotName(pick.s))}</span>${pick.planned ? `<button class="btn sm ghost" data-act="restoff" data-date="${pick.date}">Train this day</button>` : isRestSlot(pick.s) ? '' : `<button class="btn sm" data-act="reston" data-date="${pick.date}">Rest this day</button>`}</div>`;
   if (ui.restPlanOpen) h += `<section class="card"><div class="card-h"><h2>Planned rest days</h2></div>
     ${later.length ? `<div class="chips">${later.map(d => `<span class="pill plain restchip">${esc(lab(d))}<button class="ed-x sm" data-act="restoff" data-date="${d}" aria-label="Remove rest on ${esc(lab(d))}">${ICON.x}</button></span>`).join('')}</div>` : '<p class="xs muted">None yet.</p>'}
@@ -2274,6 +2274,21 @@ function setInput(el, final) {
   else if (final && row && !s.done) row.classList.remove('pr');
 }
 document.addEventListener('input', ev => { const el = ev.target; if (el.matches && el.matches('.set .in')) setInput(el, false); });
+/* ---------- a picked day in Coming up: any other tap drops it and today is highlighted again ----------
+   Done in place (no re-render) and only once the tap's click has landed, so whatever you tapped still works. */
+let pickTap = null, pickT = null;
+function unpick() {
+  clearTimeout(pickT); pickT = null; if (!ui.restPick) return; ui.restPick = null;
+  $('.pickrow')?.remove(); document.querySelectorAll('.strip .sd.pick').forEach(e => e.classList.remove('pick'));
+  document.querySelectorAll('.strip .sd[data-now]').forEach(e => e.classList.add('now'));
+}
+document.addEventListener('pointerdown', ev => { pickTap = ui.restPick ? { x: ev.clientX, y: ev.clientY } : null; }, true);
+document.addEventListener('pointerup', ev => {
+  const p = pickTap; pickTap = null; if (!p || !ui.restPick || Math.hypot(ev.clientX - p.x, ev.clientY - p.y) > 10) return; // a scroll isn't a tap
+  if (ev.target.closest('.strip button.sd, .pickrow [data-act]')) return; // other days and the row's own button handle themselves
+  clearTimeout(pickT); pickT = setTimeout(unpick, 350); // fallback when the tap lands on something with no click
+}, true);
+document.addEventListener('click', () => { if (pickT) unpick(); }, true);
 /* ---------- exercise search (Plan): filters rows in place so the input keeps focus ---------- */
 function filterEx() {
   const list = $('#exlist'); if (!list) return; let n = 0;
