@@ -270,6 +270,8 @@ textarea.in { text-align: left; font-size: 15px; min-height: 76px; padding: 10px
 .hbars .lab { color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hbars .trk { position: relative; height: 10px; border-radius: 3px; background: var(--surface-2); }
 .hbars .fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 0 4px 4px 0; background: var(--s1); }
+.hbars.use li { grid-template-columns: 120px minmax(0, 1fr) 76px; } .hbars .hb-note { display: block; margin-top: -6px; padding-left: 130px; }
+.tbl.net td { vertical-align: top; } .synclog li { padding: 8px 0; }
 .hbars .band { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--good) 22%, transparent); border-radius: 2px; }
 .legend .bandk { width: 14px; height: 8px; border-radius: 2px; background: color-mix(in srgb, var(--good) 35%, transparent); }
 .hbars .v.tn-good { color: var(--good-ink); } .hbars .v.tn-warn { color: var(--warn-ink); }
@@ -532,7 +534,7 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.28'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.29'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
@@ -1961,7 +1963,7 @@ function vData() {
   const im = S().imports || {};
   const last = k => im[k] ? `Last import ${new Date(im[k].at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })} · ${im[k].n} days · ${esc(im[k].range)}` : 'Not imported yet';
   let h = `<div class="page-h"><div><div class="eyebrow">Imports, backups, storage</div><h1>Data</h1></div></div>`;
-  if (window.GH_SYNC) h += GH.card() + Helper.card() + Helper.explain(); else h += `<section class="card"><div class="card-h"><h2>Where your data lives</h2><span id="sync2">${Cloud.ready ? pill('good', 'Synced') : pill('', 'This browser')}</span></div><p class="small dim">${Cloud.ready ? 'Saved to your private storage for this app on claude.ai, so it follows you between phone and desktop. A copy is also kept in this browser.' : 'Saving in this browser only. Cloud sync starts when the app is opened from claude.ai while signed in.'}</p></section>`;
+  if (window.GH_SYNC) h += GH.card() + Helper.card() + Helper.traffic() + Helper.explain(); else h += `<section class="card"><div class="card-h"><h2>Where your data lives</h2><span id="sync2">${Cloud.ready ? pill('good', 'Synced') : pill('', 'This browser')}</span></div><p class="small dim">${Cloud.ready ? 'Saved to your private storage for this app on claude.ai, so it follows you between phone and desktop. A copy is also kept in this browser.' : 'Saving in this browser only. Cloud sync starts when the app is opened from claude.ai while signed in.'}</p></section>`;
   const impBox = src => { const p = ui.imp[src]; if (!p) return '';
     return `<div class="prev" id="imp-${src}"><div class="card-h"><b>Ready to import</b></div><p><b>${esc(p.summary)}</b></p><p class="dim">${esc(previewRange(p.days))}</p><p class="xs muted">From ${esc(p.files.join(', '))}. Matching days are updated with these values; everything else stays.</p>
       <div class="btnrow"><button class="btn" data-act="doimport" data-v="${src}">Import</button><button class="link dim" data-act="cancelimp" data-v="${src}">Cancel</button></div></div>`; };
@@ -2622,8 +2624,10 @@ const GH = {
 
   /* ---------- HTTP ---------- */
   async req(method, url, body) {
-    const r = await fetch(GH_API + url, { method, cache: 'no-store', headers: { Accept: 'application/vnd.github+json', Authorization: 'Bearer ' + this.cfg.token, 'X-GitHub-Api-Version': '2022-11-28', ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
-    let data = null; try { data = await r.json(); } catch (e) { }
+    const t0 = performance.now(), sent = body ? JSON.stringify(body) : undefined;
+    const r = await fetch(GH_API + url, { method, cache: 'no-store', headers: { Accept: 'application/vnd.github+json', Authorization: 'Bearer ' + this.cfg.token, 'X-GitHub-Api-Version': '2022-11-28', ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: sent });
+    const txt = await r.text().catch(() => ''); netNote('gh', t0, nbytes(sent), nbytes(txt), r);
+    let data = null; try { data = txt ? JSON.parse(txt) : null; } catch (e) { }
     if (!r.ok) { const e = new Error(data?.message || 'HTTP ' + r.status); e.status = r.status; e.ratelimit = r.status === 403 && r.headers.get('x-ratelimit-remaining') === '0'; throw e; }
     return data;
   },
@@ -2634,13 +2638,14 @@ const GH = {
     const h = { Accept: 'application/vnd.github+json', Authorization: 'Bearer ' + this.cfg.token, 'X-GitHub-Api-Version': '2022-11-28' };
     const url = GH_API + this.repoUrl(`/git/ref/heads/${this.branch()}`);
     if (this.refTag && this.refSha && !this.noTag) h['If-None-Match'] = this.refTag;
-    let r; try { r = await fetch(url, { cache: 'no-store', headers: h }); }
-    catch (e) { if (!h['If-None-Match']) throw e; this.noTag = true; delete h['If-None-Match']; r = await fetch(url, { cache: 'no-store', headers: h }); } // header refused: plain requests from now on
-    if (r.status === 304) return this.refSha;
-    if (r.ok) { const j = await r.json(); this.refSha = j.object.sha; this.refTag = r.headers.get('etag'); return this.refSha; }
+    let r, t0 = performance.now(); try { r = await fetch(url, { cache: 'no-store', headers: h }); }
+    catch (e) { if (!h['If-None-Match']) throw e; this.noTag = true; delete h['If-None-Match']; t0 = performance.now(); r = await fetch(url, { cache: 'no-store', headers: h }); } // header refused: plain requests from now on
+    if (r.status === 304) { netNote('gh', t0, 0, 0, r); return this.refSha; }
+    const txt = await r.text().catch(() => ''); netNote('gh', t0, 0, nbytes(txt), r);
+    if (r.ok) { const j = JSON.parse(txt); this.refSha = j.object.sha; this.refTag = r.headers.get('etag'); return this.refSha; }
     this.refTag = this.refSha = null;
     if (r.status === 409 || r.status === 404) { if (r.status === 404) await this.req('GET', this.repoUrl('')); return null; }
-    let data = null; try { data = await r.json(); } catch (e) { }
+    let data = null; try { data = JSON.parse(txt); } catch (e) { }
     const e = new Error(data?.message || 'HTTP ' + r.status); e.status = r.status; e.ratelimit = r.status === 403 && r.headers.get('x-ratelimit-remaining') === '0'; throw e;
   },
   async blobText(sha) { const b = await this.req('GET', this.repoUrl(`/git/blobs/${sha}`)); const bin = atob((b.content || '').replace(/\s/g, '')); return new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0))); },
@@ -2813,6 +2818,16 @@ Object.assign(ACT, {
 });
 /* AUTOMATIC SYNC: the sync helper (worker/) reports when it last reached WHOOP and last received Apple Health numbers
    at <helper>/status.json. The Data screen shows that, so a stalled helper is easy to spot. The address is kept in settings. */
+/* Traffic from this phone, for the Data screen's Traffic card: per service, requests, time to the end of the body and bytes
+   each way, plus GitHub's hourly allowance from its rate-limit headers. A browser can't time an upload on its own, so only
+   download speed is worked out. */
+const NET = { gh: { n: 0, n304: 0, ms: 0, up: 0, down: 0, last: null }, helper: { n: 0, n304: 0, ms: 0, up: 0, down: 0, last: null }, rate: null };
+const nbytes = t => t ? new TextEncoder().encode(t).length : 0;
+function netNote(svc, t0, up, down, r) {
+  const x = NET[svc], ms = Math.max(1, Math.round(performance.now() - t0)); x.n++; if (r.status === 304) x.n304++;
+  x.ms += ms; x.up += up; x.down += down; x.last = { ms, up, down, code: r.status, at: Date.now() };
+  const left = r.headers.get('x-ratelimit-remaining'); if (svc === 'gh' && left != null) NET.rate = { left: +left, limit: +(r.headers.get('x-ratelimit-limit') || 5000), reset: +(r.headers.get('x-ratelimit-reset') || 0) * 1000 };
+}
 const Helper = {
   st: null, at: 0, err: null, busy: false,
   url() { return String(S().helper || '').trim().replace(/\/+$/, ''); },
@@ -2820,10 +2835,11 @@ const Helper = {
     const u = this.url(); if (!u || this.busy || (!force && Date.now() - this.at < 60e3)) return;
     this.busy = true;
     try {
-      const r = await fetch(u + '/status.json', { cache: 'no-store' });
+      const t0 = performance.now(), r = await fetch(u + '/status.json', { cache: 'no-store' }), txt = await r.text().catch(() => '');
+      netNote('helper', t0, 0, nbytes(txt), r);
       if (r.status === 404) throw new Error('The helper needs updating: paste the latest orbit-sync.js into Cloudflare.');
       if (!r.ok) throw new Error('The sync helper answered with an error (' + r.status + ').');
-      this.st = await r.json(); this.err = null;
+      this.st = JSON.parse(txt); this.err = null;
     } catch (e) { this.err = e instanceof TypeError ? 'Couldn’t reach the sync helper. Check the address, or try again when you’re online.' : e.message; }
     this.busy = false; this.at = Date.now(); if (ui.tab === 'data') render();
   },
@@ -2845,10 +2861,36 @@ const Helper = {
     const hPill = !this.st ? '' : !h?.at ? pill('', 'Not set up') : Date.now() - h.at > 36 * 3600e3 ? pill('warn', 'Behind') : pill('good', 'Running');
     return `<section class="card"><div class="card-h"><h2>Automatic sync</h2><span class="eyebrow">sync helper</span></div>
       <ul class="rows"><li><span>WHOOP</span>${wPill}<span class="sub">${this.st ? (wAt ? `Last sync ${esc(wAt)}` : 'Not synced yet') : '&nbsp;'}${w && w.history && w.history !== 'complete' ? ` · history filling in, next ${esc(w.history)}` : ''}</span></li>
-        <li><span>Apple Health</span>${hPill}<span class="sub">${this.st ? (hAt ? `Last received ${esc(hAt)}` : 'Nothing received yet') : '&nbsp;'}</span></li></ul>
+        <li><span>Apple Health</span>${hPill}<span class="sub">${this.st ? (hAt ? `Last received ${esc(hAt)}` : 'Nothing received yet') : '&nbsp;'}</span></li>
+        ${(() => { const c = [[w?.dataAt, `${w?.dataWhat || 'WHOOP'}${w?.dataWhat ? ' from WHOOP' : ''}`], [h?.dataAt, 'Apple Health']].filter(x => x[0]).sort((a, b) => b[0] - a[0])[0]; return c ? `<li><span>Latest data</span><span class="sub">${esc(this.when(c[0]))} · ${esc(c[1])}. The time it actually arrived, notifications included; the checks above stay on round times.</span></li>` : ''; })()}</ul>
       ${w?.error ? `<p class="small" style="color:var(--bad-ink)">${esc(w.error)}</p>` : ''}${this.err ? `<p class="small" style="color:var(--warn-ink)">${esc(this.err)}</p>` : ''}
       <p class="xs muted">New sleep, recovery and workouts arrive as soon as WHOOP has processed them; steps and strain are checked every 5 minutes.</p>
       <div class="btnrow"><button class="link" data-act="helperrefresh">Refresh</button><button class="link dim" data-act="helperedit" style="margin-left:auto">Change address</button></div></section>`;
+  },
+  traffic() { // usage against limits, speeds per service, and the helper's recent sync log; refreshed in place every 2 s while open
+    const st = this.st, u = st?.usage, net = st?.net || {}, kb = b => b == null ? '–' : b < 1024 ? `${b} B` : `${fmt(b / 1024, 1)} KB`;
+    const short = n => n >= 1000 ? fmt(n / 1000, n % 1000 ? 1 : 0) + 'k' : String(n);
+    const bar = (lab, used, lim, note) => `<li><span class="lab">${esc(lab)}</span><span class="trk"><span class="fill" style="width:${Math.min(100, used / lim * 100)}%;background:var(--${used / lim > .8 ? 'bad' : used / lim > .5 ? 'warn' : 's1'})"></span></span><span class="v">${short(used)} / ${short(lim)}</span></li>${note ? `<li class="hb-note"><span class="xs muted">${note}</span></li>` : ''}`;
+    const speed = (down, ms) => down >= 2048 && ms > 0 ? `${fmt(down / 1024 / (ms / 1000), 0)} KB/s` : '–';
+    const row = (name, x, scope) => !x || !x.n ? `<tr><td>${name}</td><td class="n muted" colspan="3">no requests yet</td></tr>`
+      : `<tr><td>${name}<br><span class="xs muted">${scope}</span></td><td class="n">${fmt(x.ms / x.n, 0)} ms</td><td class="n">${speed(x.down, x.ms)}</td><td class="n">↓${kb(x.down)}<br><span class="xs muted">↑${kb(x.up)}</span></td></tr>`;
+    const phoneGh = NET.gh, rate = NET.rate, reset = r => r?.reset ? new Date(r.reset).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }) : '';
+    let h = `<section class="card" id="traffic"><div class="card-h"><h2>Traffic</h2><span class="eyebrow">live</span></div>`;
+    h += `<span class="xs muted">Today's usage against the free limits</span><ul class="hbars use">`;
+    if (u) h += bar('WHOOP calls', u.whoop, u.whoopLimit) + bar('Cloudflare writes', u.kv, u.kvLimit);
+    if (u && u.ghLeft != null) h += bar('GitHub, helper', u.ghLimit - u.ghLeft, u.ghLimit, `this hour, resets ${esc(reset({ reset: u.ghReset }))}`);
+    if (rate) h += bar('GitHub, phone', rate.limit - rate.left, rate.limit, `this hour, resets ${esc(reset(rate))}; checks with no change are free`);
+    h += `</ul>${u ? `<span class="xs muted">${u.runs} scheduled checks, ${u.hooks} WHOOP notifications, ${u.health} Apple Health posts today. WHOOP also allows 100 calls a minute; one run uses at most 45.</span>` : ''}`;
+    h += `<div class="tblwrap"><table class="tbl net"><thead><tr><th>Link</th><th class="n">Response</th><th class="n">↓ Speed</th><th class="n">Data</th></tr></thead><tbody>
+      ${row('Phone → GitHub', phoneGh, `${phoneGh.n} request${phoneGh.n === 1 ? '' : 's'} this session${phoneGh.n304 ? `, ${phoneGh.n304} unchanged` : ''}`)}
+      ${row('Phone → helper', NET.helper, `${NET.helper.n} request${NET.helper.n === 1 ? '' : 's'} this session`)}
+      ${row('Helper → WHOOP', net.whoop, net.whoop?.at ? `last run ${esc(new Date(net.whoop.at).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }))}` : '')}
+      ${row('Helper → GitHub', net.gh, net.gh?.at ? `last run ${esc(new Date(net.gh.at).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }))}` : '')}
+    </tbody></table></div><p class="xs muted">Response is the average time per request, to the last byte. Speed needs at least 2 KB to mean anything; small requests are nearly all waiting time. Upload speed can't be timed on its own from a browser or the helper, so only the data sent is shown.</p>`;
+    const log = st?.log || [], lab = e => e.k === 'notify' ? `${e.w[0].toUpperCase() + e.w.slice(1)} (WHOOP notification)` : e.k === 'full' ? 'Full check' : e.k === 'steps' ? 'Steps and strain' : e.k === 'error' ? 'Problem' : e.w;
+    if (log.length) h += `<span class="xs muted">Recent syncs by the helper</span><ul class="rows synclog">${log.slice(0, 12).map(e => `<li><span>${esc(lab(e))}</span>${e.k === 'error' ? pill('bad', 'Error') : e.ch ? pill('good', 'New data') : pill('', 'No change')}<span class="sub">${esc(this.when(e.t))}${e.rq ? ` · ${e.rq} request${e.rq === 1 ? '' : 's'}` : ''}${e.k === 'error' ? ' · ' + esc(e.w) : ''}</span></li>`).join('')}</ul>`;
+    else if (st && !u) h += `<p class="xs muted">Paste the latest orbit-sync.js into Cloudflare to see the helper's usage and sync log.</p>`;
+    return h + `</section>`;
   },
   explain() { // what arrives on its own, and what only comes from a file
     const hae = !!this.st?.health?.at;
@@ -2870,6 +2912,11 @@ Object.assign(ACT, {
   helperrefresh: () => { Helper.refresh(true); },
 });
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && ui.tab === 'data') Helper.refresh(true); });
+setInterval(() => { // Traffic is live while the Data screen is open: phone numbers every 2 s, the helper's every 15 s
+  if (ui.tab !== 'data' || document.visibilityState !== 'visible') return;
+  const el = $('#traffic'); if (el) { const tmp = document.createElement('div'); tmp.innerHTML = Helper.traffic(); el.replaceWith(tmp.firstElementChild); }
+  if (Date.now() - Helper.at > 15e3) Helper.refresh(true);
+}, 2000);
 GH.boot();
 /* Update check: GitHub Pages and iOS can keep serving an older copy for a while. version.json is fetched past every cache;
    if it names a newer build, Today shows an Update ready button that reloads under a fresh URL. */

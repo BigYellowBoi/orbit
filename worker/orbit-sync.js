@@ -72,7 +72,20 @@ function b64enc(str) { const by = new TextEncoder().encode(str); let s = ''; for
 function b64dec(b) { const bin = atob(b.replace(/\s/g, '')); return new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0))); }
 
 /* ---------- request budget (Cloudflare free plan: 50 outside requests per run) ---------- */
-function budget() { let used = 0; return { take() { if (++used > BUDGET) throw new Error('request budget used up'); }, left: () => BUDGET - used, get used() { return used; } }; }
+function budget() { let used = 0; return { take() { if (++used > BUDGET) throw new Error('request budget used up'); }, left: () => BUDGET - used, get used() { return used; }, net: {}, kv: 0, ghRate: null }; }
+/* Traffic meter for the Data screen: per service, requests, total time (to the end of the body) and bytes each way.
+   Neither a Worker nor a browser can time the upload on its own, so speed is only worked out for downloads. */
+async function mfetch(b, svc, url, opts = {}) {
+  const t0 = Date.now(), r = await fetch(url, opts); let down = 0;
+  try { down = (await r.clone().arrayBuffer()).byteLength; } catch (e) { }
+  const ms = Date.now() - t0, up = opts.body ? new TextEncoder().encode(String(opts.body)).length : 0;
+  if (b) {
+    const x = b.net[svc] = b.net[svc] || { n: 0, ms: 0, up: 0, down: 0 }; x.n++; x.ms += ms; x.up += up; x.down += down;
+    if (svc === 'gh' && r.headers.get('x-ratelimit-remaining') != null) b.ghRate = { left: +r.headers.get('x-ratelimit-remaining'), limit: +(r.headers.get('x-ratelimit-limit') || 5000), reset: +(r.headers.get('x-ratelimit-reset') || 0) * 1000, at: Date.now() };
+  }
+  return r;
+}
+const logEv = (doc, e, max = 25) => { doc.log = [{ t: Date.now(), ...e }, ...(doc.log || [])].slice(0, max); };
 
 /* ---------- WHOOP sign-in ---------- */
 function redirectUri(url) { return `${url.origin}/callback`; }
@@ -102,7 +115,7 @@ async function finishAuth(env, url, ctx) {
 async function refreshTok(env, t, b) {
   b.take();
   const body = new URLSearchParams({ grant_type: 'refresh_token', refresh_token: t.refresh, client_id: env.WHOOP_CLIENT_ID, client_secret: env.WHOOP_CLIENT_SECRET, scope: 'offline' });
-  const r = await fetch(`${WHOOP}/oauth/oauth2/token`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body });
+  const r = await mfetch(b, 'whoop', `${WHOOP}/oauth/oauth2/token`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body });
   const j = await r.json().catch(() => ({}));
   if (!r.ok || !j.access_token) {
     const now = await getJ(env, 'tok'); // another run may have just rotated it: use theirs
@@ -110,7 +123,7 @@ async function refreshTok(env, t, b) {
     throw new Error('WHOOP sign-in expired (' + (j.error_description || j.error || r.status) + '). Open /auth?key=… to reconnect.');
   }
   const n = { access: j.access_token, refresh: j.refresh_token || t.refresh, exp: Date.now() + (j.expires_in || 3600) * 1000 };
-  await putJ(env, 'tok', n); return n; // WHOOP rotates the refresh token on every use, so the new one is saved straight away
+  await putJ(env, 'tok', n); b.kv++; return n; // WHOOP rotates the refresh token on every use, so the new one is saved straight away
 }
 async function accessToken(env, b, force) {
   let t = await getJ(env, 'tok'); if (!t) throw new Error('WHOOP is not connected yet');
@@ -122,7 +135,7 @@ async function whoopList(env, b, path, start, end) {
   do {
     const q = new URLSearchParams({ limit: '25', start, end }); if (next) q.set('nextToken', next);
     b.take();
-    const r = await fetch(`${WHOOP}/developer${path}?${q}`, { headers: { authorization: 'Bearer ' + tok } });
+    const r = await mfetch(b, 'whoop', `${WHOOP}/developer${path}?${q}`, { headers: { authorization: 'Bearer ' + tok } });
     if (r.status === 401 && !retried) { retried = true; tok = await accessToken(env, b, true); continue; }
     if (!r.ok) throw new Error(`WHOOP ${path}: ${r.status}`);
     const j = await r.json(); out.push(...(j.records || [])); next = j.next_token || null;
@@ -175,7 +188,7 @@ async function pullWhoop(env, b, from, to) { // local dates [from, to)
 /* ---------- orbit-data repo ---------- */
 async function ghReq(env, b, method, path, body) {
   b.take();
-  return fetch(`https://api.github.com/repos/${env.GH_REPO}${path}`, { method, headers: { authorization: 'Bearer ' + env.GH_TOKEN, accept: 'application/vnd.github+json', 'user-agent': 'orbit-sync', 'x-github-api-version': '2022-11-28', ...(body ? { 'content-type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  return mfetch(b, 'gh', `https://api.github.com/repos/${env.GH_REPO}${path}`, { method, headers: { authorization: 'Bearer ' + env.GH_TOKEN, accept: 'application/vnd.github+json', 'user-agent': 'orbit-sync', 'x-github-api-version': '2022-11-28', ...(body ? { 'content-type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
 }
 async function writeMonth(env, b, ym, mutate, msg) { // read, change, write back; a concurrent commit (409/422) means read again
   const path = `orbit/dy/${ym}.json`, branch = env.GH_BRANCH || 'main';
@@ -241,25 +254,31 @@ async function backfillStep(env, b, st) {
   }
   return done;
 }
-async function run(env, { force, hook, at } = {}) {
+const KIND = { sleep: 'sleep', recovery: 'recovery', workout: 'workout' };
+async function run(env, { force, hook, at, kind } = {}) {
   const st = await getJ(env, 'status') || {}, b = budget(); b.hook = !!hook;
   if (!(await env.ORBIT_KV.get('tok'))) return { ok: false, msg: 'WHOOP not connected' };
   const now = at || Date.now(), slot = hook ? null : fullSlot(now, env); // scheduled runs carry their round scheduled time
   const dirty = hook ? null : await env.ORBIT_KV.get('dirty'), due = force || dirty || !st.lastSync || (slot && st.fullSlot !== slot) || now - st.lastSync > 3.25 * 3600e3; // fixed times; the fallback only if a slot was missed
-  const out = { ok: true }; let save = false;
+  const out = { ok: true }, what = hook ? (KIND[kind] || 'WHOOP update') : due ? 'full check' : 'steps and strain';
   try {
     if (due) {
-      out.wrote = await syncRecent(env, b); st.today = null; if (dirty || hook) await env.ORBIT_KV.delete('dirty'); save = true;
+      out.wrote = await syncRecent(env, b); st.today = null; if (dirty || hook) { await env.ORBIT_KV.delete('dirty'); b.kv++; }
       if (hook) st.hookAt = Date.now(); else { st.lastSync = st.todayAt = now; if (slot) st.fullSlot = slot; } // a notification sync doesn't move the shown (round) times
+      logEv(st, { k: hook ? 'notify' : 'full', w: what, ch: out.wrote > 0, rq: b.used });
+      if (out.wrote > 0) { st.dataAt = Date.now(); st.dataWhat = what; }
     }
-    else { // every run looks at today's steps and strain (WHOOP sends no event for them); status is only rewritten on a change or every 25 min, to save KV writes
-      out.today = await pollToday(env, b, st);
-      if (out.today || now - (st.todayAt || 0) > 25 * 60e3) { st.todayAt = now; save = true; }
+    else { // every run looks at today's steps and strain (WHOOP sends no event for them)
+      out.today = await pollToday(env, b, st); st.todayAt = now;
+      if (out.today) { logEv(st, { k: 'steps', w: what, ch: true, rq: b.used }); st.dataAt = Date.now(); st.dataWhat = what; }
     }
-    if (!hook && st.bf && !st.bf.done && b.left() > 22) { out.months = await backfillStep(env, b, st); if (out.months) save = true; }
-    if (st.lastError) { st.lastError = null; save = true; }
-    if (!save) return { ok: true, idle: true, requests: b.used };
-  } catch (e) { st.lastError = String(e.message || e); st.errAt = Date.now(); out.ok = false; out.error = st.lastError; save = true; }
+    if (!hook && st.bf && !st.bf.done && b.left() > 22) { out.months = await backfillStep(env, b, st); if (out.months) logEv(st, { k: 'history', w: `${out.months} month${out.months === 1 ? '' : 's'} of history`, ch: true, rq: b.used }); }
+    st.lastError = null;
+  } catch (e) { st.lastError = String(e.message || e); st.errAt = Date.now(); out.ok = false; out.error = st.lastError; logEv(st, { k: 'error', w: st.lastError }); if (hook) { await env.ORBIT_KV.put('dirty', '1'); b.kv++; } }
+  // today's usage against the free limits; saved on every run so the counts are exact (~290 KV writes a day of 1,000)
+  const day = todayLocal(env); if (!st.use || st.use.day !== day) st.use = { day, whoop: 0, gh: 0, kv: 0, runs: 0, hooks: 0 };
+  const u = st.use; u.whoop += b.net.whoop?.n || 0; u.gh += b.net.gh?.n || 0; u.kv += b.kv + 1 + (hook ? 1 : 0); if (hook) u.hooks++; else u.runs++; // +1 this status write, +1 the notification's flag
+  st.net = st.net || {}; for (const k in b.net) st.net[k] = { ...b.net[k], at: Date.now() }; if (b.ghRate) st.ghRate = b.ghRate;
   out.requests = b.used; await putJ(env, 'status', st); return out;
 }
 
@@ -272,7 +291,8 @@ async function webhook(env, req, ctx) {
   const want = btoa(String.fromCharCode(...mac));
   if (want !== sig) return text('bad signature', 401);
   await env.ORBIT_KV.put('dirty', '1');
-  ctx.waitUntil(run(env, { force: true, hook: true }));
+  let kind = null; try { kind = String(JSON.parse(raw).type || '').split('.')[0]; } catch (e) { } // "sleep.updated" → sleep
+  ctx.waitUntil(run(env, { force: true, hook: true, kind }));
   return text('ok');
 }
 
@@ -323,8 +343,12 @@ async function health(env, req) {
   else put(String(body.date || todayLocal(env)).slice(0, 10), body || {});
   if (!Object.keys(days).length && hae) return json({ ok: true, days: 0 }); // nothing new since the last run is fine
   if (!Object.keys(days).length) return text('No recognised values. Keys: ' + Object.keys(HEALTH_KEYS).join(', ') + ', kj, hpraw', 400);
-  const b = budget(); await saveDays(env, b, days, {}, [], 'Apple Health ' + Object.keys(days).sort().pop());
-  await env.ORBIT_KV.put('healthAt', String(Date.now())); // own key, so it can't race the cron's status write
+  const b = budget(), wrote = await saveDays(env, b, days, {}, [], 'Apple Health ' + Object.keys(days).sort().pop());
+  // its own key (hlog), so it can't race the cron's status write; one KV write per post, as before
+  const hl = await getJ(env, 'hlog') || {}, day = todayLocal(env); if (hl.day !== day) { hl.day = day; hl.n = 0; hl.kv = 0; hl.gh = 0; }
+  hl.n++; hl.kv++; hl.gh += b.net.gh?.n || 0; hl.at = Date.now(); if (wrote) hl.dataAt = hl.at; if (b.net.gh) hl.net = { ...b.net.gh, at: hl.at }; if (b.ghRate) hl.ghRate = b.ghRate;
+  logEv(hl, { k: 'health', w: `Apple Health, ${Object.keys(days).length} day${Object.keys(days).length === 1 ? '' : 's'}`, ch: wrote > 0, rq: b.used }, 10);
+  await putJ(env, 'hlog', hl);
   return json({ ok: true, days: Object.keys(days).length });
 }
 
@@ -332,12 +356,17 @@ async function health(env, req) {
 const ago = t => { if (!t) return 'never'; const s = (Date.now() - t) / 1000; return s < 90 ? 'just now' : s < 5400 ? Math.round(s / 60) + ' min ago' : s < 129600 ? Math.round(s / 3600) + ' h ago' : Math.round(s / 86400) + ' days ago'; };
 function page(h1, body) { return `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><title>Orbit sync</title><style>body{font:16px/1.5 -apple-system,system-ui,sans-serif;background:#0a0c0f;color:#e8ebef;margin:0;padding:28px 20px;max-width:560px}h1{font-size:22px;margin:0 0 12px}a{color:#b388ff}p,li{color:#a5adb8}b{color:#e8ebef}</style><h1>${h1}</h1>${body}`; }
 async function status(env) {
-  const st = await getJ(env, 'status') || {}, h = await env.ORBIT_KV.get('healthAt');
-  return { st, conn: !!(await env.ORBIT_KV.get('tok')), checked: Math.max(st.lastSync || 0, st.todayAt || 0) || null, healthAt: h ? +h : null };
+  const st = await getJ(env, 'status') || {}, hl = await getJ(env, 'hlog') || {}, h = hl.at || +(await env.ORBIT_KV.get('healthAt')) || null; // healthAt: before v1.29
+  return { st, hl, conn: !!(await env.ORBIT_KV.get('tok')), checked: Math.max(st.lastSync || 0, st.todayAt || 0) || null, healthAt: h };
 }
 async function statusJson(env) { // no secrets: connection state, times and the last problem
-  const { st, conn, checked, healthAt } = await status(env);
-  const o = { v: 1, whoop: { connected: conn, checkedAt: checked, error: st.lastError || null, errAt: st.lastError ? st.errAt || null : null, history: !st.bf ? null : st.bf.done ? 'complete' : st.bf.next }, health: { at: healthAt } };
+  const { st, hl, conn, checked, healthAt } = await status(env);
+  const o = { v: 2, whoop: { connected: conn, checkedAt: checked, error: st.lastError || null, errAt: st.lastError ? st.errAt || null : null, history: !st.bf ? null : st.bf.done ? 'complete' : st.bf.next, dataAt: st.dataAt || null, dataWhat: st.dataWhat || null }, health: { at: healthAt, dataAt: hl.dataAt || null } };
+  const u = st.use || {}, same = hl.day && hl.day === u.day, ghr = [st.ghRate, hl.ghRate].filter(Boolean).sort((a, x) => x.at - a.at)[0] || null;
+  o.usage = { day: u.day || hl.day || null, whoop: u.whoop || 0, whoopLimit: 10000, kv: (u.kv || 0) + (same ? hl.kv || 0 : 0), kvLimit: 1000, gh: (u.gh || 0) + (same ? hl.gh || 0 : 0), runs: u.runs || 0, hooks: u.hooks || 0, health: same ? hl.n || 0 : 0, ghLeft: ghr ? ghr.left : null, ghLimit: ghr ? ghr.limit : null, ghReset: ghr ? ghr.reset : null };
+  const gh = [st.net?.gh, hl.net].filter(Boolean).sort((a, x) => x.at - a.at)[0] || null;
+  o.net = { whoop: st.net?.whoop || null, gh }; // the latest run's totals per service
+  o.log = [...(st.log || []), ...(hl.log || [])].sort((a, x) => x.t - a.t).slice(0, 20);
   return new Response(JSON.stringify(o), { headers: { 'content-type': 'application/json', 'access-control-allow-origin': '*', 'cache-control': 'no-store' } });
 }
 async function statusPage(env) {

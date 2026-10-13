@@ -124,7 +124,7 @@ ok(!repo['orbit/dy/2026-04.json'], 'the month before the backfill start is left 
 
 /* ---------- 3. idle runs ---------- */
 console.log('idle');
-kvPuts = 0; const c0 = await cron(); ok(c0 === 1 && kvPuts === 0, 'nothing new: one WHOOP look at today, no GitHub calls, no KV writes');
+kvPuts = 0; const c0 = await cron(); ok(c0 === 1 && kvPuts === 1, 'nothing new: one WHOOP look at today, no GitHub calls, one KV write (the usage counters)');
 
 /* ---------- 3b. every run looks at today's steps and strain ---------- */
 console.log('today refresh');
@@ -133,9 +133,10 @@ const tc = H.cycle.find(c => c.end === utc(today, '22:30')); tc.step_count = 432
 const cq = await cron(); ok(day(today).stp === 4321 && day(today).str === 6.8, `today's steps and strain refreshed (${cq} requests)`);
 ok(cq <= 4, 'refresh is cheap (one WHOOP list, one GitHub read and write)');
 ok(day(today).rec != null && day(today).slp != null, "today's other fields kept");
-kvPuts = 0; const cq2 = await cron(); ok(cq2 === 1 && kvPuts === 0, 'unchanged steps: one WHOOP call, no GitHub calls, no KV writes');
+kvPuts = 0; const cq2 = await cron(); ok(cq2 === 1 && kvPuts === 1, 'unchanged steps: one WHOOP call, no GitHub calls, one KV write');
 tc.step_count = 4400; const cq3 = await cron(); ok(cq3 <= 4 && day(today).stp === 4400, 'next run (5 min later) picks up new steps');
-ago(26); kvPuts = 0; await cron(); ok(kvPuts === 1 && Date.now() - JSON.parse(kv.get('status')).todayAt < 5e3, 'status refreshed every 25 min even with nothing new');
+kvPuts = 0; await cron(); ok(kvPuts === 1 && Date.now() - JSON.parse(kv.get('status')).todayAt < 5e3, 'every run records its check time');
+ok(288 + 30 * 3 + 24 + 20 < 1000, 'KV writes a day: ~290 runs + notifications + Apple Health, well under 1,000');
 // budget: one WHOOP call per 5-minute run all day, plus full syncs, stays far inside 10,000 a day
 ok(288 * 1 + 8 * 8 + 30 * 8 < 10000, 'daily WHOOP calls ~600 worst case vs 10,000 limit');
 
@@ -235,7 +236,7 @@ console.log('status.json');
 r = await req('/status.json'); const sj = await r.json();
 ok(r.headers.get('access-control-allow-origin') === '*' && r.headers.get('cache-control') === 'no-store', 'status.json readable from the app, never cached');
 ok(sj.whoop.connected === true && sj.whoop.checkedAt > Date.now() - 3600e3 && sj.health.at > Date.now() - 3600e3, 'status.json has WHOOP and Apple Health times');
-ok(!JSON.stringify(sj).match(/k3y|ghtok|csecret|refresh|access/), 'status.json holds no secrets');
+{ const js = JSON.stringify(sj), tok = JSON.parse(kv.get('tok')); ok(!/k3y|ghtok|csecret/.test(js) && !js.includes('"' + tok.access + '"') && !js.includes('"' + tok.refresh + '"') && !/"(access|refresh|tok)"\s*:/.test(js), 'status.json holds no secrets (keys, tokens or token fields)'); }
 const st2 = JSON.parse(kv.get('status')); st2.lastError = 'GitHub read 401'; st2.errAt = Date.now(); kv.set('status', JSON.stringify(st2));
 ok((await (await req('/status.json')).json()).whoop.error === 'GitHub read 401', 'status.json reports the last problem');
 
@@ -258,6 +259,25 @@ console.log('fixed times');
   // a missed slot (helper down at 21:00) is caught up once, then the fixed times carry on
   c = await cron(at('21:40')); ok(c > 4, 'missed 21:00: caught up at the next run');
   c = await cron(at('21:45')); ok(c <= 4, 'then not again until 00:00');
+}
+
+/* ---------- traffic: usage, log, meters, latest data ---------- */
+console.log('traffic');
+{
+  const sj = await (await req('/status.json')).json(), u = sj.usage;
+  ok(u && u.whoop > 0 && u.gh > 0 && u.kv > 0 && u.runs > 0 && u.whoopLimit === 10000 && u.kvLimit === 1000, `usage today: ${u.whoop} WHOOP calls, ${u.gh} GitHub, ${u.kv} KV writes, ${u.runs} runs, ${u.hooks} notifications, ${u.health} Health posts`);
+  ok(sj.net.whoop && sj.net.whoop.n > 0 && sj.net.whoop.down > 0 && sj.net.whoop.ms >= 0 && sj.net.gh && sj.net.gh.down > 0, `meters: WHOOP ${sj.net.whoop.n} req ↓${sj.net.whoop.down} B, GitHub ${sj.net.gh.n} req ↓${sj.net.gh.down} B ↑${sj.net.gh.up} B`);
+  ok(Array.isArray(sj.log) && sj.log.length > 0 && sj.log.every((e, i, a) => !i || a[i - 1].t >= e.t), `sync log: ${sj.log.length} entries, newest first (${sj.log.slice(0, 3).map(e => e.k + (e.w ? ':' + e.w : '')).join(', ')})`);
+  ok(sj.log.some(e => e.k === 'notify' && e.w === 'workout') && sj.log.some(e => e.k === 'health'), 'log has the workout notification and the Apple Health posts');
+  ok(sj.whoop.dataAt > 0 && sj.whoop.dataWhat, `latest data: ${sj.whoop.dataWhat}`);
+  ok(!JSON.stringify(sj).includes('k3y') && !JSON.stringify(sj).includes('csecret') && !JSON.stringify(sj).includes(tokens.refresh), 'still no secrets');
+  // a notification that brings sleep shows as the latest data, with its real (not round) time
+  const H0 = H.rec.find(x => x.sleep_id === 'S' + y); H0.score.recovery_score = 42;
+  const b3 = JSON.stringify({ user_id: 1, id: 'z', type: 'recovery.updated', trace_id: 't3' }), t3 = String(Date.now());
+  await req('/webhook', { method: 'POST', body: b3, headers: { 'x-whoop-signature': crypto.createHmac('sha256', 'csecret').update(t3 + b3).digest('base64'), 'x-whoop-signature-timestamp': t3 } }); await settle();
+  const s2 = await (await req('/status.json')).json();
+  ok(s2.whoop.dataWhat === 'recovery' && Date.now() - s2.whoop.dataAt < 5e3 && s2.log[0].k === 'notify' && s2.log[0].w === 'recovery' && s2.log[0].ch, 'recovery notification: latest data says recovery, logged first');
+  ok(s2.usage.hooks > u.hooks, 'notification counted');
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
