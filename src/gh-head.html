@@ -24,8 +24,8 @@ body { min-height: 100vh; } /* vh includes the safe areas in home-screen apps (W
 @media (display-mode: standalone) { html:root { --hdrdrop: 14px; } }
 /* Scroll box: the content scrolls inside a fixed box anchored to all four edges. No vh or 100% heights: the earlier
    pinned shell sized itself with those and came out short on the 13 Pro Max (WebKit bug 254868), while position: fixed
-   with top and bottom anchors to the real screen edges, as the tab bar does. The page itself has nothing to scroll. */
-html.sbox body { min-height: 0; }
+   with top and bottom anchors to the real screen edges, as the tab bar does. body keeps its min-height: 100vh: without it
+   iOS leaves the viewport a status bar short and fixed elements stop ~47pt above the bottom (v1.9 on the 13 Pro Max). */
 html.sbox #scroll { position: fixed; top: 0; right: 0; bottom: 0; left: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: contain;
   padding: 0 16px calc(var(--tabh) + 28px + env(safe-area-inset-bottom, 0px)); }
 </style>
