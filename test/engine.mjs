@@ -11,7 +11,7 @@ const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const core = fs.readFileSync(path.join(root, 'src/core.js'), 'utf8');
 const engineSrc = fs.readFileSync(path.join(root, 'src/engine.js'), 'utf8');
 const EXPOSE = `globalThis.E = { STATE, S, today, addDays, diffDays, sessionFor, upcoming, lastFor, bestBefore, bestSet, records, hasHistory, hasRef,
-  liftSeries, maintenance, strengthRef, suggest, setAim, cutCheck, progression, prsIn, setScore, e1rm, exRir, exStep, derived, xpRun: typeof xpRun !== "undefined" ? xpRun : null, XP: typeof XP !== "undefined" ? XP : null, partialFlags: typeof partialFlags !== "undefined" ? partialFlags : null, warmup: typeof warmup !== "undefined" ? warmup : null, rowAim: typeof rowAim !== "undefined" ? rowAim : null, doneSets, planWeekly, wStats, fmtSet, dayVal, scoreTxt, newWorkout, restRecord, moveEx: typeof moveEx !== "undefined" ? moveEx : null, movedIdx: typeof movedIdx !== "undefined" ? movedIdx : null,
+  liftSeries, maintenance, strengthRef, suggest, setAim, cutCheck, progression, prsIn, setScore, e1rm, exRir, exStep, derived, xpRun: typeof xpRun !== "undefined" ? xpRun : null, XP: typeof XP !== "undefined" ? XP : null, partialFlags: typeof partialFlags !== "undefined" ? partialFlags : null, warmup: typeof warmup !== "undefined" ? warmup : null, rowAim: typeof rowAim !== "undefined" ? rowAim : null, doneSets, planWeekly, wStats, fmtSet, dayVal, scoreTxt, newWorkout, restRecord, sessDef, exDef, ordModel: typeof ordModel !== "undefined" ? ordModel : null, ordFactor: typeof ordFactor !== "undefined" ? ordFactor : null, overlap: typeof overlap !== "undefined" ? overlap : null, ctxLog: typeof ctxLog !== "undefined" ? ctxLog : null, usualCtx: typeof usualCtx !== "undefined" ? usualCtx : null, aimIn: typeof aimIn !== "undefined" ? aimIn : null, refScore, exRir, moveEx: typeof moveEx !== "undefined" ? moveEx : null, movedIdx: typeof movedIdx !== "undefined" ? movedIdx : null,
   bump: () => { STATE.v++; } };`;
 
 function load(engine = engineSrc) {
@@ -268,6 +268,62 @@ if (process.env.OLD_ENGINE) {
   let good = true; for (let f = 0; f < 5; f++) for (let to = 0; to < 5; to++) { const a = perm(f, to); for (let i = 0; i < 5; i++) if (a[E.movedIdx(i, f, to)] !== i) good = false; }
   ok(good, 'movedIdx follows every index through every move');
   ok(E.movedIdx(null, 0, 2) === null && E.movedIdx(undefined, 0, 2) === undefined, 'movedIdx leaves an empty pick alone');
+}
+
+/* ---------- exercise order: learned fatigue from the sets before a lift (v1.43) ---------- */
+{
+  const E = load(); ok(!!E.ordModel, 'order model exists');
+  const t = E.today(), ws = E.addDays, plan = E.sessDef('pull');
+  // his Pull with spider curls second, after preacher curls (the Plan order is the usual order)
+  plan.items = [{ ex: 'preacher', sets: 2 }, { ex: 'spider', sets: 2 }, { ex: 'pulldown', sets: 2 }, { ex: 'seated_row', sets: 2 }];
+  ok(E.overlap('preacher', 'spider') === 1 && E.overlap('pulldown', 'spider') === 0.5 && E.overlap('chest_press', 'spider') === 0, 'overlap: same muscle 1, a lift that also works it 0.5, unrelated 0');
+  const pc = E.usualCtx('spider', 'pull'); ok(pc.L === 2 && pc.G === 2, 'usual slot for spider curls: 2 biceps sets before it');
+  // ctx in a live log: an earlier exercise not reached yet counts its planned sets; once moved past, what was done
+  const w0 = { date: t, s: 'pull', ex: [{ id: 'pulldown', sets: [{}, {}, {}].map(() => ({ w: null, r: null, done: false })) }, { id: 'spider', sets: [{ w: null, r: null, done: false }] }] };
+  ok(E.ctxLog(w0, 1).G === 3 && E.ctxLog(w0, 1).L === 1.5, 'not reached yet: planned sets count');
+  w0.ex[0].sets[0] = { w: 50, r: 10, done: true }; w0.ex[1].sets[0] = { w: 15, r: 10, done: true };
+  ok(E.ctxLog(w0, 1).G === 1, 'moved past it: only the sets done count');
+  ok(E.ctxLog({ ex: [{ id: 'spider', sets: [{ w: 1, r: 1, done: true }] }] }, 0).G === 0, 'first exercise is fresh');
+
+  // regular order only: the model cancels out and the Aim is the old median-of-3 rule
+  const top = (w, r) => [{ w, r, done: true }, { w: w - 2, r, done: true }];
+  const log = (d, ids, spider, extra = {}) => { E.STATE.w[d] = { date: d, s: 'pull', ex: ids.map(id => ({ id, sets: id === 'spider' ? top(spider, 10) : top({ preacher: 30, pulldown: 60, seated_row: 60 }[id], 10) })), ...extra }; };
+  for (let i = 12; i >= 1; i--) log(ws(t, -7 * i), ['preacher', 'spider', 'pulldown', 'seated_row'], 18);
+  E.bump();
+  const M0 = E.ordModel(); ok(Math.abs(M0.by.spider.k - M0.kL) < 1e-9 || M0.by.spider.chg === 0, 'a lift that never moved keeps the pooled value');
+  const sr = E.strengthRef('spider', t), old = E.refScore('spider', { w: 18, r: 10 }, E.exRir('spider'), null);
+  near(sr.v, old, 1e-9, 'regular order: strength equals the plain median of the last 3');
+  ok(sr.fresh > sr.v, 'fresh strength sits above the usual-slot strength');
+
+  // spider curls used to be first at 20 kg; moved second after preacher curls and dropped to 18.4 kg (about 8%)
+  E.STATE.w = {};
+  for (let i = 14; i >= 6; i--) log(ws(t, -7 * i), ['spider', 'preacher', 'pulldown', 'seated_row'], 20);
+  for (let i = 5; i >= 1; i--) log(ws(t, -7 * i), ['preacher', 'spider', 'pulldown', 'seated_row'], 18.4);
+  E.bump(); const M = E.ordModel(), ks = M.by.spider;
+  ok(ks.chg === 1 && ks.k > M.kL && ks.k > 0.025, `spider curls learn a bigger cost than the pooled value (${(ks.k * 100).toFixed(2)}% vs ${(M.kL * 100).toFixed(2)}%)`);
+  ok(M.by.preacher.k < ks.k, 'preacher curls, which got no weaker when moved first, learn a smaller cost');
+  const a2 = E.suggest('spider', t), a1 = E.suggest('spider', t, { L: 0, G: 0 });
+  ok(a2.w <= 18.4 + 1e-9, `Aim in the usual (2nd) slot stays at what he lifts there: ${a2.w} kg × ${a2.r}`);
+  const sc = s => E.refScore('spider', s, E.exRir('spider'), null);
+  ok(sc(a1) > sc(a2) * 1.04, `done first again, the Aim goes up: ${a1.w} kg × ${a1.r} vs ${a2.w} kg × ${a2.r}`);
+  const mt = E.maintenance('spider'); ok(mt.state === 'hold' || mt.state === 'up', `4 wk badge reads the move as order, not a strength drop (${mt.state}, ${mt.ch?.toFixed(1)}%)`);
+  // a log where spider curls come later than usual today gets a lighter Aim than the usual slot
+  const wt = { date: t, s: 'pull', ex: ['preacher', 'pulldown', 'seated_row', 'spider'].map(id => ({ id, sets: [{ w: null, r: null, done: false }, { w: null, r: null, done: false }] })) };
+  ok(sc(E.aimIn(wt, 3)) < sc(a2), 'later than usual today: lighter Aim');
+  // today's sets don't teach the model (no Aim drifting mid-session)
+  const before = E.ordModel().by.spider.k; E.STATE.w[t] = { date: t, s: 'pull', ex: [{ id: 'preacher', sets: top(30, 10) }, { id: 'pulldown', sets: top(60, 10) }, { id: 'spider', sets: top(10, 10) }] }; E.bump();
+  ok(Math.abs(E.ordModel().by.spider.k - before) < 1e-12, "today's sets don't move the model"); delete E.STATE.w[t]; E.bump();
+  // one-off bad day: rejected once the filter has a few sessions
+  E.STATE.w[ws(t, -3)] = { date: ws(t, -3), s: 'pull', ex: [{ id: 'preacher', sets: top(30, 10) }, { id: 'spider', sets: top(9, 6) }] }; E.bump();
+  ok(Math.abs(E.ordModel().by.spider.k - ks.k) < 0.01, 'a one-off terrible session barely moves what it learned');
+  delete E.STATE.w[ws(t, -3)];
+
+  // stated max set when done first: no history, max 20 × 8; usual slot is second
+  E.STATE.w = {}; E.bump(); const x = E.exDef('spider'); x.base = { w: 20, r: 8 };
+  delete x.bpos; E.bump(); const sUsual = E.suggest('spider', t);
+  x.bpos = 1; E.bump(); const sFresh = E.suggest('spider', t);
+  ok(sc(sFresh) < sc(sUsual), `max marked as set first: the Aim in the 2nd slot is lighter (${sFresh.w} × ${sFresh.r} vs ${sUsual.w} × ${sUsual.r})`);
+  x.bpos = 2; E.bump(); ok(JSON.stringify(E.suggest('spider', t)) === JSON.stringify(sUsual), 'max set in the slot it is done in now: no change');
 }
 
 console.log(`${passes} passed, ${fails} failed`);

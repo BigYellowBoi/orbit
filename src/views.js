@@ -11,7 +11,7 @@ function deltaTxt(v, base, d = 0, unit = '', invert = false) {
   return `<span class="delta" style="color:var(${better ? '--good-ink' : '--warn-ink'})">${diff > 0 ? '+' : '−'}${fmt(Math.abs(diff), d)}${unit} vs 30-day</span>`;
 }
 function rxTxt(it) { const d = exDef(it.ex); return `${it.sets} × ${d.lo}${d.hi > d.lo ? '–' + d.hi : ''}`; }
-function prevLine(exId, before) { const sg = suggest(exId, before), l = lastLine(exId, before); return [sg ? `<b class="aimtxt">Aim ${esc(suggestTxt(exId, sg))}</b>` : '', esc(l)].filter(Boolean).join(' · '); }
+function prevLine(exId, before, sid) { const sg = suggest(exId, before, usualCtx(exId, sid)), l = lastLine(exId, before); return [sg ? `<b class="aimtxt">Aim ${esc(suggestTxt(exId, sg))}</b>` : '', esc(l)].filter(Boolean).join(' · '); }
 function lastLine(exId, before) {
   const ix = lixEx(exId), n = nBefore(ix.list, before); // Best counts logged sets only; stated maxes just seed the Aim
   let b = null; for (let i = 0; i < n; i++) if (!b || ix.list[i].sc > b.sc) b = ix.list[i];
@@ -54,7 +54,7 @@ function futureDayHTML(d, off) {
   return `<section class="card hero"><div class="card-h"><span class="eyebrow">Planned · ${idx + 1} of ${o.length}</span></div>
     <div class="rot">${o.map((id, i) => `<i class="${i === idx ? 'on' : ''}"></i>`).join('')}</div>
     <div><h1>${esc(sd.name)}</h1><p class="focus">${esc(sd.focus || '')}</p></div>
-    <ul class="exlist">${sd.items.filter(it => S().ex[it.ex]).map(it => `<li><span>${esc(exDef(it.ex).name)}</span><span class="rx">${rxTxt(it)}</span><span class="lt">${prevLine(it.ex, d)}</span></li>`).join('')}
+    <ul class="exlist">${sd.items.filter(it => S().ex[it.ex]).map(it => `<li><span>${esc(exDef(it.ex).name)}</span><span class="rx">${rxTxt(it)}</span><span class="lt">${prevLine(it.ex, d, sid)}</span></li>`).join('')}
       <li><span>${esc(S().cardio.name)}</span><span class="rx">${S().cardio.min} min</span></li></ul>
     <div class="btnrow" style="justify-content:space-between"><span class="xs muted">Assumes you train each day until then.</span><button class="link dim" data-act="reston" data-date="${d}">Rest this day</button></div></section>`;
 }
@@ -72,7 +72,7 @@ function vToday() {
     <div class="rot">${o.map((id, i) => `<i class="${i === idx ? 'on' : i < idx ? 'done' : ''}"></i>`).join('')}</div>
     <div><h1>${esc(sd.name)}</h1><p class="focus">${esc(sd.focus || '')}</p></div>
     <button class="btn wide" data-act="start" data-id="${sid}">Log ${esc(sd.name)}</button>
-    <ul class="exlist">${sd.items.filter(it => S().ex[it.ex]).map(it => `<li><span>${esc(exDef(it.ex).name)}</span><span class="rx">${rxTxt(it)}</span><span class="lt">${prevLine(it.ex, t)}</span></li>`).join('')}
+    <ul class="exlist">${sd.items.filter(it => S().ex[it.ex]).map(it => `<li><span>${esc(exDef(it.ex).name)}</span><span class="rx">${rxTxt(it)}</span><span class="lt">${prevLine(it.ex, t, sid)}</span></li>`).join('')}
       <li><span>${esc(S().cardio.name)}</span><span class="rx">${S().cardio.min} min</span></li></ul>
     ${ui.pickSess === 'today' ? `<div class="sec"><span class="xs muted">Do a different session today. The rotation carries on from whichever you log.</span><div class="chips">${trainIds().map(id => `<button class="chip ${id === sid ? 'on' : ''}" data-act="setnext" data-id="${id}">${esc(sessDef(id).name)}</button>`).join('')}</div></div>`
       : `<div class="btnrow" style="justify-content:space-between"><button class="link" data-act="picktoday">Change today's session</button><button class="link dim" data-act="restday">Rest day instead</button></div>`}</section>`;
@@ -198,7 +198,7 @@ function logBody(d) {
     if (!sd) return h + `<section class="card"><p>Add a session in Plan first.</p></section>`;
     h += `<section class="card"><div class="card-h"><span class="eyebrow">No session on this day</span>${isRestSlot(due) ? pill('', 'Planned rest') : ''}</div>
       <div class="chips">${o.map(id => `<button class="chip ${id === sid ? 'on' : ''}" data-act="picksess" data-id="${id}">${esc(sessDef(id).name)}</button>`).join('')}</div>
-      <ul class="exlist">${sd.items.filter(it => S().ex[it.ex]).map(it => `<li><span>${esc(exDef(it.ex).name)}</span><span class="rx">${rxTxt(it)}</span><span class="lt">${prevLine(it.ex, d)}</span></li>`).join('')}</ul>
+      <ul class="exlist">${sd.items.filter(it => S().ex[it.ex]).map(it => `<li><span>${esc(exDef(it.ex).name)}</span><span class="rx">${rxTxt(it)}</span><span class="lt">${prevLine(it.ex, d, sid)}</span></li>`).join('')}</ul>
       <button class="btn wide" data-act="start" data-id="${sid}">Log ${esc(sd.name)}</button>
       <button class="link dim" data-act="restday" style="align-self:flex-start">Mark as a rest day</button></section>`;
     return h;
@@ -258,9 +258,14 @@ function exMoreHTML(w, e, i) { // swap keeps the slot and set count; same muscle
     ${doneSets(e).length ? `<p class="xs muted">Swapping clears the sets logged for ${esc(exDef(e.id).name)}.</p>` : ''}
     <div class="btnrow" style="justify-content:space-between">${e.sets.length > 1 ? `<button class="link dim" data-act="remset" data-e="${i}">Remove last set</button>` : '<span></span>'}<button class="link danger" data-act="remex" data-e="${i}">Remove exercise</button></div></div>`;
 }
+function orderLine(w, i) { // v1.43: the lift is in another slot than usual, and the Aim allows for it
+  const id = w.ex[i].id, f = ordNote(id, ctxLog(w, i), w.s); if (!f) return '';
+  const us = usualSid(id, w.s), slot = us ? sessDef(us).items.filter(it => S().ex[it.ex]).findIndex(it => it.ex === id) + 1 : 0;
+  return `<p class="ex-order">${ordinal(i + 1)} today${slot ? `, usually ${ordinal(slot)}` : ''} · Aim ${f > 0 ? '+' : '−'}${fmt(Math.abs(f) * 100, 0)}% for that</p>`;
+}
 function exCard(w, e, i, prSet) {
   const def = exDef(e.id), u = UNITS[def.u] || UNITS.kg, open = ui.exHist === i;
-  const ph = (v, dflt) => v != null ? fmt(v, 2).replace(/,/g, '') : dflt, sg = suggest(e.id, w.date), back = setAim(e.id, w.date, 1, sg);
+  const ph = (v, dflt) => v != null ? fmt(v, 2).replace(/,/g, '') : dflt, sg = aimIn(w, i), back = setAim(e.id, w.date, 1, sg);
   const last = lastFor(e.id, w.date), nWork = e.sets.filter(s => s.t !== 'w').length;
   let k = 0; // working-set number
   const rows = e.sets.map((s, j) => {
@@ -276,6 +281,7 @@ function exCard(w, e, i, prSet) {
   return `<section class="card ex" id="ex${i}" data-dragitem data-i="${i}"><div class="ex-h">${w.ex.length > 1 ? `<span class="grip" data-grip="ex" aria-label="Drag to reorder ${esc(def.name)}" role="button" tabindex="-1">${ICON.grip}</span>` : ''}<button class="ex-name" data-act="exhist" data-e="${i}" aria-expanded="${open}"><h3>${esc(def.name)}</h3><span class="chev">${ICON.down}</span></button><span class="rx">${def.lo}${def.hi > def.lo ? '–' + def.hi : ''} reps</span></div>
     ${open ? exHistHTML(e.id, w.date) : ''}
     ${sg ? `<p class="aim"><b>Aim ${esc(suggestTxt(e.id, sg))}</b>${nWork > 1 && back?.back ? `, then ${esc(fmtLoad(e.id, back.w))}${def.u === 'kg' ? ' kg' : ''}` : ''} · ${sg.rir} rep${sg.rir === 1 ? '' : 's'} in reserve${S().goal === 'grow' ? ' · overload' : ''}</p>` : ''}
+    ${sg ? orderLine(w, i) : ''}
     ${meta ? `<p class="ex-meta">${meta}</p>` : ''}
     ${(() => { const ln = e.note == null ? lastExerciseNote(e.id, w.date) : null; return ln ? `<p class="ex-lastnote">Note from ${esc(fmtDate(ln.date))}: ${esc(ln.note)}</p>` : ''; })()}
     <div class="sets"><div class="set hdr"><span>Set</span><span>${esc(u.col)}</span><span>Reps</span><span></span></div>${rows}</div>
@@ -394,7 +400,7 @@ function heatHTML() {
 function recPerfData() {
   const out = [];
   for (const w of workoutsSorted()) { if (w.rest) continue; const rec = dayVal(w.date, 'rec'); if (rec == null) continue;
-    const rs = []; for (const e of w.ex || []) { const list = lixEx(e.id).list, i = list.findIndex(x => x.date === w.date); if (i < 3) continue; const ref = median(list.slice(i - 3, i).map(x => x.sc)); if (ref > 0) rs.push(list[i].sc / ref - 1); }
+    const rs = []; for (const e of w.ex || []) { const list = lixEx(e.id).list, i = list.findIndex(x => x.date === w.date); if (i < 3) continue; const ref = median(list.slice(i - 3, i).map(x => freshSc(e.id, x))); if (ref > 0) rs.push(freshSc(e.id, list[i]) / ref - 1); } // fresh scale (v1.43): a lift moved later isn't a bad day
     if (rs.length) out.push({ date: w.date, rec, p: mean(rs) * 100, n: rs.length, s: sessName(w) }); }
   return out;
 }
@@ -411,6 +417,17 @@ function recPerfHTML() {
     ${chartHTML({ h: 180, x0: 0, x1: 100, xTicks: [0, 33, 67, 100], xFmt: x => x + '%', yFmt: v => (v > 0 ? '+' : '') + fmt(v, 0) + '%', yPad: 1, refY: { v: 0 }, series, hoverXs: Object.keys(byX).map(Number), tip: x => (byX[x] || []).map(p => `<b>${esc(fmtDate(p.date))}</b> ${esc(p.s)}<br>${fmt(p.rec, 0)}% recovery · ${p.p >= 0 ? '+' : '−'}${fmt(Math.abs(p.p), 1)}%`).join('<br>'), label: 'Recovery against performance' })}
     <div class="rtiles">${bk.map(x => `<div class="rt"><span><i class="dot" style="background:var(--${x.tone})"></i>${x.l} days</span>${x.m == null ? '<b class="nil">–</b>' : `<b>${x.m >= 0 ? '+' : '−'}${fmt(Math.abs(x.m), 1)}<small>%</small></b>`}<em>${x.n} session${x.n === 1 ? '' : 's'}</em></div>`).join('')}</div>
     ${infoHTML(`Each dot is a session: the average of its lifts' best estimated 1RM against the median of that lift's previous 3 sessions, so 0% is a typical day for you. Line: the straight-line fit (r = ${fmt(r, 2)}${n < 15 ? '; with under 15 sessions treat it as a hint' : ''}).`)}</section>`;
+}
+/* Exercise order (v1.43): what the model has learned, per lift (see EXERCISE ORDER in engine.js) */
+function orderHTML() {
+  const M = ordModel(), ids = liftIds().filter(id => M.by[id]); if (!ids.length) return '';
+  const pct = v => `${v > 0.0005 ? '−' : ''}${fmt(v * 100, 1)}%`;
+  const rows = ids.map(id => { const b = M.by[id], u = usualCtx(id), cost = 1 - ordFactor(id, u);
+    return `<tr><td>${esc(exDef(id).name)}</td><td class="n">${pct(b.k)}</td><td class="n">${u.G ? pct(cost) : '<span class="muted">first</span>'}</td><td class="n">${b.chg ? `${b.chg} move${b.chg === 1 ? '' : 's'}` : '<span class="muted">pooled</span>'}</td></tr>`; }).join('');
+  return `<section class="card"><div class="card-h"><h2>Exercise order</h2><span class="eyebrow">${ids.filter(id => M.by[id].chg).length} lifts moved</span></div>
+    <div class="tblwrap"><table class="tbl"><thead><tr><th>Lift</th><th class="n">Per set before</th><th class="n">Usual slot</th><th class="n">Learned from</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <span class="xs muted">Plus ${pct(M.kG)} per set of anything before it.</span>
+    ${infoHTML(`Per set before: strength lost for each set before it that works the same muscles (a lift that only partly shares them counts in part). Usual slot: what your Plan order costs against doing it first. The Aim uses these, so a lift done earlier or later than usual gets a heavier or lighter Aim, and old sessions from another slot still count fairly. Lifts that have never moved use the pooled value, which shifts as moved lifts teach it. It learns from the order of the cards in each log, so drag them into the order you actually did them.`)}</section>`;
 }
 /* New bests over time (v1.37): count per week for 12 weeks, then the latest ones with how far each beat the old best */
 function prTimelineHTML() {
@@ -468,6 +485,7 @@ function vStrength() {
   cards.push({ k: 'heat', t: 'Weekly sets by muscle', h: heatHTML() });
   cards.push({ k: 'prs', t: 'New bests', h: prTimelineHTML() });
   cards.push({ k: 'recperf', t: 'Recovery and performance', h: recPerfHTML() });
+  cards.push({ k: 'order', t: 'Exercise order', h: orderHTML() });
   const det = doneByGroupDetail(addDays(t, -6), t), dg = GROUP_ORDER.filter(g => det[g]);
   if (dg.length) cards.push({ k: 'volsrc', t: 'Volume breakdown', h: `<section class="sec" data-card="volsrc"><div class="sec-h"><span class="eyebrow">Volume breakdown · last 7 days</span></div><section class="card"><div class="tblwrap"><table class="tbl volsrc"><thead><tr><th>Exercise</th><th class="n">Sets</th><th class="n">Counts</th></tr></thead>
     ${dg.map(g => `<tbody><tr class="grp"><th scope="rowgroup">${esc(GROUPS[g])}</th><td></td><td class="n">${fmt(sum(det[g].map(r => r.credit)), 1)}</td></tr>
@@ -650,6 +668,7 @@ function exEditor(id, x) {
     <label class="fl">Reps to<input class="in" id="xe_hi" inputmode="numeric" value="${x.hi}"></label>
     <label class="fl">Max ${x.u === 'bw' ? 'added kg' : x.u === 'plates' ? 'plates / side' : 'kg'}<input class="in" id="xe_bw" inputmode="decimal" value="${x.base?.w ?? ''}" placeholder="optional"></label>
     <label class="fl">Max reps<input class="in" id="xe_br" inputmode="numeric" value="${x.base?.r ?? ''}" placeholder="optional"></label>
+    <label class="fl full">Max set as exercise no.<input class="in" id="xe_bpos" inputmode="numeric" value="${x.bpos ?? ''}" placeholder="blank = in your usual order"></label>
     <label class="fl">Weight step<input class="in" id="xe_inc" inputmode="decimal" value="${x.inc ?? ''}" placeholder="${fmt(exStep(id), 3)}"></label>
     <label class="fl">Reps in reserve<input class="in" id="xe_rir" inputmode="numeric" value="${x.rir ?? ''}" placeholder="${exRir(id)}"></label>
     ${x.u === 'bw' ? `<label class="fl">Body weight counted %<input class="in" id="xe_bwf" inputmode="numeric" value="${x.bwf ? Math.round(x.bwf * 100) : ''}" placeholder="0 = reps only"></label>` : ''}

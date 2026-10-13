@@ -448,6 +448,7 @@ const ACT = {
     const lo = parseInt($('#xe_lo').value, 10), hi = parseInt($('#xe_hi').value, 10), bw = num($('#xe_bw').value), br = parseInt($('#xe_br').value, 10);
     if (lo > 0) x.lo = lo; if (hi >= x.lo) x.hi = hi; else x.hi = x.lo; x.note = ($('#xe_note').value || '').trim();
     x.base = br > 0 ? { w: bw ?? (x.u === 'bw' ? 0 : null), r: br } : null;
+    const bpos = parseInt($('#xe_bpos')?.value, 10); if (x.base && bpos > 0 && bpos <= 20) x.bpos = bpos; else delete x.bpos; // where in the session the max was set (v1.43)
     const inc = num($('#xe_inc').value), rir = parseInt($('#xe_rir').value, 10);
     if (inc > 0) x.inc = inc; else delete x.inc;
     if (rir >= 0 && rir <= 5) x.rir = rir; else delete x.rir;
@@ -595,7 +596,7 @@ document.addEventListener('pointerup', endDrag); document.addEventListener('poin
 function setInput(el, final) {
   const w = logW(); if (!w) return; const i = +el.dataset.e, j = +el.dataset.s, e = w.ex[i], s = e?.sets[j]; if (!s) return;
   const def = exDef(e.id), wasDone = s.done, prevBest = final ? Math.max(bestBefore(e.id, w.date), ...e.sets.filter((x, k) => k !== j && x.done && x.r > 0).map(x => setScore(e.id, x, w.date))) : 0;
-  setFromInputs(s, num($(`#w${i}_${j}`)?.value), parseInt($(`#r${i}_${j}`)?.value, 10), def.u, rowAim(e, j, w.date)?.w);
+  setFromInputs(s, num($(`#w${i}_${j}`)?.value), parseInt($(`#r${i}_${j}`)?.value, 10), def.u, rowAim(e, j, w.date, aimIn(w, i))?.w);
   const row = $(`#row${i}_${j}`); if (row) row.classList.toggle('done', s.done);
   if (final && s.done && s.w != null && $(`#w${i}_${j}`) && $(`#w${i}_${j}`).value === '') $(`#w${i}_${j}`).value = fmt(s.w, 2).replace(/,/g, '');
   const st = wStats(w), sm = $('.sess-top .t small'); if (sm) sm.textContent = sm.textContent.replace(/\d+ sets?/, `${st.sets} set${st.sets === 1 ? '' : 's'}`);

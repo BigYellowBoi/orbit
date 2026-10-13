@@ -60,6 +60,7 @@ function warmup(exId, top, n) {
   const st = exStep(exId), sch = WARM[Math.min(n, 3)];
   return Array.from({ length: n }, (_, k) => { const [f, r] = sch[Math.max(0, sch.length - n + k)] || sch[0]; return { w: Math.max(st, Math.round(top * f / st) * st), r, warm: true }; });
 }
+function aimIn(w, i) { return suggest(w.ex[i].id, w.date, ctxLog(w, i)); } // the Aim for exercise i where it sits in this log (v1.43)
 function rowAim(e, j, date, sg = suggest(e.id, date)) { // the Aim for any row: warm-ups from the ladder, working sets by their working index
   const s = e.sets[j]; if (!sg) return null;
   if (s && s.t === 'w') { const ws = e.sets.filter(x => x.t === 'w'); return warmup(e.id, sg.w, ws.length)[ws.indexOf(s)] || null; }
@@ -69,7 +70,7 @@ let LIX = { key: null };
 function lix() {
   const key = STATE.v + ':' + today(); if (LIX.key === key) return LIX;
   const by = {};
-  for (const w of workoutsSorted()) for (const e of w.ex || []) { const ds = doneSets(e); if (ds.length) (by[e.id] = by[e.id] || []).push({ date: w.date, sets: ds }); }
+  for (const w of workoutsSorted()) (w.ex || []).forEach((e, i) => { const ds = doneSets(e); if (ds.length) (by[e.id] = by[e.id] || []).push({ date: w.date, sets: ds, ctx: ctxLog(w, i) }); }); // ctx: where it sat in that session (v1.43)
   return LIX = { key, by, ex: {}, bw: null };
 }
 function nBefore(list, before) { let lo = 0, hi = list.length; while (lo < hi) { const m = (lo + hi) >> 1; if (list[m].date < before) lo = m + 1; else hi = m; } return lo; } // entries dated before `before`
@@ -94,7 +95,7 @@ function setScore(exId, s, date) { // one number to rank sets: e1RM, or reps for
 function maxScore(exId) { const b = exDef(exId).base; return b && b.r > 0 ? setScore(exId, b, null) : 0; }
 function lixEx(exId) { // this lift's sessions in date order with their best set, plus the running best (stated max included)
   const L = lix(); if (L.ex[exId]) return L.ex[exId];
-  const list = (L.by[exId] || []).map(x => { let top = x.sets[0], sc = setScore(exId, top, x.date); for (const s of x.sets) { const v = setScore(exId, s, x.date); if (v > sc) { sc = v; top = s; } } return { date: x.date, sets: x.sets, top, sc }; });
+  const list = (L.by[exId] || []).map(x => { let top = x.sets[0], sc = setScore(exId, top, x.date); for (const s of x.sets) { const v = setScore(exId, s, x.date); if (v > sc) { sc = v; top = s; } } return { date: x.date, sets: x.sets, top, sc, ctx: x.ctx }; });
   let run = maxScore(exId); const pre = list.map(x => (run = Math.max(run, x.sc)));
   return L.ex[exId] = { list, pre };
 }
@@ -125,7 +126,7 @@ function hasHistory(exId, before) { return nBefore(lixEx(exId).list, before) > 0
 function liftSeries(exId) { return lixEx(exId).list.map(x => ({ date: x.date, y: x.sc, top: x.top })); }
 const median = a => { const v = [...a].sort((x, y) => x - y), n = v.length; return n % 2 ? v[(n - 1) / 2] : (v[n / 2 - 1] + v[n / 2]) / 2; };
 function maintenance(exId) { // recent 28 days vs days 29–90: is strength holding? Medians of each session's best set, so one standout day doesn't decide it
-  const t = today(), ser = liftSeries(exId);
+  const t = today(), ser = lixEx(exId).list.map(x => ({ date: x.date, y: freshSc(exId, x), top: x.top })); // on the fresh scale, so a lift moved later in the session doesn't read as a drop (v1.43)
   const rec = ser.filter(p => diffDays(p.date, t) <= 28), pri = ser.filter(p => { const a = diffDays(p.date, t); return a > 28 && a <= 90; });
   if (!rec.length) return { state: 'none', last: ser[ser.length - 1] || null };
   const r = median(rec.map(p => p.y)); if (!pri.length) return { state: 'new', r, last: ser[ser.length - 1] };
@@ -149,6 +150,93 @@ function setsTxt(exId, sets) { // compress "48 kg × 6, 48 kg × 6" to "48 kg ×
   return out.map(o => o.n > 1 ? `${o.p} (${o.n} sets)` : o.p).join(', ');
 }
 function scoreTxt(exId, v) { const u = exDef(exId).u; return u === 'bw' && !bwScored(exId) ? `${fmt(v, 0)} reps` : u === 'bw' ? `${fmt(v, 1)} kg` : u === 'plates' ? `${fmt(v, 2)} pl` : `${fmt(v, 1)} kg`; }
+
+/* ============================================================
+   EXERCISE ORDER (v1.43)
+   A lift done later in a session is weaker than the same lift done fresh: mostly from the sets before it that worked
+   the same muscles, a little from everything before it (exercise order review: Simão et al., 2012, where a lift done
+   after several sets for the same muscles lost a few reps). For each session of a lift, the log order gives
+     L = working sets before it, each weighted by how much its exercise works this lift's muscles (0..1)
+     G = all working sets before it
+   and performance is modelled as fresh strength × exp(−kL·L − kG·G).
+   The k's are learned from Louis's own sessions. Each lift runs a Kalman filter over its sessions with state
+   [fresh strength (log), kL, kG]: fresh strength drifts as a random walk (~1% a week), each session observes
+   log(strength) = fresh − kL·L − kG·G + noise. A lift that moved slots shows a step the drift can't explain, which is
+   what teaches its kL. The filters start with no opinion on k; their evidence is then pooled: kG is shared by all lifts,
+   each lift's kL is pulled toward the pooled mean (spread τ), and the pooled mean toward a research prior (~1.2% per
+   overlapping set; systemic ~0.2% per set) until the data outweighs it. A lift that has never changed slot keeps the
+   pooled value, which cancels out as long as it stays in that slot.
+   Everything that feeds the Aim or the 4 wk badge is put on the fresh scale, and the Aim is set for where the lift
+   sits today (the log order, or the Plan order before a session starts). The Plan order is his usual order.
+   ============================================================ */
+const ORD = { kL0: 0.012, sL: 0.008, kG0: 0.002, sG: 0.002, tau: 0.015, q: 0.01 ** 2 / 7, sig0: 0.04, kLmax: 0.06, kGmax: 0.01 };
+function musc(exId) { // muscles a lift works: its group 1, groups it also works 0.5 ('other' says nothing about muscles)
+  const d = exDef(exId), m = {}; if (d.g && d.g !== 'other') m[d.g] = 1;
+  for (const g of d.g2 || SECONDARY[exId] || []) if (!m[g] && g !== 'other') m[g] = 0.5; return m;
+}
+function overlap(a, b) { // how much one set of a fatigues lift b, 0..1: shared muscles weighted by how much b relies on them
+  if (a === b) return 1; const ma = musc(a), mb = musc(b); let dot = 0, bb = 0;
+  for (const g in mb) { bb += mb[g] ** 2; dot += (ma[g] || 0) * mb[g]; } return bb ? Math.min(1, dot / bb) : 0;
+}
+function ctxFrom(ids, ns, i) { let L = 0, G = 0; for (let q = 0; q < i; q++) { const n = ns[q]; if (!n) continue; G += n; L += n * overlap(ids[q], ids[i]); } return { L, G }; }
+const ZERO_CTX = { L: 0, G: 0 };
+function ctxLog(w, i) { // where exercise i sits in a log: the working sets done before it, or still planned for exercises not reached yet
+  const ex = w.ex || [], done = ex.map(e => doneSets(e).length), later = q => done.slice(q + 1).some(n => n > 0);
+  return ctxFrom(ex.map(e => e.id), ex.map((e, q) => later(q) || done[q] >= e.sets.filter(s => s.t !== 'w').length ? done[q] : e.sets.filter(s => s.t !== 'w').length), i);
+}
+function ctxPlan(sid, exId, slot) { // the usual position: the Plan order of that session (slot: count only the first slot - 1 exercises, for a stated max)
+  const items = (sessDef(sid)?.items || []).filter(it => S().ex[it.ex]); let i = items.findIndex(it => it.ex === exId); if (i < 0) return null;
+  const ids = items.map(it => it.ex), ns = items.map(it => it.sets || 0);
+  if (slot != null) { const k = Math.max(0, Math.min(slot - 1, i)); ids.splice(k, 0, ids.splice(i, 1)[0]); ns.splice(k, 0, ns.splice(i, 1)[0]); i = k; }
+  return ctxFrom(ids, ns, i);
+}
+function usualSid(exId, sid) { if (sid && sessDef(sid)?.items?.some(it => it.ex === exId)) return sid; return order().find(id => sessDef(id)?.items?.some(it => it.ex === exId)) || null; }
+function usualCtx(exId, sid) { const s = usualSid(exId, sid); return (s && ctxPlan(s, exId)) || ZERO_CTX; }
+function baseCtx(exId) { const d = exDef(exId); if (!(d.bpos > 0)) return usualCtx(exId); if (d.bpos === 1) return ZERO_CTX; const s = usualSid(exId); return (s && ctxPlan(s, exId, d.bpos)) || ZERO_CTX; } // where the stated max was set
+function inv2(M) { const d = M[0][0] * M[1][1] - M[0][1] * M[1][0]; return Math.abs(d) < 1e-15 ? null : [[M[1][1] / d, -M[0][1] / d], [-M[1][0] / d, M[0][0] / d]]; }
+function ordSig(by) { // session-to-session noise: spread of changes between consecutive sessions in the same slot
+  const d = [], t = today(); for (const id in by) { const { list } = lixEx(id), rir = exRir(id); for (let i = 1; i < list.length; i++) { const a = list[i - 1], b = list[i];
+    if (b.date >= t || a.ctx.L !== b.ctx.L || a.ctx.G !== b.ctx.G || diffDays(a.date, b.date) > 42) continue; const va = refScore(id, a.top, rir, a.date), vb = refScore(id, b.top, rir, b.date); if (va > 0 && vb > 0) d.push(Math.log(vb / va)); } }
+  if (d.length < 8) return ORD.sig0; const m = median(d); return Math.min(0.1, Math.max(0.02, 1.4826 * median(d.map(x => Math.abs(x - m))) / Math.SQRT2));
+}
+function ordLift(id, sig) { // one lift's filter; returns its evidence on (kL, kG) with the filter's own wide prior taken back out
+  const { list } = lixEx(id), rir = exRir(id); let s = [0, 0, 0], P = [[100, 0, 0], [0, 1, 0], [0, 0, 1]], prev = null, n = 0, chg = 0, lastL = null;
+  for (const e of list) {
+    if (e.date >= today()) break; // learns from finished days only, so today's sets don't move today's Aims
+    const v = refScore(id, e.top, rir, e.date); if (!(v > 0)) continue;
+    if (prev) P[0][0] += ORD.q * Math.max(1, diffDays(prev, e.date)); prev = e.date;
+    const h = [1, -e.ctx.L, -e.ctx.G], Ph = P.map(r => r[0] * h[0] + r[1] * h[1] + r[2] * h[2]), S = h[0] * Ph[0] + h[1] * Ph[1] + h[2] * Ph[2] + sig * sig;
+    const y = Math.log(v) - (h[0] * s[0] + h[1] * s[1] + h[2] * s[2]);
+    if (n >= 3 && y * y / S > 16) continue; // a one-off (injury, mislogged set): don't let it teach the model
+    const K = Ph.map(x => x / S); s = s.map((x, i) => x + K[i] * y); P = P.map((r, i) => r.map((x, j) => x - K[i] * Ph[j]));
+    n++; if (lastL != null && Math.abs(e.ctx.L - lastL) > 0.25) chg++; lastL = e.ctx.L;
+  }
+  if (n < 2) return null;
+  const V = inv2([[P[1][1], P[1][2]], [P[2][1], P[2][2]]]), mu = [s[1], s[2]]; if (!V) return null; // V: information on (kL, kG)
+  const J = [[Math.max(0, V[0][0] - 1), V[0][1]], [V[1][0], Math.max(0, V[1][1] - 1)]], hv = [V[0][0] * mu[0] + V[0][1] * mu[1], V[1][0] * mu[0] + V[1][1] * mu[1]]; // minus the filter's N(0, 1) prior
+  return { J, h: hv, n, chg };
+}
+function ordModel() {
+  const X = lix(); if (X.ord) return X.ord;
+  const sig = ordSig(X.by), lifts = {}; for (const id in X.by) { const r = ordLift(id, sig); if (r) lifts[id] = r; }
+  const tau2 = ORD.tau ** 2, clampL = k => Math.max(0, Math.min(ORD.kLmax, k)); let m = ORD.kL0, g = ORD.kG0, ks = {};
+  for (let it = 0; it < 8; it++) {
+    ks = {}; let pm = 1 / ORD.sL ** 2, hm = ORD.kL0 / ORD.sL ** 2, pg = 1 / ORD.sG ** 2, hg = ORD.kG0 / ORD.sG ** 2;
+    for (const id in lifts) { const { J, h } = lifts[id], hl = h[0] - J[0][1] * g; // this lift's evidence on kL with kG fixed
+      ks[id] = clampL((hl + m / tau2) / (J[0][0] + 1 / tau2));
+      if (J[0][0] > 1e-9) { const w = 1 / (1 / J[0][0] + tau2); pm += w; hm += w * hl / J[0][0]; }
+      pg += J[1][1]; hg += h[1] - J[1][0] * ks[id]; }
+    m = clampL(hm / pm); g = Math.max(0, Math.min(ORD.kGmax, hg / pg));
+  }
+  const by = {}; for (const id in lifts) { const J = lifts[id].J[0][0]; by[id] = { k: ks[id], sd: 1 / Math.sqrt(J + 1 / tau2), n: lifts[id].n, chg: lifts[id].chg, own: J * tau2 }; } // own: how much its own sessions count against the pooled mean
+  return X.ord = { kL: m, kG: g, sig, by };
+}
+function ordK(exId) { const M = ordModel(); return { kL: M.by[exId]?.k ?? M.kL, kG: M.kG }; }
+function ordFactor(exId, ctx) { if (!ctx) return 1; const k = ordK(exId); return Math.exp(-k.kL * ctx.L - k.kG * ctx.G); } // performance there ÷ performance fresh
+function freshSc(exId, x) { return x.sc / ordFactor(exId, x.ctx); }
+function ordNote(exId, ctx, sid) { // today's slot against the usual one, for the line under the Aim
+  const u = usualCtx(exId, sid), f = ordFactor(exId, ctx) / ordFactor(exId, u) - 1; return Math.abs(f) >= 0.01 ? f : 0;
+}
 
 /* ============================================================
    SUGGESTED LOAD AND REPS (the Aim)
@@ -178,11 +266,12 @@ function refScore(exId, s, rir, date) {
   if (exDef(exId).u !== 'bw') return e1rm({ w: s.w, r: (s.r || 0) + rir });
   const B = bodyKg(exId, date); return B != null ? e1rm({ w: B + (s.w || 0), r: (s.r || 0) + rir }) : (s.r || 0) + rir + (s.w || 0) / 2.5;
 }
-function strengthRef(exId, before) { // current strength: median of the top sets from the last 3 sessions in 90 days
-  const { list } = lixEx(exId), n = nBefore(list, before), from = addDays(before, -90), rir = exRir(exId);
+function strengthRef(exId, before, ctx) { // current strength: median of the top sets from the last 3 sessions in 90 days, at a position in the session
+  const { list } = lixEx(exId), n = nBefore(list, before), from = addDays(before, -90), rir = exRir(exId), at = ordFactor(exId, ctx || usualCtx(exId));
   const last = list.slice(Math.max(0, n - 3), n).filter(x => x.date >= from);
-  if (last.length) { const v = last.map(x => refScore(exId, x.top, rir, x.date)).sort((a, b) => a - b); return { v: v[Math.floor((v.length - 1) / 2)], n: last.length, top: last[last.length - 1].top }; }
-  const b = exDef(exId).base; return b && b.r > 0 ? { v: refScore(exId, b, 0, null), n: 0, top: b } : null;
+  // each on the fresh scale first (v1.43), so sessions done in another slot count fairly, then back to where the lift sits now
+  if (last.length) { const v = last.map(x => refScore(exId, x.top, rir, x.date) / ordFactor(exId, x.ctx)).sort((a, b) => a - b), f = v[Math.floor((v.length - 1) / 2)]; return { v: f * at, fresh: f, n: last.length, top: last[last.length - 1].top }; }
+  const b = exDef(exId).base; if (!(b && b.r > 0)) return null; const f = refScore(exId, b, 0, null) / ordFactor(exId, baseCtx(exId)); return { v: f * at, fresh: f, n: 0, top: b };
 }
 function fitLoad(exId, e, startW, date) { // load × reps leaving the lift's reserve at strength e; stays on the last load while it fits (double progression)
   const d = exDef(exId), rir = exRir(exId);
@@ -205,22 +294,22 @@ function fitLoad(exId, e, startW, date) { // load × reps leaving the lift's res
   if (r > d.hi) r = d.hi; // the next jump doesn't fit the range yet (a coarse step on a light cable): the top of the range, a little more in reserve (v1.36; was up to 2 reps over)
   return { w: +w.toFixed(3), r: Math.max(1, r), rir };
 }
-function holdTarget(exId, before) { // maintenance: hold current strength
-  const ref = strengthRef(exId, before); return ref ? fitLoad(exId, ref.v, ref.n ? ref.top.w : null, before) : null;
+function holdTarget(exId, before, ctx) { // maintenance: hold current strength
+  const ref = strengthRef(exId, before, ctx); return ref ? fitLoad(exId, ref.v, ref.n ? ref.top.w : null, before) : null;
 }
 /* Overload: target strength climbs from where you were when you switched (S().growFrom) by the weekly rate,
    so small weekly gains add up instead of rounding away. It never asks for more than 5% above what your logged
    sets show (about a rep and a half), and pushes on from there if you get ahead of plan. */
-function growStrength(exId, before) {
-  const rate = S().progRate ?? 0.005, cur = strengthRef(exId, before); if (!cur) return null;
-  const from = S().growFrom && S().growFrom <= before ? S().growFrom : before, base = strengthRef(exId, from) || cur;
+function growStrength(exId, before, ctx) {
+  const rate = S().progRate ?? 0.005, cur = strengthRef(exId, before, ctx); if (!cur) return null;
+  const from = S().growFrom && S().growFrom <= before ? S().growFrom : before, base = strengthRef(exId, from, ctx) || cur;
   const plan = base.v * (1 + rate) ** Math.max(1, Math.floor(diffDays(from, before) / 7) + 1);
   return { e: Math.min(Math.max(plan, cur.v * (1 + rate)), cur.v * 1.05), cur };
 }
-function suggest(exId, before) { // the Aim shown on Today and in the log: { w, r, rir } or null
+function suggest(exId, before, ctx) { // the Aim shown on Today and in the log: { w, r, rir } or null; ctx: where the lift sits (default its usual slot)
   if (S().suggest === false) return null;
-  if (S().goal !== 'grow') return holdTarget(exId, before);
-  const g = growStrength(exId, before); return g ? fitLoad(exId, g.e, g.cur.n ? g.cur.top.w : null, before) : null;
+  if (S().goal !== 'grow') return holdTarget(exId, before, ctx);
+  const g = growStrength(exId, before, ctx); return g ? fitLoad(exId, g.e, g.cur.n ? g.cur.top.w : null, before) : null;
 }
 /* PROGRESSION PLAN (Plan tab): the overload track week by week from today, at the lift's reps in reserve.
    Reps climb at a fixed load until the top of the range, then the load steps up and reps drop back. */
