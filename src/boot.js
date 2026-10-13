@@ -123,7 +123,7 @@ function exportJson() { return JSON.stringify({ app: 'orbit', version: 1, export
 function csvEsc(v) { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; }
 function exportCsv() {
   const rows = [['date', 'session', 'exercise', 'set', 'load', 'unit', 'reps', 'e1rm'].join(',')];
-  for (const w of workoutsSorted()) for (const e of w.ex || []) doneSets(e).forEach((s, i) => rows.push([w.date, sessName(w), exDef(e.id).name, i + 1, s.w ?? '', exDef(e.id).u, s.r, exDef(e.id).u === 'bw' ? '' : r1(e1rm(s)) || ''].map(csvEsc).join(',')));
+  for (const w of workoutsSorted()) for (const e of w.ex || []) doneSets(e).forEach((s, i) => rows.push([w.date, sessName(w), exDef(e.id).name, i + 1, s.w ?? '', exDef(e.id).u, s.r, exDef(e.id).u === 'bw' && !bwScored(e.id) ? '' : r1(setScore(e.id, s, w.date)) || ''].map(csvEsc).join(',')));
   for (const w of workoutsSorted()) if (w.cardio?.done) rows.push([w.date, sessName(w), w.cardio.name, 1, '', 'min', w.cardio.min ?? '', ''].map(csvEsc).join(','));
   return rows.join('\n');
 }
@@ -314,6 +314,7 @@ const ACT = {
     const inc = num($('#xe_inc').value), rir = parseInt($('#xe_rir').value, 10);
     if (inc > 0) x.inc = inc; else delete x.inc;
     if (rir >= 0 && rir <= 5) x.rir = rir; else delete x.rir;
+    const bwf = $('#xe_bwf') ? num($('#xe_bwf').value) : null; if (x.u === 'bw' && bwf > 0 && bwf <= 100) x.bwf = bwf / 100; else if ($('#xe_bwf') || x.u !== 'bw') delete x.bwf;
     ui.editEx = null; saveSettings(); render(true);
   },
   delex: el => { delete S().ex[el.dataset.id]; ui.editEx = null; saveSettings(); render(true); },
@@ -414,13 +415,13 @@ document.addEventListener('pointerup', endDrag); document.addEventListener('poin
 /* ---------- set rows: saved and counted as you type ---------- */
 function setInput(el, final) {
   const w = logW(); if (!w) return; const i = +el.dataset.e, j = +el.dataset.s, e = w.ex[i], s = e?.sets[j]; if (!s) return;
-  const def = exDef(e.id), wasDone = s.done, prevBest = final ? Math.max(bestBefore(e.id, w.date), ...e.sets.filter((x, k) => k !== j && x.done && x.r > 0).map(x => setScore(e.id, x))) : 0;
+  const def = exDef(e.id), wasDone = s.done, prevBest = final ? Math.max(bestBefore(e.id, w.date), ...e.sets.filter((x, k) => k !== j && x.done && x.r > 0).map(x => setScore(e.id, x, w.date))) : 0;
   setFromInputs(s, num($(`#w${i}_${j}`)?.value), parseInt($(`#r${i}_${j}`)?.value, 10), def.u, suggest(e.id, w.date)?.w);
   const row = $(`#row${i}_${j}`); if (row) row.classList.toggle('done', s.done);
   if (final && s.done && s.w != null && $(`#w${i}_${j}`) && $(`#w${i}_${j}`).value === '') $(`#w${i}_${j}`).value = fmt(s.w, 2).replace(/,/g, '');
   const st = wStats(w), sm = $('.sess-top .t small'); if (sm) sm.textContent = sm.textContent.replace(/\d+ sets?/, `${st.sets} set${st.sets === 1 ? '' : 's'}`);
   saveW(w.date);
-  if (final && s.done && hasRef(e.id, w.date) && setScore(e.id, s) > prevBest + 1e-9) { row?.classList.add('pr'); toast(`New best · ${esc(def.name)} ${esc(fmtSet(e.id, s))}`, 'pr'); }
+  if (final && s.done && hasRef(e.id, w.date) && setScore(e.id, s, w.date) > prevBest + 1e-9) { row?.classList.add('pr'); toast(`New best · ${esc(def.name)} ${esc(fmtSet(e.id, s))}`, 'pr'); }
   else if (final && row && !s.done) row.classList.remove('pr');
 }
 document.addEventListener('input', ev => { const el = ev.target; if (el.matches && el.matches('.set .in')) setInput(el, false); });

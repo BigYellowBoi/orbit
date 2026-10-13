@@ -37,52 +37,75 @@ function rotationCount() { // completed full rotations (training sessions only)
 
 /* ============================================================
    LIFT HISTORY, e1RM, PRs, MAINTENANCE STATUS
+   Every lookup goes through one index of logged sets per lift (lix), rebuilt only when the data
+   changes (STATE.v, bumped on every save, import and sync) or the day turns over.
    ============================================================ */
 function doneSets(ex) { return (ex.sets || []).filter(s => s.done && s.r > 0); }
-function lastFor(exId, before) {
-  let best = null;
-  for (const w of Object.values(STATE.w)) {
-    if (w.date >= before) continue;
-    const e = (w.ex || []).find(x => x.id === exId && doneSets(x).length);
-    if (e && (!best || w.date > best.date)) best = { date: w.date, sets: doneSets(e) };
-  }
-  return best;
+let LIX = { key: null };
+function lix() {
+  const key = STATE.v + ':' + today(); if (LIX.key === key) return LIX;
+  const by = {};
+  for (const w of workoutsSorted()) for (const e of w.ex || []) { const ds = doneSets(e); if (ds.length) (by[e.id] = by[e.id] || []).push({ date: w.date, sets: ds }); }
+  return LIX = { key, by, ex: {}, bw: null };
 }
+function nBefore(list, before) { let lo = 0, hi = list.length; while (lo < hi) { const m = (lo + hi) >> 1; if (list[m].date < before) lo = m + 1; else hi = m; } return lo; } // entries dated before `before`
+/* Bodyweight lifts can count body weight (exDef.bwf: the share of body weight moved, about 1 for pull-ups, 0.9 for dips):
+   trend weight on or before the date, else the earliest on record. Lifts without a share, like the ab roller, or with no
+   weight on record, score by reps (2.5 kg added = 1 rep). */
+function bwShare(exId) { const d = exDef(exId); return d.u === 'bw' && d.bwf > 0 ? Math.min(d.bwf, 1) : 0; }
+function bwAt(date) {
+  const L = lix();
+  if (!L.bw) { const m = { ...derived().tw }; for (const d in STATE.d) if (STATE.d[d].tw != null) m[d] = STATE.d[d].tw; const ds = Object.keys(m).sort(); L.bw = { ds, v: ds.map(d => m[d]) }; }
+  const { ds, v } = L.bw; if (!ds.length) return null; if (!date || date < ds[0]) return v[0];
+  let lo = 0, hi = ds.length - 1; while (lo < hi) { const m = (lo + hi + 1) >> 1; if (ds[m] <= date) lo = m; else hi = m - 1; }
+  return v[lo];
+}
+function bodyKg(exId, date) { const f = bwShare(exId); if (!f) return null; const b = bwAt(date); return b != null ? f * b : null; }
+function bwScored(exId) { return bwShare(exId) > 0 && bwAt(null) != null; }
 function e1rm(s) { if (!s || !(s.r > 0)) return 0; const w = s.w || 0; if (w <= 0) return 0; return w * (1 + Math.min(s.r, 15) / 30); }
-function setScore(exId, s) { return exDef(exId).u === 'bw' ? (s.r || 0) + (s.w || 0) / 2.5 : e1rm(s); }
-function maxScore(exId) { const b = exDef(exId).base; return b && b.r > 0 ? setScore(exId, b) : 0; }
-function bestBefore(exId, before) { // best score on dates strictly before, including the stated max
-  let b = maxScore(exId);
-  for (const w of Object.values(STATE.w)) if (w.date < before) for (const e of w.ex || []) if (e.id === exId) for (const s of doneSets(e)) b = Math.max(b, setScore(exId, s));
-  return b;
+function setScore(exId, s, date) { // one number to rank sets: e1RM, or reps for bodyweight lifts that don't count body weight
+  if (exDef(exId).u !== 'bw') return e1rm(s);
+  const B = bodyKg(exId, date); return B != null ? e1rm({ w: B + (s.w || 0), r: s.r }) : (s.r || 0) + (s.w || 0) / 2.5;
 }
+function maxScore(exId) { const b = exDef(exId).base; return b && b.r > 0 ? setScore(exId, b, null) : 0; }
+function lixEx(exId) { // this lift's sessions in date order with their best set, plus the running best (stated max included)
+  const L = lix(); if (L.ex[exId]) return L.ex[exId];
+  const list = (L.by[exId] || []).map(x => { let top = x.sets[0], sc = setScore(exId, top, x.date); for (const s of x.sets) { const v = setScore(exId, s, x.date); if (v > sc) { sc = v; top = s; } } return { date: x.date, sets: x.sets, top, sc }; });
+  let run = maxScore(exId); const pre = list.map(x => (run = Math.max(run, x.sc)));
+  return L.ex[exId] = { list, pre };
+}
+function lastFor(exId, before) { // the last session of this lift before a date
+  const { list } = lixEx(exId), i = nBefore(list, before); if (!i) return null;
+  let j = i - 1; while (j > 0 && list[j - 1].date === list[i - 1].date) j--;
+  return { date: list[j].date, sets: list[j].sets };
+}
+function bestBefore(exId, before) { const ix = lixEx(exId), i = nBefore(ix.list, before); return i ? ix.pre[i - 1] : maxScore(exId); } // best score on dates strictly before, including the stated max
 function bestSet(exId, before = '9999') { // best before a date: stated max or any logged set
-  let best = exDef(exId).base && exDef(exId).base.r > 0 ? exDef(exId).base : null, sc = best ? setScore(exId, best) : 0;
-  for (const w of Object.values(STATE.w)) if (w.date < before) for (const e of w.ex || []) if (e.id === exId) for (const s of doneSets(e)) { const v = setScore(exId, s); if (v > sc) { sc = v; best = s; } }
+  const b = exDef(exId).base, { list } = lixEx(exId), n = nBefore(list, before);
+  let best = b && b.r > 0 ? b : null, sc = best ? maxScore(exId) : 0;
+  for (let i = 0; i < n; i++) if (list[i].sc > sc) { sc = list[i].sc; best = list[i].top; }
   return best;
 }
 function records(exId) { // heaviest set and best e1RM set, from logs plus the stated max
-  const b = exDef(exId).base, cands = [];
+  const b = exDef(exId).base, { list } = lixEx(exId), cands = [];
   if (b && b.r > 0) cands.push({ s: b, date: null });
-  for (const w of Object.values(STATE.w)) for (const e of w.ex || []) if (e.id === exId) for (const s of doneSets(e)) cands.push({ s, date: w.date });
+  for (const x of list) for (const s of x.sets) cands.push({ s, date: x.date });
   if (!cands.length) return null;
   const heavy = cands.reduce((a, c) => ((c.s.w || 0) > (a.s.w || 0) || ((c.s.w || 0) === (a.s.w || 0) && c.s.r > a.s.r)) ? c : a);
-  const best = cands.reduce((a, c) => setScore(exId, c.s) > setScore(exId, a.s) ? c : a);
-  return { heavy, best, logged: cands.some(c => c.date) };
+  let best = cands[0], bsc = best.date ? list[0].sc : maxScore(exId);
+  for (const x of list) if (x.sc > bsc) { bsc = x.sc; best = { s: x.top, date: x.date }; }
+  return { heavy, best, logged: list.length > 0 };
 }
 function hasRef(exId, before) { return maxScore(exId) > 0 || hasHistory(exId, before); }
-function hasHistory(exId, before) { return Object.values(STATE.w).some(w => w.date < before && (w.ex || []).some(e => e.id === exId && doneSets(e).length)); }
-function liftSeries(exId) {
-  const out = [];
-  for (const w of workoutsSorted()) for (const e of w.ex || []) if (e.id === exId) { const ds = doneSets(e); if (ds.length) out.push({ date: w.date, y: Math.max(...ds.map(s => setScore(exId, s))), top: ds.reduce((a, s) => setScore(exId, s) > setScore(exId, a) ? s : a, ds[0]) }); }
-  return out;
-}
-function maintenance(exId) { // recent 28 days vs days 29–90: is strength holding?
+function hasHistory(exId, before) { return nBefore(lixEx(exId).list, before) > 0; }
+function liftSeries(exId) { return lixEx(exId).list.map(x => ({ date: x.date, y: x.sc, top: x.top })); }
+const median = a => { const v = [...a].sort((x, y) => x - y), n = v.length; return n % 2 ? v[(n - 1) / 2] : (v[n / 2 - 1] + v[n / 2]) / 2; };
+function maintenance(exId) { // recent 28 days vs days 29–90: is strength holding? Medians of each session's best set, so one standout day doesn't decide it
   const t = today(), ser = liftSeries(exId);
   const rec = ser.filter(p => diffDays(p.date, t) <= 28), pri = ser.filter(p => { const a = diffDays(p.date, t); return a > 28 && a <= 90; });
   if (!rec.length) return { state: 'none', last: ser[ser.length - 1] || null };
-  const r = Math.max(...rec.map(p => p.y)); if (!pri.length) return { state: 'new', r, last: ser[ser.length - 1] };
-  const p = Math.max(...pri.map(x => x.y)); const ch = p > 0 ? (r / p - 1) * 100 : 0;
+  const r = median(rec.map(p => p.y)); if (!pri.length) return { state: 'new', r, last: ser[ser.length - 1] };
+  const p = median(pri.map(x => x.y)); const ch = p > 0 ? (r / p - 1) * 100 : 0;
   return { state: ch > 2.5 ? 'up' : ch >= -2.5 ? 'hold' : ch >= -5 ? 'dip' : 'down', ch, r, p, last: ser[ser.length - 1] };
 }
 const MSTATE = { up: ['good', 'Up'], hold: ['good', 'Holding'], dip: ['warn', 'Dip'], down: ['bad', 'Down'], new: ['', 'New'], none: ['', 'No recent sets'] };
@@ -98,7 +121,7 @@ function setsTxt(exId, sets) { // compress "48×6, 48×6, 48×6" to "48×6 ×3"
   for (const p of parts) { const l = out[out.length - 1]; if (l && l.p === p) l.n++; else out.push({ p, n: 1 }); }
   return out.map(o => o.n > 1 ? `${o.p} ×${o.n}` : o.p).join(', ');
 }
-function scoreTxt(exId, v) { const u = exDef(exId).u; return u === 'bw' ? `${fmt(v, 0)} reps` : u === 'plates' ? `${fmt(v, 2)} pl` : `${fmt(v, 1)} kg`; }
+function scoreTxt(exId, v) { const u = exDef(exId).u; return u === 'bw' && !bwScored(exId) ? `${fmt(v, 0)} reps` : u === 'bw' ? `${fmt(v, 1)} kg` : u === 'plates' ? `${fmt(v, 2)} pl` : `${fmt(v, 1)} kg`; }
 
 /* ============================================================
    SUGGESTED LOAD AND REPS (the Aim)
@@ -124,17 +147,29 @@ function exRir(exId) { const d = exDef(exId); return d.rir != null ? d.rir : (d.
 /* Logged working sets are done short of failure (the Aim leaves the lift's reps in reserve), so their reps
    count with that reserve added. Otherwise following the Aim exactly would read as a slightly weaker lift
    and nudge every later Aim down. The stated max was an all-out set, so it counts as is. */
-function refScore(exId, s, rir) { return exDef(exId).u === 'bw' ? (s.r || 0) + rir + (s.w || 0) / 2.5 : e1rm({ w: s.w, r: (s.r || 0) + rir }); }
-function strengthRef(exId, before) { // current strength: median of the top sets from the last 3 sessions in 90 days
-  const tops = [], from = addDays(before, -90), rir = exRir(exId);
-  for (const w of workoutsSorted()) if (w.date < before && w.date >= from) for (const e of w.ex || []) if (e.id === exId) { const ds = doneSets(e); if (ds.length) tops.push({ date: w.date, s: ds.reduce((a, s) => setScore(exId, s) > setScore(exId, a) ? s : a, ds[0]) }); }
-  const last = tops.slice(-3);
-  if (last.length) { const v = last.map(t => refScore(exId, t.s, rir)).sort((a, b) => a - b); return { v: v[Math.floor((v.length - 1) / 2)], n: last.length, top: last[last.length - 1].s }; }
-  const b = exDef(exId).base; return b && b.r > 0 ? { v: refScore(exId, b, 0), n: 0, top: b } : null;
+function refScore(exId, s, rir, date) {
+  if (exDef(exId).u !== 'bw') return e1rm({ w: s.w, r: (s.r || 0) + rir });
+  const B = bodyKg(exId, date); return B != null ? e1rm({ w: B + (s.w || 0), r: (s.r || 0) + rir }) : (s.r || 0) + rir + (s.w || 0) / 2.5;
 }
-function fitLoad(exId, e, startW) { // load × reps leaving the lift's reserve at strength e; stays on the last load while it fits (double progression)
+function strengthRef(exId, before) { // current strength: median of the top sets from the last 3 sessions in 90 days
+  const { list } = lixEx(exId), n = nBefore(list, before), from = addDays(before, -90), rir = exRir(exId);
+  const last = list.slice(Math.max(0, n - 3), n).filter(x => x.date >= from);
+  if (last.length) { const v = last.map(x => refScore(exId, x.top, rir, x.date)).sort((a, b) => a - b); return { v: v[Math.floor((v.length - 1) / 2)], n: last.length, top: last[last.length - 1].top }; }
+  const b = exDef(exId).base; return b && b.r > 0 ? { v: refScore(exId, b, 0, null), n: 0, top: b } : null;
+}
+function fitLoad(exId, e, startW, date) { // load × reps leaving the lift's reserve at strength e; stays on the last load while it fits (double progression)
   const d = exDef(exId), rir = exRir(exId);
-  if (d.u === 'bw') { const add = startW || 0; return { w: add, r: Math.max(1, Math.floor(e - add / 2.5 + 1e-6) - rir), rir }; }
+  if (d.u === 'bw') {
+    const B = bodyKg(exId, date);
+    if (B == null) { const add = startW || 0; return { w: add, r: Math.max(1, Math.floor(e - add / 2.5 + 1e-6) - rir), rir }; }
+    if (!(e > 0)) return null; // body weight counts: same double progression, on the added load (never below none)
+    const step = exStep(exId), mid = Math.round((d.lo + d.hi) / 2), repsAt = a => Math.floor(30 * (e / (B + a) - 1) + 1e-6) - rir;
+    let a = startW != null ? startW : Math.max(0, Math.floor((e / (1 + (mid + rir) / 30) - B) / step + 1e-6) * step), r = repsAt(a);
+    while (r < d.lo && a - step >= -1e-9) { a -= step; r = repsAt(a); }
+    while (r > d.hi && repsAt(a + step) >= d.lo) { a += step; r = repsAt(a); }
+    if (r > d.hi) r = Math.min(r, d.hi + 2);
+    return { w: Math.max(0, +a.toFixed(3)), r: Math.max(1, r), rir };
+  }
   const step = exStep(exId), mid = Math.round((d.lo + d.hi) / 2), repsAt = w => Math.floor(30 * (e / w - 1) + 1e-6) - rir;
   let w = startW > 0 ? startW : Math.floor(e / (1 + (mid + rir) / 30) / step + 1e-6) * step; if (!(w > 0) || !(e > 0)) return null;
   let r = repsAt(w);
@@ -144,7 +179,7 @@ function fitLoad(exId, e, startW) { // load × reps leaving the lift's reserve a
   return { w: +w.toFixed(3), r: Math.max(1, r), rir };
 }
 function holdTarget(exId, before) { // maintenance: hold current strength
-  const ref = strengthRef(exId, before); return ref ? fitLoad(exId, ref.v, ref.n ? ref.top.w : null) : null;
+  const ref = strengthRef(exId, before); return ref ? fitLoad(exId, ref.v, ref.n ? ref.top.w : null, before) : null;
 }
 /* Overload: target strength climbs from where you were when you switched (S().growFrom) by the weekly rate,
    so small weekly gains add up instead of rounding away. It never asks for more than 5% above what your logged
@@ -158,7 +193,7 @@ function growStrength(exId, before) {
 function suggest(exId, before) { // the Aim shown on Today and in the log: { w, r, rir } or null
   if (S().suggest === false) return null;
   if (S().goal !== 'grow') return holdTarget(exId, before);
-  const g = growStrength(exId, before); return g ? fitLoad(exId, g.e, g.cur.n ? g.cur.top.w : null) : null;
+  const g = growStrength(exId, before); return g ? fitLoad(exId, g.e, g.cur.n ? g.cur.top.w : null, before) : null;
 }
 /* PROGRESSION PLAN (Plan tab): the overload track week by week from today, at the lift's reps in reserve.
    Reps climb at a fixed load until the top of the range, then the load steps up and reps drop back. */
@@ -166,7 +201,7 @@ function progression(exId, weeks, rate, before = today()) {
   const ref = strengthRef(exId, before); if (!ref) return null;
   const e1 = S().goal === 'grow' ? growStrength(exId, before).e : ref.v * (1 + rate), out = [];
   let w = ref.n ? ref.top.w : null;
-  for (let k = 1; k <= weeks; k++) { const e = e1 * (1 + rate) ** (k - 1), p = fitLoad(exId, e, w); if (!p) return null; w = p.w; out.push({ k, ...p, g: e / ref.v - 1 }); }
+  for (let k = 1; k <= weeks; k++) { const e = e1 * (1 + rate) ** (k - 1), p = fitLoad(exId, e, w, before); if (!p) return null; w = p.w; out.push({ k, ...p, g: e / ref.v - 1 }); }
   return out;
 }
 function suggestTxt(exId, sg) { const u = exDef(exId).u, w = fmt(sg.w, 2); return u === 'bw' ? (sg.w ? `BW+${w} × ${sg.r}` : `${sg.r} reps`) : `${w} ${u === 'plates' ? 'pl' : 'kg'} × ${sg.r}`; }
@@ -214,7 +249,7 @@ function prsIn(w) { // sets in this workout that beat everything before its date
   for (const e of w.ex || []) {
     if (!hasRef(e.id, w.date)) continue;
     const prev = bestBefore(e.id, w.date); let run = prev;
-    for (const s of doneSets(e)) { const sc = setScore(e.id, s); if (sc > run + 1e-9) { run = sc; out.push({ id: e.id, s }); } }
+    for (const s of doneSets(e)) { const sc = setScore(e.id, s, w.date); if (sc > run + 1e-9) { run = sc; out.push({ id: e.id, s }); } }
   }
   return out;
 }
@@ -281,7 +316,7 @@ const stepsOf = d => dayVal(d, 'stp') ?? dayVal(d, 'stpi'); // WHOOP's count fir
    weight over them (7700 kcal per kg); needs at least 21 logged days. MacroFactor's own numbers always win. */
 let DER = { key: null };
 function derived() {
-  const key = STATE.v + ':' + Object.keys(STATE.d).length; if (DER.key === key) return DER;
+  const key = STATE.v + ':' + Object.keys(STATE.d).length + ':' + today(); if (DER.key === key) return DER; // today: a new day extends the trend
   const tw = {}, exp = {}, t0 = today(), D = STATE.d;
   const ds = Object.keys(D).filter(d => d <= t0 && (D[d].wt != null || D[d].tw != null || D[d].kcal != null)).sort();
   if (ds.length) {
