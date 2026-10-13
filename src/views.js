@@ -10,7 +10,7 @@ function deltaTxt(v, base, d = 0, unit = '', invert = false) {
   const better = invert ? diff < 0 : diff > 0;
   return `<span class="delta" style="color:var(${better ? '--good-ink' : '--warn-ink'})">${diff > 0 ? '+' : '−'}${fmt(Math.abs(diff), d)}${unit} vs 30-day</span>`;
 }
-function rxTxt(it) { const d = exDef(it.ex); return `${it.sets} × ${d.lo}${d.hi > d.lo ? '–' + d.hi : ''}`; }
+function rxTxt(it) { const d = exDef(it.ex); return `${defSets(it.ex)} × ${d.lo}${d.hi > d.lo ? '–' + d.hi : ''}`; }
 function prevLine(exId, before, sid) { const sg = suggest(exId, before, usualCtx(exId, sid)), l = lastLine(exId, before); return [sg ? `<b class="aimtxt">Aim ${esc(suggestTxt(exId, sg))}</b>` : '', esc(l)].filter(Boolean).join(' · '); }
 function lastLine(exId, before) {
   const ix = lixEx(exId), n = nBefore(ix.list, before); // Best counts logged sets only; stated maxes just seed the Aim
@@ -561,11 +561,11 @@ function vBody() {
    in place (filterEx in boot.js) so the keyboard stays up; ui.exQ keeps the filter across re-renders, e.g. Edit and Save. */
 function exHay(x) { return `${x.name} ${GROUPS[x.g] || ''} ${UNITS[x.u]?.label || ''}`.toLowerCase(); }
 function exMatch(hay, q) { return String(q || '').toLowerCase().split(/\s+/).filter(Boolean).every(w => hay.includes(w)); }
-function progSig(p) { return JSON.stringify({ o: p.order, s: Object.fromEntries(Object.entries(p.sessions).map(([k, v]) => [k, v.items.map(i => i.ex + i.sets)])) }); }
+function progSig(p) { return JSON.stringify({ o: p.order, s: Object.fromEntries(Object.entries(p.sessions).map(([k, v]) => [k, v.items.map(i => i.ex)])) }); }
 function vPlan() {
   const cur = S().prog, sig = progSig(cur), o = order();
   const match = Object.keys(PRESETS).find(k => progSig(PRESETS[k]) === sig);
-  // Edited (sets, order, an exercise swapped): the closest preset stays selected, marked edited, rather than none
+  // Edited (order, an exercise swapped; set counts belong to the exercises since v1.45): the closest preset stays selected, marked edited, rather than none
   const pairs = p => new Set(Object.entries(p.sessions).flatMap(([sid, sd]) => sd.items.map(i => sid + ':' + i.ex)));
   const mine = pairs(cur), near = match || Object.keys(PRESETS).map(k => { const ps = pairs(PRESETS[k]); return { k, sc: [...ps].filter(x => mine.has(x)).length / Math.max(ps.size, mine.size, 1) }; }).sort((a, b) => b.sc - a.sc).find(x => x.sc >= 0.5)?.k;
   let h = `<div class="page-h"><div><div class="eyebrow">${match ? esc(PRESETS[match].name) : near ? esc(PRESETS[near].name) + ', edited' : 'Custom split'} · ${trainIds().length} sessions${o.length > trainIds().length ? ` + ${o.length - trainIds().length} rest` : ''}</div><h1>Plan</h1></div></div>`;
@@ -607,7 +607,7 @@ function vPlan() {
       if (sd.rest) h += `<div class="sess-b"><p class="xs muted">Any day you don't log a session fills this slot, and the rotation moves on. Train on the day instead and it's skipped.</p><div class="btnrow" style="justify-content:flex-end">${delBtn(sid)}</div></div>`;
       else h += `<div class="sess-b"><div class="fields" style="grid-template-columns:minmax(0,1fr) minmax(0,1.4fr)"><label class="fl">Name<input class="in left" id="sn_${sid}" data-in="sname" data-id="${sid}" value="${esc(sd.name)}"></label><label class="fl">Focus<input class="in left" id="sf_${sid}" data-in="sfocus" data-id="${sid}" value="${esc(sd.focus || '')}"></label></div>
         <div class="dlist" data-list="item" data-id="${sid}">${sd.items.map((it, j) => { const d = exDef(it.ex); return `<div class="ed-item" data-dragitem data-j="${j}"><span class="grip" data-grip="item" aria-label="Drag to reorder ${esc(d.name)}" role="button" tabindex="-1">${ICON.grip}</span><span class="nm">${esc(d.name)}<small>${esc(GROUPS[d.g] || '')} · ${d.lo}–${d.hi} reps</small></span>
-          <input class="in" id="ss_${sid}_${j}" inputmode="numeric" data-in="isets" data-id="${sid}" data-j="${j}" value="${it.sets}" aria-label="Sets for ${esc(d.name)}">
+          <input class="in" id="ss_${sid}_${j}" inputmode="numeric" data-in="isets" data-id="${sid}" data-j="${j}" value="${defSets(it.ex)}" aria-label="Sets for ${esc(d.name)}">
           <button class="ed-x" data-act="remitem" data-id="${sid}" data-j="${j}" aria-label="Remove ${esc(d.name)}">${ICON.x}</button></div>`; }).join('')}</div>
         <label class="fl">Add exercise<select class="in" id="sa_${sid}" data-in="additem" data-id="${sid}"><option value="">Choose…</option>${Object.entries(S().ex).sort((a, b) => a[1].name.localeCompare(b[1].name)).map(([id, x]) => `<option value="${id}">${esc(x.name)}</option>`).join('')}</select></label>
         <div class="btnrow" style="justify-content:flex-end">${delBtn(sid)}</div></div>`;
@@ -669,7 +669,7 @@ function exEditor(id, x) {
     <label class="fl">Max ${x.u === 'bw' ? 'added kg' : x.u === 'plates' ? 'plates / side' : 'kg'}<input class="in" id="xe_bw" inputmode="decimal" value="${x.base?.w ?? ''}" placeholder="optional"></label>
     <label class="fl">Max reps<input class="in" id="xe_br" inputmode="numeric" value="${x.base?.r ?? ''}" placeholder="optional"></label>
     <label class="fl full">Max set as exercise no.<input class="in" id="xe_bpos" inputmode="numeric" value="${x.bpos ?? ''}" placeholder="blank = in your usual order"></label>
-    <label class="fl">Default sets<input class="in" id="xe_sets" inputmode="numeric" value="${x.sets ?? ''}" placeholder="2"></label>
+    <label class="fl">Sets<input class="in" id="xe_sets" inputmode="numeric" value="${x.sets ?? ''}" placeholder="2"></label>
     <label class="fl">Weight step<input class="in" id="xe_inc" inputmode="decimal" value="${x.inc ?? ''}" placeholder="${fmt(exStep(id), 3)}"></label>
     <label class="fl">Reps in reserve<input class="in" id="xe_rir" inputmode="numeric" value="${x.rir ?? ''}" placeholder="${exRir(id)}"></label>
     ${x.u === 'bw' ? `<label class="fl">Body weight counted %<input class="in" id="xe_bwf" inputmode="numeric" value="${x.bwf ? Math.round(x.bwf * 100) : ''}" placeholder="0 = reps only"></label>` : ''}

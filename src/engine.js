@@ -186,14 +186,14 @@ function ctxLog(w, i) { // where exercise i sits in a log: the working sets done
 }
 function ctxPlan(sid, exId, slot) { // the usual position: the Plan order of that session (slot: count only the first slot - 1 exercises, for a stated max)
   const items = (sessDef(sid)?.items || []).filter(it => S().ex[it.ex]); let i = items.findIndex(it => it.ex === exId); if (i < 0) return null;
-  const ids = items.map(it => it.ex), ns = items.map(it => it.sets || 0);
+  const ids = items.map(it => it.ex), ns = items.map(it => defSets(it.ex));
   if (slot != null) { const k = Math.max(0, Math.min(slot - 1, i)); ids.splice(k, 0, ids.splice(i, 1)[0]); ns.splice(k, 0, ns.splice(i, 1)[0]); i = k; }
   return ctxFrom(ids, ns, i);
 }
 function usualSid(exId, sid) { if (sid && sessDef(sid)?.items?.some(it => it.ex === exId)) return sid; return order().find(id => sessDef(id)?.items?.some(it => it.ex === exId)) || null; }
 function usualCtx(exId, sid) { const s = usualSid(exId, sid); return (s && ctxPlan(s, exId)) || ZERO_CTX; }
 function baseCtx(exId) { const d = exDef(exId); return d.bctx || baseCtxNow(exId); } // fixed when the max was entered (v1.44), so a later Plan reorder can't change what it means
-const defSets = id => exDef(id).sets || 2; // an exercise's default set count (v1.44)
+const defSets = id => exDef(id).sets || 2; // an exercise's set count, the same in every session; a log can change its own day only (v1.45)
 function snapBase(exId) { const d = S().ex[exId]; if (!d) return false; if (!(d.base && d.base.r > 0)) { const had = !!d.bctx; delete d.bctx; return had; } const c = baseCtxNow(exId); d.bctx = { L: +c.L.toFixed(3), G: +c.G.toFixed(3) }; return true; }
 function baseCtxNow(exId) { const d = exDef(exId); if (!(d.bpos > 0)) return usualCtx(exId); if (d.bpos === 1) return ZERO_CTX; const s = usualSid(exId); return (s && ctxPlan(s, exId, d.bpos)) || ZERO_CTX; } // where the stated max was set
 function inv2(M) { const d = M[0][0] * M[1][1] - M[0][1] * M[1][0]; return Math.abs(d) < 1e-15 ? null : [[M[1][1] / d, -M[0][1] / d], [-M[1][0] / d, M[0][0] / d]]; }
@@ -361,7 +361,7 @@ function newWorkout(date, sid) {
   const sd = sessDef(sid);
   return {
     date, s: sid, sName: sd?.name || sid, startedAt: null, finishedAt: null, dur: null,
-    ex: (sd?.items || []).filter(it => S().ex[it.ex]).map(it => ({ id: it.ex, sets: prefill(it.ex, it.sets, date) })),
+    ex: (sd?.items || []).filter(it => S().ex[it.ex]).map(it => ({ id: it.ex, sets: prefill(it.ex, defSets(it.ex), date) })),
     cardio: { name: S().cardio.name, min: S().cardio.min, lvl: null, done: false }, note: '',
   };
 }
@@ -421,8 +421,8 @@ function sessDur(w) { const m = whoopLiftMin(w.date); return m != null ? m * 60 
    ============================================================ */
 function planWeekly(prog) { // sets per week if one session is trained every day
   const o = prog.order.filter(id => prog.sessions[id]); const out = {}; if (!o.length) return out;
-  for (const id of o) for (const it of prog.sessions[id].items) { const d = exDef(it.ex), g = d.g; out[g] = (out[g] || 0) + it.sets; // same rule as Volume (v1.36): secondaries at half a set
-    for (const g2 of d.g2 || SECONDARY[it.ex] || []) if (g2 !== g) out[g2] = (out[g2] || 0) + it.sets / 2; }
+  for (const id of o) for (const it of prog.sessions[id].items) { const d = exDef(it.ex), g = d.g; out[g] = (out[g] || 0) + defSets(it.ex); // same rule as Volume (v1.36): secondaries at half a set
+    for (const g2 of d.g2 || SECONDARY[it.ex] || []) if (g2 !== g) out[g2] = (out[g2] || 0) + defSets(it.ex) / 2; }
   for (const g in out) out[g] = out[g] * 7 / o.length;
   return out;
 }

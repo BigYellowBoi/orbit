@@ -16,6 +16,12 @@ function migrateSettings(s) {
   for (const sd of Object.values(out.prog.sessions)) for (const it of sd.items) if (!out.ex[it.ex] && EXLIB[it.ex]) out.ex[it.ex] = clone(EXLIB[it.ex]);
   if (s && !s.sets2) { for (const sd of Object.values(out.prog.sessions)) for (const it of sd.items) it.sets = 2; ui.migSave = true; } // v1.24: 2 sets is the default, once
   out.sets2 = 1;
+  if (s && !s.sets1x) { // v1.45: one set count per exercise, the same in every session: the one it has in most sessions (ties: the first in rotation order), unless already set
+    const cnt = {}; for (const sid of out.prog.order) for (const it of out.prog.sessions[sid]?.items || []) { const c = cnt[it.ex] = cnt[it.ex] || {}; if (!(it.sets in c)) c[it.sets] = { n: 0, at: Object.keys(c).length }; c[it.sets].n++; }
+    for (const [id, c] of Object.entries(cnt)) { const x = out.ex[id]; if (!x || x.sets) continue; const n = +Object.entries(c).sort((a, b) => b[1].n - a[1].n || a[1].at - b[1].at)[0][0]; if (n > 0 && n !== 2) x.sets = n; }
+    ui.migSave = true;
+  }
+  out.sets1x = 1;
   out.cardio = { ...d.cardio, ...(s?.cardio || {}) };
   if (!['Stairmaster', 'Treadmill'].includes(out.cardio.name)) out.cardio.name = /tread/i.test(out.cardio.name) ? 'Treadmill' : 'Stairmaster';
   return out;
@@ -312,8 +318,9 @@ function blankEx(id) { // a "New exercise" made by + Exercise and never filled i
   const x = S().ex[id]; if (!x || !/^x/.test(id) || x.name !== 'New exercise' || x.g !== 'other' || (x.base && x.base.r) || x.note) return false;
   return !Object.values(S().prog.sessions).some(sd => sd.items.some(it => it.ex === id)) && !Object.values(STATE.w).some(w => (w.ex || []).some(e => e.id === id));
 }
+function syncSets() { let ch = false; for (const sd of Object.values(S().prog.sessions)) for (const it of sd.items) { const n = defSets(it.ex); if (it.sets !== n) { it.sets = n; ch = true; } } return ch; } // Plan items mirror the exercise's count
 function sweepSettings() { // one-off settings migrations to save, and blank exercises left behind (v1.24)
-  let ch = !!ui.migSave; ui.migSave = false;
+  let ch = !!ui.migSave; ui.migSave = false; if (syncSets()) ch = true;
   for (const id of Object.keys(S().ex)) if (id !== ui.editEx && blankEx(id)) { delete S().ex[id]; ch = true; }
   for (const [id, x] of Object.entries(S().ex)) if (x.base && x.base.r > 0 && !x.bctx && snapBase(id)) ch = true; // v1.44: fix each stated max to the slot it has now, once
   if (ch) saveSettings();
@@ -452,7 +459,7 @@ const ACT = {
     const bpos = parseInt($('#xe_bpos')?.value, 10), b0 = JSON.stringify([x0.base, x0.bpos]); if (x.base && bpos > 0 && bpos <= 20) x.bpos = bpos; else delete x.bpos; // where in the session the max was set (v1.43)
     if (b0 !== JSON.stringify([x.base, x.bpos]) || (x.base && !x.bctx)) snapBase(el.dataset.id); // its context is fixed now, so reordering the Plan later can't change it (v1.44)
     const ns = parseInt($('#xe_sets')?.value, 10), oldN = x.sets || 2; if (ns >= 1 && ns <= 12 && ns !== 2) x.sets = ns; else delete x.sets;
-    const newN = x.sets || 2; if (newN !== oldN) for (const sd of Object.values(S().prog.sessions)) for (const it of sd.items) if (it.ex === el.dataset.id && it.sets === oldN) it.sets = newN; // sessions still on the old default follow it
+    syncSets(); // every session shows the exercise's one count (v1.45)
     const inc = num($('#xe_inc').value), rir = parseInt($('#xe_rir').value, 10);
     if (inc > 0) x.inc = inc; else delete x.inc;
     if (rir >= 0 && rir <= 5) x.rir = rir; else delete x.rir;
@@ -501,7 +508,7 @@ const INP = {
   metric: el => { ui.metric = el.value; ui.off = 0; render(true); },
   sname: el => { const sd = sessDef(el.dataset.id); sd.name = el.value.trim() || sd.name; saveSettings(); },
   sfocus: el => { sessDef(el.dataset.id).focus = el.value.trim(); saveSettings(); },
-  isets: el => { const n = parseInt(el.value, 10); if (n >= 1 && n <= 12) { sessDef(el.dataset.id).items[+el.dataset.j].sets = n; saveSettings(); render(); } },
+  isets: el => { const n = parseInt(el.value, 10), it = sessDef(el.dataset.id).items[+el.dataset.j], x = S().ex[it?.ex]; if (!x || !(n >= 1 && n <= 12)) return; if (n !== 2) x.sets = n; else delete x.sets; syncSets(); saveSettings(); render(); }, // the exercise's count, in every session and the editor (v1.45)
   additem: el => { if (!el.value) return; const sid = el.dataset.id; sessDef(sid).items.push({ ex: el.value, sets: defSets(el.value) }); saveSettings(); render(true); reveal(`#sa_${sid}`, 0); },
   cname: el => { S().cardio.name = el.value; saveSettings(); },
   cmindef: el => { const n = parseInt(el.value, 10); if (n > 0) { S().cardio.min = n; saveSettings(); } },

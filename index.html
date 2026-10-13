@@ -643,7 +643,7 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.44'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.45'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
@@ -843,14 +843,14 @@ function ctxLog(w, i) { // where exercise i sits in a log: the working sets done
 }
 function ctxPlan(sid, exId, slot) { // the usual position: the Plan order of that session (slot: count only the first slot - 1 exercises, for a stated max)
   const items = (sessDef(sid)?.items || []).filter(it => S().ex[it.ex]); let i = items.findIndex(it => it.ex === exId); if (i < 0) return null;
-  const ids = items.map(it => it.ex), ns = items.map(it => it.sets || 0);
+  const ids = items.map(it => it.ex), ns = items.map(it => defSets(it.ex));
   if (slot != null) { const k = Math.max(0, Math.min(slot - 1, i)); ids.splice(k, 0, ids.splice(i, 1)[0]); ns.splice(k, 0, ns.splice(i, 1)[0]); i = k; }
   return ctxFrom(ids, ns, i);
 }
 function usualSid(exId, sid) { if (sid && sessDef(sid)?.items?.some(it => it.ex === exId)) return sid; return order().find(id => sessDef(id)?.items?.some(it => it.ex === exId)) || null; }
 function usualCtx(exId, sid) { const s = usualSid(exId, sid); return (s && ctxPlan(s, exId)) || ZERO_CTX; }
 function baseCtx(exId) { const d = exDef(exId); return d.bctx || baseCtxNow(exId); } // fixed when the max was entered (v1.44), so a later Plan reorder can't change what it means
-const defSets = id => exDef(id).sets || 2; // an exercise's default set count (v1.44)
+const defSets = id => exDef(id).sets || 2; // an exercise's set count, the same in every session; a log can change its own day only (v1.45)
 function snapBase(exId) { const d = S().ex[exId]; if (!d) return false; if (!(d.base && d.base.r > 0)) { const had = !!d.bctx; delete d.bctx; return had; } const c = baseCtxNow(exId); d.bctx = { L: +c.L.toFixed(3), G: +c.G.toFixed(3) }; return true; }
 function baseCtxNow(exId) { const d = exDef(exId); if (!(d.bpos > 0)) return usualCtx(exId); if (d.bpos === 1) return ZERO_CTX; const s = usualSid(exId); return (s && ctxPlan(s, exId, d.bpos)) || ZERO_CTX; } // where the stated max was set
 function inv2(M) { const d = M[0][0] * M[1][1] - M[0][1] * M[1][0]; return Math.abs(d) < 1e-15 ? null : [[M[1][1] / d, -M[0][1] / d], [-M[1][0] / d, M[0][0] / d]]; }
@@ -1018,7 +1018,7 @@ function newWorkout(date, sid) {
   const sd = sessDef(sid);
   return {
     date, s: sid, sName: sd?.name || sid, startedAt: null, finishedAt: null, dur: null,
-    ex: (sd?.items || []).filter(it => S().ex[it.ex]).map(it => ({ id: it.ex, sets: prefill(it.ex, it.sets, date) })),
+    ex: (sd?.items || []).filter(it => S().ex[it.ex]).map(it => ({ id: it.ex, sets: prefill(it.ex, defSets(it.ex), date) })),
     cardio: { name: S().cardio.name, min: S().cardio.min, lvl: null, done: false }, note: '',
   };
 }
@@ -1078,8 +1078,8 @@ function sessDur(w) { const m = whoopLiftMin(w.date); return m != null ? m * 60 
    ============================================================ */
 function planWeekly(prog) { // sets per week if one session is trained every day
   const o = prog.order.filter(id => prog.sessions[id]); const out = {}; if (!o.length) return out;
-  for (const id of o) for (const it of prog.sessions[id].items) { const d = exDef(it.ex), g = d.g; out[g] = (out[g] || 0) + it.sets; // same rule as Volume (v1.36): secondaries at half a set
-    for (const g2 of d.g2 || SECONDARY[it.ex] || []) if (g2 !== g) out[g2] = (out[g2] || 0) + it.sets / 2; }
+  for (const id of o) for (const it of prog.sessions[id].items) { const d = exDef(it.ex), g = d.g; out[g] = (out[g] || 0) + defSets(it.ex); // same rule as Volume (v1.36): secondaries at half a set
+    for (const g2 of d.g2 || SECONDARY[it.ex] || []) if (g2 !== g) out[g2] = (out[g2] || 0) + defSets(it.ex) / 2; }
   for (const g in out) out[g] = out[g] * 7 / o.length;
   return out;
 }
@@ -1807,7 +1807,7 @@ function deltaTxt(v, base, d = 0, unit = '', invert = false) {
   const better = invert ? diff < 0 : diff > 0;
   return `<span class="delta" style="color:var(${better ? '--good-ink' : '--warn-ink'})">${diff > 0 ? '+' : '−'}${fmt(Math.abs(diff), d)}${unit} vs 30-day</span>`;
 }
-function rxTxt(it) { const d = exDef(it.ex); return `${it.sets} × ${d.lo}${d.hi > d.lo ? '–' + d.hi : ''}`; }
+function rxTxt(it) { const d = exDef(it.ex); return `${defSets(it.ex)} × ${d.lo}${d.hi > d.lo ? '–' + d.hi : ''}`; }
 function prevLine(exId, before, sid) { const sg = suggest(exId, before, usualCtx(exId, sid)), l = lastLine(exId, before); return [sg ? `<b class="aimtxt">Aim ${esc(suggestTxt(exId, sg))}</b>` : '', esc(l)].filter(Boolean).join(' · '); }
 function lastLine(exId, before) {
   const ix = lixEx(exId), n = nBefore(ix.list, before); // Best counts logged sets only; stated maxes just seed the Aim
@@ -2358,11 +2358,11 @@ function vBody() {
    in place (filterEx in boot.js) so the keyboard stays up; ui.exQ keeps the filter across re-renders, e.g. Edit and Save. */
 function exHay(x) { return `${x.name} ${GROUPS[x.g] || ''} ${UNITS[x.u]?.label || ''}`.toLowerCase(); }
 function exMatch(hay, q) { return String(q || '').toLowerCase().split(/\s+/).filter(Boolean).every(w => hay.includes(w)); }
-function progSig(p) { return JSON.stringify({ o: p.order, s: Object.fromEntries(Object.entries(p.sessions).map(([k, v]) => [k, v.items.map(i => i.ex + i.sets)])) }); }
+function progSig(p) { return JSON.stringify({ o: p.order, s: Object.fromEntries(Object.entries(p.sessions).map(([k, v]) => [k, v.items.map(i => i.ex)])) }); }
 function vPlan() {
   const cur = S().prog, sig = progSig(cur), o = order();
   const match = Object.keys(PRESETS).find(k => progSig(PRESETS[k]) === sig);
-  // Edited (sets, order, an exercise swapped): the closest preset stays selected, marked edited, rather than none
+  // Edited (order, an exercise swapped; set counts belong to the exercises since v1.45): the closest preset stays selected, marked edited, rather than none
   const pairs = p => new Set(Object.entries(p.sessions).flatMap(([sid, sd]) => sd.items.map(i => sid + ':' + i.ex)));
   const mine = pairs(cur), near = match || Object.keys(PRESETS).map(k => { const ps = pairs(PRESETS[k]); return { k, sc: [...ps].filter(x => mine.has(x)).length / Math.max(ps.size, mine.size, 1) }; }).sort((a, b) => b.sc - a.sc).find(x => x.sc >= 0.5)?.k;
   let h = `<div class="page-h"><div><div class="eyebrow">${match ? esc(PRESETS[match].name) : near ? esc(PRESETS[near].name) + ', edited' : 'Custom split'} · ${trainIds().length} sessions${o.length > trainIds().length ? ` + ${o.length - trainIds().length} rest` : ''}</div><h1>Plan</h1></div></div>`;
@@ -2404,7 +2404,7 @@ function vPlan() {
       if (sd.rest) h += `<div class="sess-b"><p class="xs muted">Any day you don't log a session fills this slot, and the rotation moves on. Train on the day instead and it's skipped.</p><div class="btnrow" style="justify-content:flex-end">${delBtn(sid)}</div></div>`;
       else h += `<div class="sess-b"><div class="fields" style="grid-template-columns:minmax(0,1fr) minmax(0,1.4fr)"><label class="fl">Name<input class="in left" id="sn_${sid}" data-in="sname" data-id="${sid}" value="${esc(sd.name)}"></label><label class="fl">Focus<input class="in left" id="sf_${sid}" data-in="sfocus" data-id="${sid}" value="${esc(sd.focus || '')}"></label></div>
         <div class="dlist" data-list="item" data-id="${sid}">${sd.items.map((it, j) => { const d = exDef(it.ex); return `<div class="ed-item" data-dragitem data-j="${j}"><span class="grip" data-grip="item" aria-label="Drag to reorder ${esc(d.name)}" role="button" tabindex="-1">${ICON.grip}</span><span class="nm">${esc(d.name)}<small>${esc(GROUPS[d.g] || '')} · ${d.lo}–${d.hi} reps</small></span>
-          <input class="in" id="ss_${sid}_${j}" inputmode="numeric" data-in="isets" data-id="${sid}" data-j="${j}" value="${it.sets}" aria-label="Sets for ${esc(d.name)}">
+          <input class="in" id="ss_${sid}_${j}" inputmode="numeric" data-in="isets" data-id="${sid}" data-j="${j}" value="${defSets(it.ex)}" aria-label="Sets for ${esc(d.name)}">
           <button class="ed-x" data-act="remitem" data-id="${sid}" data-j="${j}" aria-label="Remove ${esc(d.name)}">${ICON.x}</button></div>`; }).join('')}</div>
         <label class="fl">Add exercise<select class="in" id="sa_${sid}" data-in="additem" data-id="${sid}"><option value="">Choose…</option>${Object.entries(S().ex).sort((a, b) => a[1].name.localeCompare(b[1].name)).map(([id, x]) => `<option value="${id}">${esc(x.name)}</option>`).join('')}</select></label>
         <div class="btnrow" style="justify-content:flex-end">${delBtn(sid)}</div></div>`;
@@ -2466,7 +2466,7 @@ function exEditor(id, x) {
     <label class="fl">Max ${x.u === 'bw' ? 'added kg' : x.u === 'plates' ? 'plates / side' : 'kg'}<input class="in" id="xe_bw" inputmode="decimal" value="${x.base?.w ?? ''}" placeholder="optional"></label>
     <label class="fl">Max reps<input class="in" id="xe_br" inputmode="numeric" value="${x.base?.r ?? ''}" placeholder="optional"></label>
     <label class="fl full">Max set as exercise no.<input class="in" id="xe_bpos" inputmode="numeric" value="${x.bpos ?? ''}" placeholder="blank = in your usual order"></label>
-    <label class="fl">Default sets<input class="in" id="xe_sets" inputmode="numeric" value="${x.sets ?? ''}" placeholder="2"></label>
+    <label class="fl">Sets<input class="in" id="xe_sets" inputmode="numeric" value="${x.sets ?? ''}" placeholder="2"></label>
     <label class="fl">Weight step<input class="in" id="xe_inc" inputmode="decimal" value="${x.inc ?? ''}" placeholder="${fmt(exStep(id), 3)}"></label>
     <label class="fl">Reps in reserve<input class="in" id="xe_rir" inputmode="numeric" value="${x.rir ?? ''}" placeholder="${exRir(id)}"></label>
     ${x.u === 'bw' ? `<label class="fl">Body weight counted %<input class="in" id="xe_bwf" inputmode="numeric" value="${x.bwf ? Math.round(x.bwf * 100) : ''}" placeholder="0 = reps only"></label>` : ''}
@@ -2523,6 +2523,12 @@ function migrateSettings(s) {
   for (const sd of Object.values(out.prog.sessions)) for (const it of sd.items) if (!out.ex[it.ex] && EXLIB[it.ex]) out.ex[it.ex] = clone(EXLIB[it.ex]);
   if (s && !s.sets2) { for (const sd of Object.values(out.prog.sessions)) for (const it of sd.items) it.sets = 2; ui.migSave = true; } // v1.24: 2 sets is the default, once
   out.sets2 = 1;
+  if (s && !s.sets1x) { // v1.45: one set count per exercise, the same in every session: the one it has in most sessions (ties: the first in rotation order), unless already set
+    const cnt = {}; for (const sid of out.prog.order) for (const it of out.prog.sessions[sid]?.items || []) { const c = cnt[it.ex] = cnt[it.ex] || {}; if (!(it.sets in c)) c[it.sets] = { n: 0, at: Object.keys(c).length }; c[it.sets].n++; }
+    for (const [id, c] of Object.entries(cnt)) { const x = out.ex[id]; if (!x || x.sets) continue; const n = +Object.entries(c).sort((a, b) => b[1].n - a[1].n || a[1].at - b[1].at)[0][0]; if (n > 0 && n !== 2) x.sets = n; }
+    ui.migSave = true;
+  }
+  out.sets1x = 1;
   out.cardio = { ...d.cardio, ...(s?.cardio || {}) };
   if (!['Stairmaster', 'Treadmill'].includes(out.cardio.name)) out.cardio.name = /tread/i.test(out.cardio.name) ? 'Treadmill' : 'Stairmaster';
   return out;
@@ -2819,8 +2825,9 @@ function blankEx(id) { // a "New exercise" made by + Exercise and never filled i
   const x = S().ex[id]; if (!x || !/^x/.test(id) || x.name !== 'New exercise' || x.g !== 'other' || (x.base && x.base.r) || x.note) return false;
   return !Object.values(S().prog.sessions).some(sd => sd.items.some(it => it.ex === id)) && !Object.values(STATE.w).some(w => (w.ex || []).some(e => e.id === id));
 }
+function syncSets() { let ch = false; for (const sd of Object.values(S().prog.sessions)) for (const it of sd.items) { const n = defSets(it.ex); if (it.sets !== n) { it.sets = n; ch = true; } } return ch; } // Plan items mirror the exercise's count
 function sweepSettings() { // one-off settings migrations to save, and blank exercises left behind (v1.24)
-  let ch = !!ui.migSave; ui.migSave = false;
+  let ch = !!ui.migSave; ui.migSave = false; if (syncSets()) ch = true;
   for (const id of Object.keys(S().ex)) if (id !== ui.editEx && blankEx(id)) { delete S().ex[id]; ch = true; }
   for (const [id, x] of Object.entries(S().ex)) if (x.base && x.base.r > 0 && !x.bctx && snapBase(id)) ch = true; // v1.44: fix each stated max to the slot it has now, once
   if (ch) saveSettings();
@@ -2959,7 +2966,7 @@ const ACT = {
     const bpos = parseInt($('#xe_bpos')?.value, 10), b0 = JSON.stringify([x0.base, x0.bpos]); if (x.base && bpos > 0 && bpos <= 20) x.bpos = bpos; else delete x.bpos; // where in the session the max was set (v1.43)
     if (b0 !== JSON.stringify([x.base, x.bpos]) || (x.base && !x.bctx)) snapBase(el.dataset.id); // its context is fixed now, so reordering the Plan later can't change it (v1.44)
     const ns = parseInt($('#xe_sets')?.value, 10), oldN = x.sets || 2; if (ns >= 1 && ns <= 12 && ns !== 2) x.sets = ns; else delete x.sets;
-    const newN = x.sets || 2; if (newN !== oldN) for (const sd of Object.values(S().prog.sessions)) for (const it of sd.items) if (it.ex === el.dataset.id && it.sets === oldN) it.sets = newN; // sessions still on the old default follow it
+    syncSets(); // every session shows the exercise's one count (v1.45)
     const inc = num($('#xe_inc').value), rir = parseInt($('#xe_rir').value, 10);
     if (inc > 0) x.inc = inc; else delete x.inc;
     if (rir >= 0 && rir <= 5) x.rir = rir; else delete x.rir;
@@ -3008,7 +3015,7 @@ const INP = {
   metric: el => { ui.metric = el.value; ui.off = 0; render(true); },
   sname: el => { const sd = sessDef(el.dataset.id); sd.name = el.value.trim() || sd.name; saveSettings(); },
   sfocus: el => { sessDef(el.dataset.id).focus = el.value.trim(); saveSettings(); },
-  isets: el => { const n = parseInt(el.value, 10); if (n >= 1 && n <= 12) { sessDef(el.dataset.id).items[+el.dataset.j].sets = n; saveSettings(); render(); } },
+  isets: el => { const n = parseInt(el.value, 10), it = sessDef(el.dataset.id).items[+el.dataset.j], x = S().ex[it?.ex]; if (!x || !(n >= 1 && n <= 12)) return; if (n !== 2) x.sets = n; else delete x.sets; syncSets(); saveSettings(); render(); }, // the exercise's count, in every session and the editor (v1.45)
   additem: el => { if (!el.value) return; const sid = el.dataset.id; sessDef(sid).items.push({ ex: el.value, sets: defSets(el.value) }); saveSettings(); render(true); reveal(`#sa_${sid}`, 0); },
   cname: el => { S().cardio.name = el.value; saveSettings(); },
   cmindef: el => { const n = parseInt(el.value, 10); if (n > 0) { S().cardio.min = n; saveSettings(); } },

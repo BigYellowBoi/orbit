@@ -87,6 +87,21 @@ const active = p => p.evaluate(() => document.activeElement?.id || null);
     await p.evaluate(id => ACT.addexid({ dataset: { id } }), id);
     ok(await p.evaluate(id => STATE.w[today()].ex.find(e => e.id === id)?.sets.length, id) === 3, '+ Exercise adds it with 3 sets');
 
+    // v1.45: a session's count is the exercise's count: change it in Sessions and every session and the editor follow; a log changes only its own day
+    await p.evaluate(() => { go('plan'); ui.planTab = 'sessions'; ui.openSess = new Set(order()); render(true); });
+    const inp = await p.evaluate(id => { const sid = order().find(s => sessDef(s)?.items.some(it => it.ex === id)), j = sessDef(sid).items.findIndex(it => it.ex === id); return `[data-in="isets"][data-id="${sid}"][data-j="${j}"]`; }, id);
+    await p.fill(inp, '4'); await p.evaluate(() => document.activeElement.blur()); await p.waitForTimeout(150);
+    ok(await p.evaluate(id => S().ex[id].sets, id) === 4, 'changing it in Sessions changes the exercise\'s count');
+    ok(await p.evaluate(id => Object.values(S().prog.sessions).flatMap(s => s.items).filter(it => it.ex === id).every(it => it.sets === 4), id), 'every session with it shows 4');
+    await p.evaluate(id => { ui.planTab = 'exercises'; ui.editEx = id; render(true); }, id);
+    ok(await p.inputValue('#xe_sets') === '4', 'the editor shows the same 4');
+    await p.evaluate(() => { ui.editEx = null; S().rotOverride = { id: order().find(s => sessDef(s)?.items.some(it => it.ex === 'spider')), from: today() }; delete STATE.w[today()]; bump(); go('today'); });
+    await p.tap('[data-act="start"]');
+    const li = await p.evaluate(() => STATE.w[today()].ex.findIndex(e => e.id === 'spider'));
+    ok(await p.evaluate(li => STATE.w[today()].ex[li].sets.length, li) === 4, 'a new log starts with 4');
+    await p.tap(`#ex${li} [data-act="addset"]`);
+    ok(await p.evaluate(li => STATE.w[today()].ex[li].sets.length, li) === 5 && await p.evaluate(() => S().ex.spider.sets) === 4, '+ Set in the log changes that day only');
+
     // Plan's exercise search: × clears without bringing the keyboard up
     await p.evaluate(() => { go('plan'); ui.planTab = 'exercises'; render(true); });
     await p.tap('#exq'); await p.keyboard.type('curl'); await p.evaluate(() => document.activeElement.blur());

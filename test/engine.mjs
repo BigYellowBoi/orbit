@@ -360,5 +360,22 @@ if (process.env.OLD_ENGINE) {
   const M = E.ordModel().by.spider; ok(M.n >= 18, `both splits' sessions teach it (${M.n} sessions)`);
 }
 
+/* ---------- one set count per exercise (v1.45): the migration picks the count it has in most sessions ---------- */
+{
+  const src = fs.readFileSync(path.join(root, 'src/boot.js'), 'utf8'), m = src.match(/function migrateSettings\(s\) \{[\s\S]*?\n\}\n/);
+  ok(!!m, 'migrateSettings found');
+  if (m) {
+    const E = load(); const ctx = vm.createContext({ ui: {}, clone: o => JSON.parse(JSON.stringify(o)), defaultSettings: () => JSON.parse(JSON.stringify(E.S())), EXLIB: {} });
+    vm.runInContext(m[0] + ';globalThis.mig = migrateSettings;', ctx);
+    const s0 = JSON.parse(JSON.stringify(E.S())); s0.sets2 = 1; delete s0.sets1x;
+    s0.prog = { order: ['a', 'b', 'c'], sessions: { a: { name: 'A', items: [{ ex: 'spider', sets: 3 }, { ex: 'hammer', sets: 4 }] }, b: { name: 'B', items: [{ ex: 'spider', sets: 3 }, { ex: 'hammer', sets: 2 }] }, c: { name: 'C', items: [{ ex: 'spider', sets: 2 }] } } };
+    delete s0.ex.spider.sets; delete s0.ex.hammer.sets;
+    const out = ctx.mig(s0);
+    ok(out.ex.spider.sets === 3, 'spider: 3 in two sessions, 2 in one, so 3');
+    ok(out.ex.hammer.sets === 4, 'hammer: a tie (4 and 2), so the first session in rotation order wins');
+    ok(out.sets1x === 1 && ctx.mig(out).ex.spider.sets === 3, 'runs once');
+  }
+}
+
 console.log(`${passes} passed, ${fails} failed`);
 process.exit(fails ? 1 : 0);
