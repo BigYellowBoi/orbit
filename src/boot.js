@@ -159,7 +159,7 @@ async function resetAll() {
 /* ============================================================
    RENDER
    ============================================================ */
-/* Scrolling: the page scrolls, unless the Scroll box layout is on (Pages only, html.sbox, switched on the Data screen):
+/* Scrolling: in the claude.ai artifact the page scrolls. The home-screen app (Pages) uses the Scroll box layout, html.sbox:
    then only #scroll scrolls and the header and tab bar sit outside it. iOS swallows a tap that stops momentum on the
    page itself (no touch or click event reaches it), so with the page scrolling a tab tap mid-fling only stops the
    scroll. With the content in its own box, the tab bar isn't part of the moving surface and the tap arrives.
@@ -257,7 +257,6 @@ const ACT = {
   prograte: el => { S().progRate = +el.dataset.v; if (S().goal === 'grow') S().growFrom = today(); saveSettings(); render(true); },
   update: () => { location.replace(location.pathname + '?v=' + encodeURIComponent(ui.update || Date.now())); },
   updlater: () => { ui.updLater = ui.update; renderUpdate(); },
-  layout: el => { try { if (el.dataset.v === 'box') localStorage.setItem('orbit-scrollbox', '1'); else localStorage.removeItem('orbit-scrollbox'); } catch (e) { } location.reload(); },
   edittoday: () => { ui.editToday = true; render(true); },
   pastlog: () => { ui.logDate = addDays(today(), -1); ui.pickSess = null; go('log'); },
   exhist: el => { const i = +el.dataset.e; ui.exHist = ui.exHist === i ? null : i; render(true); },

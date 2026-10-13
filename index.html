@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="sbox">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -12,9 +12,7 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="manifest" href="manifest.webmanifest">
-<script>try { localStorage.removeItem('orbit-layout'); localStorage.removeItem('orbit-hdr'); } catch (e) { } /* retired layout experiments */</script>
-<script>/* Scroll box layout (test, switched on the Data screen): only #scroll scrolls; see boot.js */
-try { if (localStorage.getItem('orbit-scrollbox') === '1') document.documentElement.classList.add('sbox'); } catch (e) { }</script>
+<script>try { localStorage.removeItem('orbit-layout'); localStorage.removeItem('orbit-hdr'); localStorage.removeItem('orbit-scrollbox'); } catch (e) { } /* retired layout experiments and switches */</script>
 <style>
 html, body { margin: 0; }
 html { -webkit-text-size-adjust: 100%; }
@@ -22,7 +20,7 @@ body { min-height: 100vh; } /* vh includes the safe areas in home-screen apps (W
 /* iOS draws a blurred band over the top of home-screen apps, reaching about 14pt below the status bar. Tested on an
    iPhone 13 Pro Max (v1.3 Display check): the header row is sharp only when moved below it. */
 @media (display-mode: standalone) { html:root { --hdrdrop: 14px; } }
-/* Scroll box: the content scrolls inside a fixed box anchored to all four edges. No vh or 100% heights: the earlier
+/* Scroll box (html.sbox, always on in the home-screen app since v1.12): the content scrolls inside a fixed box anchored to all four edges. No vh or 100% heights: the earlier
    pinned shell sized itself with those and came out short on the 13 Pro Max (WebKit bug 254868), while position: fixed
    with top and bottom anchors to the real screen edges, as the tab bar does. body keeps its min-height: 100vh: without it
    iOS leaves the viewport a status bar short and fixed elements stop ~47pt above the bottom (v1.9 on the 13 Pro Max). */
@@ -471,7 +469,7 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.11'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.12'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
@@ -1746,9 +1744,6 @@ function vData() {
   h += `<section class="card"><div class="card-h"><h2>Start over</h2></div>
     ${ui.confirm === 'reset' ? `<p class="small">This deletes every session, import and setting, here and in cloud storage. Save a backup first if you might want it.</p><div class="btnrow"><button class="btn danger sm" data-act="reset">Delete everything</button><button class="link dim" data-act="confirm" data-v="">Cancel</button></div>`
       : `<button class="link danger" data-act="confirm" data-v="reset" style="align-self:flex-start">Delete all data</button>`}</section>`;
-  if (window.GH_SYNC) h += `<section class="card"><div class="card-h"><h2>Scrolling</h2>${pill(SBOX ? 'acc' : '', SBOX ? 'Testing' : 'Standard')}</div>
-    <div class="seg" role="group" aria-label="Scrolling layout" style="align-self:flex-start"><button class="${SBOX ? '' : 'on'}" data-act="layout" data-v="page">Standard</button><button class="${SBOX ? 'on' : ''}" data-act="layout" data-v="box">Scroll box</button></div>
-    <p class="xs muted">Scroll box keeps the tab bar outside the scrolling area, so tapping a tab while the page is still moving takes you straight to the top of that tab. It's a test layout: if the bottom of the screen gets cut off or scrolling sticks, switch back. Switching reloads the app; your data stays.</p></section>`;
   h += `<p class="xs muted" style="text-align:center">Orbit v${esc(APP_VERSION)}${ui.update ? ` · <button class="link" data-act="update">v${esc(ui.update)} is ready, update</button>` : ''}</p>`;
   return h;
 }
@@ -1914,7 +1909,7 @@ async function resetAll() {
 /* ============================================================
    RENDER
    ============================================================ */
-/* Scrolling: the page scrolls, unless the Scroll box layout is on (Pages only, html.sbox, switched on the Data screen):
+/* Scrolling: in the claude.ai artifact the page scrolls. The home-screen app (Pages) uses the Scroll box layout, html.sbox:
    then only #scroll scrolls and the header and tab bar sit outside it. iOS swallows a tap that stops momentum on the
    page itself (no touch or click event reaches it), so with the page scrolling a tab tap mid-fling only stops the
    scroll. With the content in its own box, the tab bar isn't part of the moving surface and the tap arrives.
@@ -2012,7 +2007,6 @@ const ACT = {
   prograte: el => { S().progRate = +el.dataset.v; if (S().goal === 'grow') S().growFrom = today(); saveSettings(); render(true); },
   update: () => { location.replace(location.pathname + '?v=' + encodeURIComponent(ui.update || Date.now())); },
   updlater: () => { ui.updLater = ui.update; renderUpdate(); },
-  layout: el => { try { if (el.dataset.v === 'box') localStorage.setItem('orbit-scrollbox', '1'); else localStorage.removeItem('orbit-scrollbox'); } catch (e) { } location.reload(); },
   edittoday: () => { ui.editToday = true; render(true); },
   pastlog: () => { ui.logDate = addDays(today(), -1); ui.pickSess = null; go('log'); },
   exhist: el => { const i = +el.dataset.e; ui.exHist = ui.exHist === i ? null : i; render(true); },
