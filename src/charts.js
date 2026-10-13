@@ -79,8 +79,14 @@ function drawChart(el, cfg) {
     const tx = X(best) * (r.width / W), tw = tip.offsetWidth; tip.style.left = Math.max(0, Math.min(r.width - tw, tx - tw / 2)) + 'px';
   };
   svg.addEventListener('pointermove', move); svg.addEventListener('pointerdown', move);
-  svg.addEventListener('pointerleave', () => { tip.hidden = true; xh.setAttribute('visibility', 'hidden'); });
+  const hide = () => { tip.hidden = true; xh.setAttribute('visibility', 'hidden'); };
+  svg.addEventListener('pointerleave', hide); svg.addEventListener('pointercancel', hide); // pointercancel: the touch turned into a scroll
+  svg.addEventListener('pointerup', e => { if (e.pointerType !== 'mouse') hide(); }); // a finger lifting clears it; a mouse keeps hovering
 }
+/* Belt and braces for touch: any scroll, or a touch anywhere outside a chart, clears every chart's highlight. */
+function hideChartTips(except) { document.querySelectorAll('.chart').forEach(c => { if (c === except) return; const t = c.querySelector('.ctip'); if (t && !t.hidden) { t.hidden = true; c.querySelector('.xhair')?.setAttribute('visibility', 'hidden'); } }); }
+document.addEventListener('scroll', () => hideChartTips(), true);
+document.addEventListener('pointerdown', e => hideChartTips(e.target.closest?.('.chart')), true);
 let resizeT; window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(() => drawCharts(), 150); });
 function monYr(s) { return `${new Date(toUTC(s)).toLocaleDateString('en-AU', { timeZone: 'UTC', month: 'short' })} ’${s.slice(2, 4)}`; } // Oct ’25
 function dateAxis(from, to) { // x = day index from `from`
