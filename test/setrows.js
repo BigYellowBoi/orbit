@@ -65,10 +65,10 @@ const active = p => p.evaluate(() => document.activeElement?.id || null);
     await p.tap('#kbar [data-k="1"]');
     ok(await p.evaluate(() => { const f = [...document.querySelectorAll('#view .set:not(.hdr) .in')]; return document.activeElement === f[f.length - 1]; }), `› reaches the last of ${n} fields, across exercises`);
     ok(await p.evaluate(() => document.querySelector('#kbar [data-k="1"]').disabled), '› is off on the last field');
-    await p.tap('#kbar .kd');
-    ok(await active(p) == null || await p.evaluate(() => !document.activeElement.matches('.set .in')), 'Done closes the field');
+    ok(!(await p.$('#kbar .kd')) && await p.evaluate(() => { const k = document.querySelector('#kbar'), r = k.getBoundingClientRect(); return [...k.querySelectorAll('button')].every(x => x.getBoundingClientRect().left > r.left + r.width / 2); }), 'no Done button, arrows on the right');
+    await p.evaluate(() => document.activeElement.blur()); // the number pad's own Done
     await p.waitForTimeout(80);
-    ok(!(await p.$('#kbar.on')), 'bar hides after Done');
+    ok(!(await p.$('#kbar.on')), 'bar hides when the field closes');
     // a non-set field (session notes) gets no bar
     await p.tap('#wnote'); await p.waitForTimeout(50);
     ok(!(await p.$('#kbar.on')), 'no bar on the notes field');

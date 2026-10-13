@@ -592,7 +592,7 @@ function endDrag(ev) {
 document.addEventListener('pointerup', endDrag); document.addEventListener('pointercancel', endDrag);
 
 /* ---------- keyboard bar (v1.40): the iPhone number pad has no return key, so on touch screens a bar sits on top of the
-   keyboard while a set field is focused: ‹ › step through the weight and reps fields in page order, Done closes the keyboard.
+   keyboard while a set field is focused: ‹ › on the right step through the weight and reps fields in page order.
    Its buttons never take focus (touchstart and mousedown are cancelled), so the keyboard stays up between fields. */
 const COARSE = () => matchMedia('(pointer: coarse)').matches;
 const setFields = () => [...document.querySelectorAll('#view .set:not(.hdr) .in')];
@@ -602,7 +602,7 @@ function kbar() {
   if (!on) { if (b) b.classList.remove('on'); return; }
   if (!b) {
     b = document.createElement('div'); b.id = 'kbar'; b.className = 'kbar';
-    b.innerHTML = '<button data-k="-1" aria-label="Previous field">‹</button><button data-k="1" aria-label="Next field">›</button><span></span><button data-k="0" class="kd">Done</button>';
+    b.innerHTML = '<span></span><button data-k="-1" aria-label="Previous field">‹</button><button data-k="1" aria-label="Next field">›</button>'; // arrows on the right; the number pad has its own Done (v1.41)
     b.addEventListener('touchstart', ev => ev.preventDefault(), { passive: false }); b.addEventListener('mousedown', ev => ev.preventDefault());
     b.addEventListener('pointerup', ev => { const k = ev.target.closest('button'); if (k && !k.disabled) kbarGo(+k.dataset.k); });
     document.body.appendChild(b);
