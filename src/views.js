@@ -302,7 +302,7 @@ function vStrength() {
       <td class="n">${m.last ? `${esc(fmtSet(id, m.last.top))}<br><span class="xs muted">${esc(fmtDate(m.last.date))}</span>` : '<span class="muted">–</span>'}</td>
       <td class="n">${tone ? `<span class="pill plain ${tone}" title="${word}">${(m.ch >= 0 ? '+' : '−') + fmt(Math.abs(m.ch), 1)}%</span>` : `<span class="xs muted">${m.state === 'new' ? 'Too new' : '–'}</span>`}</td></tr>`; }).join('')}
     </tbody></table></div>
-    <p class="xs muted">Tap a lift to chart it; tap it again or anywhere else to go back. Best is your strongest logged set; the maxes entered in Plan only seed the first Aims, so they aren't shown. Sets with different reps are compared by estimated 1RM (Epley), which gets less reliable above about 10 reps. Too new means you've logged it in the last 4 weeks but not in the 2 months before, so there's nothing to compare yet. 4 wk compares your typical session (the median of each session's best set) in the last 4 weeks with the 2 months before, so one standout day doesn't swing it: green is holding (within ±2.5%, about the size of day-to-day variation) or up, amber a dip of up to 5%, red a bigger drop.</p></section>` });
+    <p class="xs muted">Best: strongest logged set. 4 wk: your typical session over the last 4 weeks against the 2 months before; green is within 2.5% or up, amber down to 5%, red further. Too new: nothing older to compare yet.</p></section>` });
   // Bands from research, not from the plan: ~3 hard sets a week held size and strength in younger adults (Bickel et al., 2011:
   // a ninth of the training dose, one set of each of three exercises once a week); 10-20 a week is the usual growth range,
   // with diminishing returns above it (Schoenfeld et al., 2017; Pelland et al., 2024).
@@ -311,7 +311,7 @@ function vStrength() {
   const tone = n => n < HOLD ? 'warn' : n >= GLO ? 'good' : '';
   cards.push({ k: 'volume', t: 'Volume, last 7 days', h: `<section class="sec" data-card="volume"><div class="sec-h"><span class="eyebrow">Volume · last 7 days</span></div><section class="card"><div class="legend"><span><i class="ln" style="background:var(--s1);height:8px;width:12px"></i>Sets done</span><span><i class="tk"></i>Hold, ~${HOLD}</span><span><i class="bandk"></i>Grow, ${GLO}–${GHI}</span></div>
     <ul class="hbars">${gs.map(g => { const n = done[g] || 0; return `<li><span class="lab">${esc(GROUPS[g])}</span><span class="trk"><span class="band" style="left:${pc(GLO)}%;width:${pc(GHI) - pc(GLO)}%"></span><span class="fill" style="width:${pc(Math.min(n, mx))}%"></span><span class="tgt" style="left:calc(${pc(HOLD)}% - 1px)"></span></span><span class="v ${tone(n) ? 'tn-' + tone(n) : ''}">${fmt(n, 1)}</span></li>`; }).join('')}</ul>
-    <p class="xs muted">Hard working sets per muscle in the last 7 days, against research rather than your plan. Holding: younger adults kept size and strength on about ${HOLD} hard sets a week per muscle, a ninth of what built it (Bickel et al., 2011), and one heavy set per exercise once a week kept strength (Spiering et al., 2021). Growing: most studies support ${GLO}–${GHI} sets a week, with smaller returns above that (Schoenfeld et al., 2017; Pelland et al., 2024). Compounds count half a set for the muscles they also work (presses: triceps and front delts; rows: biceps and rear delts), the count that predicted growth best (Pelland et al., 2024). Research gives one range for all muscles rather than one each; most studies are on quads, biceps and triceps, so the bands are a guide, not a rule.</p></section></section>` });
+    <p class="xs muted">Hard sets per muscle, last 7 days; compounds count half for the muscles they also work. About 3 a week holds (Bickel et al., 2011); 10–20 grows (Schoenfeld et al., 2017; Pelland et al., 2024).</p></section></section>` });
   return h + arrange('strength', cards);
 }
 
@@ -353,7 +353,7 @@ function vBody() {
       hrv: r => c(r.hrv, 0), slp: r => r.slp != null ? fmt(r.slp / 60, 1) + ' h' : m, kcal: r => c(r.kcal, 0), p: r => c(r.p, 0, ' g'), dtw: r => r.dtw != null ? (r.dtw >= 0 ? '+' : '−') + fmt(Math.abs(r.dtw), 2) : m };
     cards.push({ k: 'weekly', t: 'Weekly summary', h: `<section class="sec"><div class="sec-h"><span class="eyebrow">Weekly summary</span><span class="xs muted">weeks start Monday</span></div><section class="card"><div class="tblwrap"><table class="tbl wk"><thead><tr><th>Week</th>${cols.map(k => `<th class="n">${esc(WKCOLS[k])}</th>`).join('')}</tr></thead><tbody>
       ${wrows.map(r => `<tr><td>${esc(fmtDate(r.ws))}${r.cur ? ' <span class="xs muted">so far</span>' : ''}</td>${cols.map(k => `<td class="n">${cell[k](r)}</td>`).join('')}</tr>`).join('')}
-      </tbody></table></div><div class="btnrow" style="justify-content:space-between"><span class="xs muted">Daily averages, except sessions, sets and cardio (totals). Weight Δ is MacroFactor's trend weight change.</span><button class="link" data-act="weeksall">${ui.weeksAll ? 'Show 8 weeks' : 'Show 26 weeks'}</button></div></section></section>` });
+      </tbody></table></div><div class="btnrow" style="justify-content:space-between"><span class="xs muted">Daily averages; sessions, sets and cardio are totals. Weight Δ is the trend weight change.</span><button class="link" data-act="weeksall">${ui.weeksAll ? 'Show 8 weeks' : 'Show 26 weeks'}</button></div></section></section>` });
   }
   return h + arrange('body', cards);
 }
@@ -384,7 +384,7 @@ function vPlan() {
     <div class="tblwrap"><table class="tbl"><thead><tr><th>Muscle</th>${cols.map(([k, p]) => `<th class="n">${k === 'yours' ? 'Yours' : k === 'ppl4' ? 'Current' : 'U/L/PPL'}</th>`).join('')}</tr></thead><tbody>
     ${gs.map(g => `<tr><td>${esc(GROUPS[g])}</td>${vols.map((v, i) => { const base = vols[0][g] || 0, x = v[g] || 0; const tag = i && x > base + .5 ? ' <span class="xs" style="color:var(--accent)">▲</span>' : i && x < base - .5 ? ' <span class="xs muted">▼</span>' : ''; return `<td class="n">${fmt(x, 1)}${tag}</td>`; }).join('')}</tr>`).join('')}
     </tbody></table></div>
-    <p class="xs muted">Direct sets per week, assuming you train every day. Growth research on trained lifters points to roughly 10–20 hard sets per muscle per week (Schoenfeld et al., 2017; Baz-Valle et al., 2022). Holding muscle and strength takes far less: studies have kept both on a third to a ninth of the original volume, as long as the sets stay heavy (Bickel et al., 2011; Spiering et al., 2021). Both splits clear that bar easily.</p></section>`;
+    <p class="xs muted">Direct sets a week if you train daily. Growth needs about 10–20; holding far less.</p></section>`;
 
   // sessions editor
   h += `<section class="sec"><div class="sec-h"><span class="eyebrow">Sessions, in rotation order</span><span class="btnrow"><button class="link" data-act="addrest">+ Rest day</button><button class="link" data-act="addsess">+ Session</button></span></div>`;
@@ -407,7 +407,7 @@ function vPlan() {
     }
     h += `</section>`;
   });
-  h += `</div><p class="xs muted">Drag the handle to reorder sessions, or exercises inside a session. Tap a session to open it.</p>`;
+  h += `</div><p class="xs muted">Drag the handles to reorder.</p>`;
   h += `</section>`;
 
   // exercise library
@@ -426,8 +426,8 @@ function vPlan() {
     <label class="fl">Plate weight (kg)<input class="in" id="st_pk" inputmode="decimal" data-in="platekg" value="${S().plateKg}"></label>
     <label class="fl">Protein target (g)<input class="in" id="st_pt" inputmode="numeric" data-in="proteint" value="${S().proteinT ?? ''}" placeholder="from MacroFactor"></label>
     <label class="fl">Suggested weight and reps<select class="in" id="st_sg" data-in="suggest"><option value="1" ${S().suggest !== false ? 'selected' : ''}>On</option><option value="0" ${S().suggest === false ? 'selected' : ''}>Off</option></select></label>
-  </div><p class="xs muted">Plate weight converts plate-loaded machines to kg for session tonnage. Protein target is used when your MacroFactor export has no target column.</p>
-  <p class="xs muted">Suggestions follow the goal set under Targets above: Maintenance holds your current strength, Overload pushes it up by the chosen rate. Each lift gets a load and reps that stop a set number of reps short of failure (2 for heavy compounds, 1 for the rest), from the middle of its rep range and your last 3 sessions of it. Maintenance research keeps strength and size on far less volume, as long as the sets stay heavy and close to failure (Bickel et al., 2011; Spiering et al., 2021). Change the weight step or reps in reserve for any lift under Exercises.</p></section></section>`;
+  </div><p class="xs muted">Plate weight converts plate machines to kg for tonnage.</p>
+  <p class="xs muted">Aims follow Targets above. Change a lift's weight step or reps in reserve under Exercises.</p></section></section>`;
   return h;
 }
 function goalLabel() { return S().goal === 'grow' ? `Overload +${fmt((S().progRate ?? 0.005) * 100, 2)}%/wk` : 'Maintenance'; }
@@ -445,7 +445,7 @@ function progressionCard() {
     ${plan ? `<div class="tblwrap"><table class="tbl goal"><thead><tr><th>Week</th><th class="n ${grow ? '' : 'act'}">Maintenance</th><th class="n ${grow ? 'act' : ''}">Overload</th><th class="n">Gain</th></tr></thead><tbody>
       ${plan.map(p => `<tr><td>Week ${p.k}</td><td class="n ${grow ? '' : 'act'}">${hold ? esc(suggestTxt(pick, hold)) : '–'}</td><td class="n ${grow ? 'act' : ''}">${esc(suggestTxt(pick, p))}</td><td class="n">+${fmt(p.g * 100, 1)}%</td></tr>`).join('')}
     </tbody></table></div>` : ''}
-    <p class="xs muted">Both tracks leave ${rir} rep${rir === 1 ? '' : 's'} in reserve. Maintenance holds the load that matches your current strength, so it stays the same week to week and only moves when your logged sets do. Overload raises target strength by the chosen rate: reps climb at the same load to the top of the ${d.lo}–${d.hi} range, then the load steps up by ${fmt(exStep(pick), 2)} ${d.u === 'plates' ? 'plates' : 'kg'} and reps drop back (where that jump is too big to land in the range, reps run up to 2 past the top first). Both re-plan from your latest logged sets, assuming you stopped about ${rir} short of failure as the Aim asks. Week 1 is this week; Gain is overload strength against where you are now.</p></section></section>`;
+    <p class="xs muted">Both leave ${rir} rep${rir === 1 ? '' : 's'} in reserve and update from your logged sets. Overload adds reps before load.</p></section></section>`;
 }
 function exEditor(id, x) {
   return `<div class="sec"><div class="fields">
@@ -472,18 +472,18 @@ function vData() {
   let h = `<div class="page-h"><div><div class="eyebrow">Imports, backups, storage</div><h1>Data</h1></div></div>`;
   if (window.GH_SYNC) h += GH.card() + Helper.card() + Helper.traffic() + Helper.explain(); else h += `<section class="card"><div class="card-h"><h2>Where your data lives</h2><span id="sync2">${Cloud.ready ? pill('good', 'Synced') : pill('', 'This browser')}</span></div><p class="small dim">${Cloud.ready ? 'Saved to your private storage for this app on claude.ai, so it follows you between phone and desktop. A copy is also kept in this browser.' : 'Saving in this browser only. Cloud sync starts when the app is opened from claude.ai while signed in.'}</p></section>`;
   const impBox = src => { const p = ui.imp[src]; if (!p) return '';
-    return `<div class="prev" id="imp-${src}"><div class="card-h"><b>Ready to import</b></div><p><b>${esc(p.summary)}</b></p><p class="dim">${esc(previewRange(p.days))}</p><p class="xs muted">From ${esc(p.files.join(', '))}. Matching days are updated with these values; everything else stays.</p>
+    return `<div class="prev" id="imp-${src}"><div class="card-h"><b>Ready to import</b></div><p><b>${esc(p.summary)}</b></p><p class="dim">${esc(previewRange(p.days))}</p><p class="xs muted">From ${esc(p.files.join(', '))}.</p>
       <div class="btnrow"><button class="btn" data-act="doimport" data-v="${src}">Import</button><button class="link dim" data-act="cancelimp" data-v="${src}">Cancel</button></div></div>`; };
   h += `<section class="card"><div class="card-h"><h2>WHOOP</h2><span class="eyebrow">recovery · HRV · sleep · strain</span></div>
-    <ol class="steps"><li>In the WHOOP app, open the menu and choose <b>Data Export</b>.</li><li>WHOOP emails you a download link, usually within minutes.</li><li>Save the file, then choose it below. The .zip works as is, or pick <span class="mono">physiological_cycles.csv</span>, <span class="mono">workouts.csv</span> and <span class="mono">journal_entries.csv</span> from inside it. Only the alcohol answer is read from the journal.</li></ol>
+    <ol class="steps"><li>In the WHOOP app, open the menu and choose <b>Data Export</b>.</li><li>WHOOP emails you a download link, usually within minutes.</li><li>Choose the .zip below. Only needed for the journal (alcohol); everything else syncs by itself.</li></ol>
     <div class="drop" data-drop="whoop"><input type="file" class="file" id="f_whoop" accept=".zip,.csv,text/csv,application/zip" multiple data-in="fwhoop"><span class="xs muted">${last('whoop')}</span></div>${impBox('whoop')}</section>`;
   h += `<section class="card"><div class="card-h"><h2>MacroFactor</h2><span class="eyebrow">intake · weight · expenditure</span></div>
-    <ol class="steps"><li>In MacroFactor, go to <b>More → Data Management → Data Export</b>.</li><li>Include nutrition, scale weight, weight trend and expenditure, choose a time frame, then save the spreadsheet.</li><li>Choose it below. Re-importing is safe: matching days are updated, not duplicated.</li></ol>
+    <ol class="steps"><li>In MacroFactor, go to <b>More → Data Management → Data Export</b>.</li><li>Include nutrition, scale weight, weight trend and expenditure, choose a time frame, then save the spreadsheet.</li><li>Choose it below. Re-importing is safe.</li></ol>
     <div class="drop" data-drop="mf"><input type="file" class="file" id="f_mf" accept=".xlsx,.xls,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple data-in="fmf"><span class="xs muted">${last('mf')}</span></div>${impBox('mf')}</section>`;
   h += `<section class="card"><div class="card-h"><h2>Apple Health</h2><span class="eyebrow">steps · headphones · MacroFactor</span></div>
-    <p class="small dim">New days arrive through the Orbit sync Shortcut. For history, choose an Orbit Health file (.json) made from your Health export. Steps and headphone numbers are updated; calories, macros and weight only fill days MacroFactor's export doesn't have.</p>
+    <p class="small dim">New days arrive through Health Auto Export. For older days, import an Orbit Health file (.json).</p>
     <div class="drop" data-drop="ah"><input type="file" class="file" id="f_ah" accept=".json,application/json" data-in="fah"><span class="xs muted">${last('ah')}</span></div>${impBox('ah')}</section>`;
-  h += `<section class="card"><div class="card-h"><h2>Backups</h2></div><p class="small dim">A full backup restores everything here. The CSV is every logged set, for a spreadsheet.</p>
+  h += `<section class="card"><div class="card-h"><h2>Backups</h2></div>
     <div class="btnrow"><button class="btn sm ghost" data-act="export" data-v="json">Save full backup (.json)</button><button class="btn sm ghost" data-act="export" data-v="csv">Save sets (.csv)</button></div>
     ${ui.exportText ? `<div class="exportbox sec"><span class="xs muted">Saving files isn't available here. Copy this instead.</span><textarea class="in" id="exporttext" readonly>${esc(ui.exportText)}</textarea><button class="btn sm" data-act="copyexport">Copy</button></div>` : ''}
     <label class="fl">Restore from a backup<input type="file" class="file" id="f_backup" accept=".json,application/json" data-in="fbackup"></label></section>`;

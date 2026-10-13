@@ -225,7 +225,7 @@ const GH = {
       <p class="xs muted">A fine-grained token with <b>Contents: read and write</b> on the data repo only. It stays in this browser and is sent only to GitHub.</p>
       <div class="btnrow"><button class="btn sm" data-act="ghconnect">Connect</button></div></section>`;
     return `<section class="card"><div class="card-h"><h2>Sync</h2><span id="ghstat">${this.pill()}</span></div>
-      <p class="small dim">Saving to <span class="mono">${esc(this.cfg.owner)}/${esc(this.cfg.repo)}</span> on GitHub and to this browser. Changes sync within a couple of seconds, and every device catches up when it’s opened.</p>
+      <p class="small dim">Saving to <span class="mono">${esc(this.cfg.owner)}/${esc(this.cfg.repo)}</span> and this device. Changes reach your other devices within seconds.</p>
       <p class="xs muted" id="ghat">${esc(this.atText())}</p><p class="small" id="gherr" style="color:var(--bad-ink)" ${this.state === 'error' ? '' : 'hidden'}>${esc(this.err || '')}</p>
       ${ui.confirm === 'ghoff' ? `<p class="small">Stop syncing on this device? Data here and in the repo stays as it is.</p><div class="btnrow"><button class="btn sm danger" data-act="ghoff">Disconnect</button><button class="link dim" data-act="confirm" data-v="">Cancel</button></div>`
       : `<div class="btnrow"><button class="btn sm ghost" data-act="ghnow">Sync now</button><button class="link dim" data-act="confirm" data-v="ghoff" style="margin-left:auto">Disconnect</button></div>`}</section>`;
@@ -275,7 +275,7 @@ const Helper = {
     if (!t) return null;
     const d = new Date(t), day = todayStr(), ds = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`, clock = d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' });
     const m = Math.round((Date.now() - t) / 60000), rel = m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 24 * 60 ? `${Math.round(m / 60)} h ago` : '';
-    return `${ds === day ? 'today' : ds === addDays(day, -1) ? 'yesterday' : fmtDate(ds)}, ${clock}${rel ? ' · ' + rel : ''}`;
+    return `${ds === day ? '' : (ds === addDays(day, -1) ? 'yesterday' : fmtDate(ds)) + ' '}${clock}${rel ? ' · ' + rel : ''}`;
   },
   card() {
     const u = this.url();
@@ -290,9 +290,9 @@ const Helper = {
     return `<section class="card"><div class="card-h"><h2>Automatic sync</h2><span class="eyebrow">sync helper</span></div>
       <ul class="rows"><li><span>WHOOP</span>${wPill}<span class="sub">${this.st ? (wAt ? `Last sync ${esc(wAt)}` : 'Not synced yet') : '&nbsp;'}${w && w.history && w.history !== 'complete' ? ` · history filling in, next ${esc(w.history)}` : ''}</span></li>
         <li><span>Apple Health</span>${hPill}<span class="sub">${this.st ? (hAt ? `Last received ${esc(hAt)}` : 'Nothing received yet') : '&nbsp;'}</span></li>
-        ${(() => { const c = [[w?.dataAt, `${w?.dataWhat || 'WHOOP'}${w?.dataWhat ? ' from WHOOP' : ''}`], [h?.dataAt, 'Apple Health']].filter(x => x[0]).sort((a, b) => b[0] - a[0])[0]; return c ? `<li><span>Latest data</span><span class="sub">${esc(this.when(c[0]))} · ${esc(c[1])}. The time it actually arrived, notifications included; the checks above stay on round times.</span></li>` : ''; })()}</ul>
+        ${(() => { const c = [[w?.dataAt, `${w?.dataWhat || 'WHOOP'}${w?.dataWhat ? ' from WHOOP' : ''}`], [h?.dataAt, 'Apple Health']].filter(x => x[0]).sort((a, b) => b[0] - a[0])[0]; return c ? `<li><span>Latest data</span><span class="sub">${esc(this.when(c[0]))} · ${esc(c[1])}</span></li>` : ''; })()}</ul>
       ${w?.error ? `<p class="small" style="color:var(--bad-ink)">${esc(w.error)}</p>` : ''}${this.err ? `<p class="small" style="color:var(--warn-ink)">${esc(this.err)}</p>` : ''}
-      <p class="xs muted">New sleep, recovery and workouts arrive as soon as WHOOP has processed them; steps and strain are checked every 5 minutes.</p>
+      
       <div class="btnrow"><button class="link" data-act="helperrefresh">Refresh</button><button class="link dim" data-act="helperedit" style="margin-left:auto">Change address</button></div></section>`;
   },
   traffic() { // usage against limits, speeds per service, and the helper's recent sync log; refreshed in place every 2 s while open
@@ -304,17 +304,17 @@ const Helper = {
       : `<tr><td>${name}<br><span class="xs muted">${scope}</span></td><td class="n">${fmt(x.ms / x.n, 0)} ms</td><td class="n">${speed(x.down, x.ms)}</td><td class="n">↓${kb(x.down)}<br><span class="xs muted">↑${kb(x.up)}</span></td></tr>`;
     const phoneGh = NET.gh, rate = NET.rate, reset = r => r?.reset ? new Date(r.reset).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }) : '';
     let h = `<section class="card" id="traffic"><div class="card-h"><h2>Traffic</h2><span class="eyebrow">live</span></div>`;
-    h += `<span class="xs muted">Today's usage against the free limits</span><ul class="hbars use">`;
+    h += `<span class="xs muted">Today, against the free limits</span><ul class="hbars use">`;
     if (u) h += bar('WHOOP calls', u.whoop, u.whoopLimit) + bar('Cloudflare writes', u.kv, u.kvLimit);
-    if (u && u.ghLeft != null) h += bar('GitHub, helper', u.ghLimit - u.ghLeft, u.ghLimit, `this hour, resets ${esc(reset({ reset: u.ghReset }))}`);
-    if (rate) h += bar('GitHub, phone', rate.limit - rate.left, rate.limit, `this hour, resets ${esc(reset(rate))}; checks with no change are free`);
-    h += `</ul>${u ? `<span class="xs muted">${u.runs} scheduled checks, ${u.hooks} WHOOP notifications, ${u.health} Apple Health posts today. WHOOP also allows 100 calls a minute; one run uses at most 45.</span>` : ''}`;
+    if (u && u.ghLeft != null) h += bar('GitHub, helper', u.ghLimit - u.ghLeft, u.ghLimit, `resets ${esc(reset({ reset: u.ghReset }))}`);
+    if (rate) h += bar('GitHub, phone', rate.limit - rate.left, rate.limit, `resets ${esc(reset(rate))}`);
+    h += `</ul>${u ? `<span class="xs muted">${u.runs} checks, ${u.hooks} WHOOP notifications, ${u.health} Apple Health posts today.</span>` : ''}`;
     h += `<div class="tblwrap"><table class="tbl net"><thead><tr><th>Link</th><th class="n">Response</th><th class="n">↓ Speed</th><th class="n">Data</th></tr></thead><tbody>
       ${row('Phone → GitHub', phoneGh, `${phoneGh.n} request${phoneGh.n === 1 ? '' : 's'} this session${phoneGh.n304 ? `, ${phoneGh.n304} unchanged` : ''}`)}
       ${row('Phone → Helper', NET.helper, `${NET.helper.n} request${NET.helper.n === 1 ? '' : 's'} this session`)}
       ${row('Helper → WHOOP', net.whoop, net.whoop?.at ? `last run ${esc(new Date(net.whoop.at).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }))}` : '')}
       ${row('Helper → GitHub', net.gh, net.gh?.at ? `last run ${esc(new Date(net.gh.at).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }))}` : '')}
-    </tbody></table></div><p class="xs muted">Response is the average time per request, to the last byte. Speed needs at least 2 KB to mean anything; small requests are nearly all waiting time. Upload speed can't be timed on its own from a browser or the helper, so only the data sent is shown.</p>`;
+    </tbody></table></div><p class="xs muted">Response is the average per request. Speed shows for downloads over 2 KB.</p>`;
     const log = st?.log || [], lab = e => e.k === 'notify' ? `${e.w[0].toUpperCase() + e.w.slice(1)} (WHOOP notification)` : e.k === 'full' ? 'Full check' : e.k === 'steps' ? 'Steps and strain' : e.k === 'error' ? 'Problem' : e.w;
     if (log.length) h += `<span class="xs muted">Recent syncs by the helper</span><ul class="rows synclog">${log.slice(0, 12).map(e => `<li><span>${esc(lab(e))}</span>${e.k === 'error' ? pill('bad', 'Error') : e.ch ? pill('good', 'New data') : pill('', 'No change')}<span class="sub">${esc(this.when(e.t))}${e.rq ? ` · ${e.rq} request${e.rq === 1 ? '' : 's'}` : ''}${e.k === 'error' ? ' · ' + esc(e.w) : ''}</span></li>`).join('')}</ul>`;
     else if (st && !u) h += `<p class="xs muted">Paste the latest orbit-sync.js into Cloudflare to see the helper's usage and sync log.</p>`;
@@ -324,8 +324,8 @@ const Helper = {
     const hae = !!this.st?.health?.at;
     return `<section class="card"><div class="card-h"><h2>What syncs by itself</h2></div>
       <ul class="rows">
-        <li><span><b>Automatic</b></span><span class="sub">WHOOP: recovery, HRV, sleep, strain, steps, workouts and calories burned, within a minute of WHOOP processing them (steps and strain every 5 min).<br>Apple Health${hae ? '' : ' (once Health Auto Export is set up)'}: steps, calories and macros, weight and headphone level, hourly while your phone is unlocked.<br>Your sessions, notes and settings: to every device as you go.</span></li>
-        <li><span><b>Needs a file</b></span><span class="sub">MacroFactor's own trend weight, expenditure and targets: Quick Export (.xlsx) from MacroFactor, imported here. Until then Orbit estimates trend weight and expenditure itself.<br>Headphone listening time: a full Apple Health export, converted for Orbit.<br>WHOOP journal answers (alcohol and the rest): WHOOP's data export (.zip). The WHOOP API doesn't share the journal.</span></li>
+        <li><span><b>Automatic</b></span><span class="sub">WHOOP: everything, within a minute (steps and strain every 5 min).<br>Apple Health${hae ? '' : ' (once Health Auto Export is set up)'}: steps, food, weight, headphone level, hourly.<br>Your logs and settings: every device, as you go.</span></li>
+        <li><span><b>Needs a file</b></span><span class="sub">MacroFactor's trend weight, expenditure and targets (.xlsx). Orbit estimates the first two until then.<br>Headphone listening time (full Health export).<br>WHOOP journal, e.g. alcohol (WHOOP export).</span></li>
       </ul></section>`;
   },
 };
@@ -342,7 +342,7 @@ Object.assign(ACT, {
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && ui.tab === 'data') Helper.refresh(true); });
 setInterval(() => { // Traffic is live while the Data screen is open: phone numbers every 2 s, the helper's every 15 s
   if (ui.tab !== 'data' || document.visibilityState !== 'visible') return;
-  const el = $('#traffic'); if (el) { const tmp = document.createElement('div'); tmp.innerHTML = Helper.traffic(); el.replaceWith(tmp.firstElementChild); }
+  const el = $('#traffic'); if (el) keepAnchor(() => morphHTML(el, Helper.traffic())); // numbers change in place; nothing moves
   if (Date.now() - Helper.at > 15e3) Helper.refresh(true);
 }, 2000);
 GH.boot();

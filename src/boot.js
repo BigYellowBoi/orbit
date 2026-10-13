@@ -186,15 +186,42 @@ function resetScroll() { // to the top, and stop any momentum still running
 }
 let pendingRender = false;
 function editingInView() { const a = document.activeElement; return a && $('#view')?.contains(a) && /INPUT|TEXTAREA|SELECT/.test(a.tagName) && a.type !== 'file'; }
+/* Background updates (a sync pull, the helper's status, the Traffic card) patch the page in place: only text and attributes
+   that differ change, so nothing on screen jumps and a scroll in progress keeps its momentum. iOS has no scroll anchoring,
+   so if something above the view still changes height, keepAnchor() moves the scroll by the same amount. */
+function morph(a, b) {
+  if (a.nodeType !== b.nodeType || a.nodeName !== b.nodeName) { a.replaceWith(b); return; }
+  if (a.nodeType === 3 || a.nodeType === 8) { if (a.nodeValue !== b.nodeValue) a.nodeValue = b.nodeValue; return; }
+  if (a.nodeType !== 1) return;
+  for (const at of [...a.attributes]) if (!b.hasAttribute(at.name)) a.removeAttribute(at.name);
+  for (const at of [...b.attributes]) if (a.getAttribute(at.name) !== at.value) a.setAttribute(at.name, at.value);
+  if (a !== document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(a.nodeName)) { // an edited field ignores its value attribute, so set the live value too
+    if (a.type === 'checkbox' || a.type === 'radio') a.checked = b.hasAttribute('checked');
+    else if (a.nodeName === 'INPUT') { const v = b.getAttribute('value') ?? ''; if (a.value !== v) a.value = v; }
+    else if (a.nodeName === 'TEXTAREA') { if (a.value !== b.textContent) a.value = b.textContent; }
+  }
+  const ac = [...a.childNodes], bc = [...b.childNodes];
+  bc.forEach((n, i) => { if (i < ac.length) morph(ac[i], n); else a.appendChild(n); });
+  for (let i = bc.length; i < ac.length; i++) ac[i].remove();
+}
+function morphHTML(el, html) { const t = document.createElement(el.tagName === 'MAIN' ? 'main' : 'div'); t.innerHTML = html; if (el.id === 'view') morph(el, Object.assign(t, { id: 'view' })); else if (t.firstElementChild) morph(el, t.firstElementChild); }
+function keepAnchor(change) {
+  const top = ($('.top')?.getBoundingClientRect().bottom || 0) + 4, a = document.elementFromPoint(innerWidth / 2, top) || null, at = a ? a.getBoundingClientRect().top : 0;
+  change();
+  if (a && a.isConnected && $('#view').contains(a)) { const d = a.getBoundingClientRect().top - at; if (Math.abs(d) > 0.5) scroller().scrollBy(0, d); }
+}
 function render(force) {
   if (!force && editingInView()) { pendingRender = true; return; }
   pendingRender = false;
   const v = $('#view'), y = scrollY0(), snap = !force && ui.tab === render.tab ? liveSnap() : null; CHART_REG.clear(); render.tab = ui.tab;
-  v.style.minHeight = v.offsetHeight + 'px'; // hold the page height while the view is swapped, so the scroll position can't be clamped
-  v.innerHTML = (VIEWS[ui.tab] || vToday)();
-  v.style.minHeight = '';
-  if (Math.abs(scrollY0() - y) > 1) scrollToY(y); // a re-render keeps your place; changing tabs scrolls to the top in go()
-  drawCharts(v);
+  if (snap) keepAnchor(() => { morphHTML(v, (VIEWS[ui.tab] || vToday)()); drawCharts(v); }); // a background re-render of the same screen: patch in place
+  else {
+    v.style.minHeight = v.offsetHeight + 'px'; // hold the page height while the view is swapped, so the scroll position can't be clamped
+    v.innerHTML = (VIEWS[ui.tab] || vToday)();
+    v.style.minHeight = '';
+    drawCharts(v);
+    if (Math.abs(scrollY0() - y) > 1) scrollToY(y); // a re-render keeps your place; changing tabs scrolls to the top in go()
+  }
   document.querySelectorAll('.tabs [data-tab]').forEach(b => b.setAttribute('aria-current', b.dataset.tab === (ui.tab === 'log' ? 'history' : ui.tab) ? 'page' : 'false'));
   const g = $('#gear'); g.setAttribute('aria-current', ui.tab === 'data' ? 'page' : 'false'); g.setAttribute('aria-label', ui.tab === 'data' ? 'Back' : 'Data, imports and backups');
   renderSync(); renderMark(); renderUpdate(); renderFab(); renderReorder();
