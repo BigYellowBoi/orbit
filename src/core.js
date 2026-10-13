@@ -15,7 +15,8 @@ function todayStr() { const d = new Date(); return `${d.getFullYear()}-${pad(d.g
 function toUTC(s) { const [y, m, d] = s.split('-').map(Number); return Date.UTC(y, m - 1, d); }
 function addDays(s, n) { const t = new Date(toUTC(s) + n * 864e5); return `${t.getUTCFullYear()}-${pad(t.getUTCMonth() + 1)}-${pad(t.getUTCDate())}`; }
 function diffDays(a, b) { return Math.round((toUTC(b) - toUTC(a)) / 864e5); }
-function fmtDate(s, o) { return new Date(toUTC(s)).toLocaleDateString('en-AU', { timeZone: 'UTC', day: 'numeric', month: 'short', ...(o || {}) }); }
+function fmtDate(s, o) { return new Date(toUTC(s)).toLocaleDateString('en-AU', { timeZone: 'UTC', day: 'numeric', month: 'short', ...(o || {}) }).replace('Sept', 'Sep'); } // en-AU writes "Sept"; every other month is three letters
+function fmtD(s) { return s.slice(0, 4) === todayStr().slice(0, 4) ? fmtDate(s) : fmtDMY(s); } // lists and tables (v1.36): "13 Oct" this year, his d/m/yy otherwise
 function fmtDMY(s) { const [y, m, d] = s.split('-'); return `${+d}/${+m}/${y.slice(2)}`; } // 19/9/26
 function fmtDow(s) { return new Date(toUTC(s)).toLocaleDateString('en-AU', { timeZone: 'UTC', weekday: 'short' }); }
 function dowMon(s) { return (new Date(toUTC(s)).getUTCDay() + 6) % 7; } // Mon = 0

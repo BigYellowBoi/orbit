@@ -11,7 +11,7 @@ const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const core = fs.readFileSync(path.join(root, 'src/core.js'), 'utf8');
 const engineSrc = fs.readFileSync(path.join(root, 'src/engine.js'), 'utf8');
 const EXPOSE = `globalThis.E = { STATE, S, today, addDays, diffDays, sessionFor, upcoming, lastFor, bestBefore, bestSet, records, hasHistory, hasRef,
-  liftSeries, maintenance, strengthRef, suggest, setAim, cutCheck, progression, prsIn, setScore, e1rm, exRir, exStep, derived, xpRun: typeof xpRun !== "undefined" ? xpRun : null, XP: typeof XP !== "undefined" ? XP : null, partialFlags: typeof partialFlags !== "undefined" ? partialFlags : null, dayVal, scoreTxt, newWorkout, restRecord,
+  liftSeries, maintenance, strengthRef, suggest, setAim, cutCheck, progression, prsIn, setScore, e1rm, exRir, exStep, derived, xpRun: typeof xpRun !== "undefined" ? xpRun : null, XP: typeof XP !== "undefined" ? XP : null, partialFlags: typeof partialFlags !== "undefined" ? partialFlags : null, warmup: typeof warmup !== "undefined" ? warmup : null, rowAim: typeof rowAim !== "undefined" ? rowAim : null, doneSets, planWeekly, wStats, fmtSet, dayVal, scoreTxt, newWorkout, restRecord,
   bump: () => { STATE.v++; } };`;
 
 function load(engine = engineSrc) {
@@ -136,6 +136,31 @@ function follow(goal, rate, weeks = 26, exId = 'shoulder_press') {
   // no weight on record: falls back to reps
   const F = load(); F.S().ex.pullup = { name: 'Pull-up', g: 'back', u: 'bw', rest: 150, lo: 6, hi: 10, base: null, bwf: 1 }; F.bump();
   ok(F.setScore('pullup', { w: 0, r: 8 }, t) === 8 && F.scoreTxt('pullup', 8) === '8 reps', 'no weight on record: reps scoring');
+}
+
+/* ---------- Aims stay inside the rep range (v1.36: light cables with coarse steps asked for 14 reps on 8-12) ---------- */
+{
+  for (const goal of ['hold', 'grow']) {
+    const E = load(), t = E.today(); Object.assign(E.S(), { goal, progRate: 0.01, growFrom: goal === 'grow' ? E.addDays(t, -60) : null });
+    E.S().ex.y_raise = { name: 'Cable Y raises', g: 'delt_s', u: 'kg', rest: 60, lo: 8, hi: 12, base: { w: 6.25, r: 8 }, inc: 1.25 }; E.bump();
+    const bad = Object.keys(E.S().ex).map(id => [id, E.suggest(id, t), E.S().ex[id]]).filter(([, s, x]) => s && (s.r > x.hi));
+    ok(!bad.length, `${goal}: no Aim above its rep range${bad.length ? ' (' + bad.map(([id, s]) => id + ' ' + s.w + 'x' + s.r).join(', ') + ')' : ''}`);
+  }
+}
+
+/* ---------- set types and warm-ups (v1.36) ---------- */
+{
+  const E = load(), t = E.today(), id = 'incline_db';
+  const w = E.warmup(id, 44, 2); ok(w.length === 2 && w[0].w < w[1].w && w[1].w < 44 && w[0].r > w[1].r, `2 warm-ups climb under 44 kg: ${w.map(x => x.w + 'x' + x.r).join(', ')}`);
+  ok(E.warmup(id, 44, 3).length === 3 && E.warmup(id, 0, 2).length === 0, 'three warm-ups; none without a working weight');
+  const e = { id, sets: [{ t: 'w', w: 20, r: 8, done: true }, { w: 44, r: 7, done: true }, { t: 'd', w: 36, r: 9, done: true }] };
+  ok(E.doneSets(e).length === 2 && E.doneSets(e).every(s => s.t !== 'w'), 'warm-ups left out of working sets, drop sets kept');
+  const sg = E.suggest(id, t), a1 = E.rowAim(e, 1, t, sg), a0 = E.rowAim(e, 0, t, sg);
+  ok(a1.w === sg.w && a1.r === sg.r && a0.warm && a0.w < sg.w, 'the first working set after a warm-up gets the top Aim; the warm-up gets the ladder');
+  E.STATE.w[t] = { date: t, s: 'push1', ex: [e] }; E.bump();
+  ok(E.wStats(E.STATE.w[t]).sets === 2, 'session stats count working sets only');
+  ok(E.fmtSet(id, { w: 44, r: 7 }) === '44 kg × 7', 'sets read "44 kg × 7"');
+  const pw = E.planWeekly(E.S().prog); ok(pw.triceps > 0 && pw.delt_f > 0, `plan's weekly sets give compounds' secondary muscles half credit (front delts ${pw.delt_f.toFixed(1)})`);
 }
 
 /* ---------- caches notice the day turning over ---------- */

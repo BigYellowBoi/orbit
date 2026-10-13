@@ -73,7 +73,7 @@ function explorerHTML() {
   if (cur != null && prev != null && prev !== 0) {
     const absD = cur - prev, rel = absD / Math.abs(prev) * 100, useAbs = m.delta === 'abs';
     const tone = Math.abs(rel) < 1 || !m.better ? '' : (absD > 0) === (m.better > 0) ? 'good' : 'warn';
-    const shown = useAbs ? (m.unit === 'kg' ? `${fmt(Math.abs(absD), 1)} kg` : fmt(Math.abs(absD), 1)) : `${fmt(Math.abs(rel), 0)}%`;
+    const shown = m.unit === '%' ? `${fmt(Math.abs(absD), Math.abs(absD) < 10 ? 1 : 0)} pts` : useAbs ? (m.unit === 'kg' ? `${fmt(Math.abs(absD), 1)} kg` : fmt(Math.abs(absD), 1)) : `${fmt(Math.abs(rel), 0)}%`; // a change in a percentage is points (v1.36)
     delta = `<span class="pill plain ${tone}">${Math.abs(rel) < 1 ? '•' : absD > 0 ? '▲' : '▼'} ${shown} vs prior ${word}</span>`;
   }
   const fmtH = v => v == null ? '–' : m.f(v);
@@ -83,14 +83,14 @@ function explorerHTML() {
   if (m.id === 'bed') { const on = use(days).map(d => tMin(dayVal(d, 'on'))).filter(x => x != null), off = use(days).map(d => tMin(dayVal(d, 'off'))).filter(x => x != null);
     if (on.length) extra = `<div class="stat"><span>Usual times</span><b class="sm">${clockOf(mean(on))}<small>to</small> ${clockOf(mean(off))}</b></div>`; }
   if (m.id === 'wt') { const wr = weightRate(end); if (wr) extra += `<div class="stat"><span>Rate, last ${wr.weeks} wk</span><b>${wr.wk >= 0 ? '+' : '−'}${fmt(Math.abs(wr.wk), 2)}<small>kg/wk</small></b></div>`; }
-  const sentence = cur == null ? '' : prev == null ? `` : `<p class="small dim">Your ${m.weekly ? 'average weekly total' : 'average'} ${esc(m.short || m.label.toLowerCase())} ${ui.off ? 'in this period' : `this ${word}`} (${fmtH(cur)}${m.unit && !m.weekly ? ' ' + esc(m.unit) : ''}) was ${Math.abs(cur - prev) / Math.abs(prev) < .01 ? 'in line with' : cur > prev ? 'above' : 'below'} the ${word} before (${fmtH(prev)}).</p>`;
+  const sentence = cur == null ? '' : prev == null ? `` : `<p class="small dim">Your ${m.weekly ? 'average weekly total' : 'average'} ${esc(m.short || m.label.toLowerCase())} ${ui.off ? 'in this period' : `this ${word}`} (${fmtH(cur)}${m.unit && !m.weekly ? (m.unit === '%' ? '' : ' ') + esc(m.unit) : ''}) was ${Math.abs(cur - prev) / Math.abs(prev) < .01 ? 'in line with' : cur > prev ? 'above' : 'below'} the ${word} before (${fmtH(prev)}${m.unit === '%' && !m.weekly ? '%' : ''}).</p>`;
 
   let h = `<section class="card explorer">
     <label class="vh" for="metric">Metric</label>
     <select class="in metric" id="metric" data-in="metric">${[...new Set(METRICS.map(x => x.g))].map(g => `<optgroup label="${esc(g)}">${METRICS.filter(x => x.g === g).map(x => `<option value="${x.id}" ${x.id === m.id ? 'selected' : ''}>${esc(x.label)}</option>`).join('')}</optgroup>`).join('')}</select>
     <div class="ex-top"><div class="stats ex-head"><div class="stat"><span>${m.weekly ? 'Avg. weekly total' : 'Average'}</span><b>${fmtH(cur)}<small>${esc(unitTxt)}</small></b></div>${extra}</div>
       <div class="ex-ctl"><div class="seg" role="group" aria-label="Period">${Object.keys(PERIODS).map(k => `<button class="${(ui.per || 'M') === k ? 'on' : ''}" data-act="per" data-v="${k}">${k}</button>`).join('')}</div>
-      <div class="ex-nav"><button class="iconbtn sm" data-act="poff" data-n="1" aria-label="Previous period">‹</button><span class="mono xs rng">${esc(fmtDMY(start))} – ${esc(fmtDMY(end))}</span><button class="iconbtn sm" data-act="poff" data-n="-1" aria-label="Next period" ${ui.off ? '' : 'disabled style="opacity:.3"'}>›</button></div></div></div>
+      <div class="ex-nav"><button class="iconbtn sm" data-act="poff" data-n="1" aria-label="Previous period">‹</button><span class="mono xs rng">${esc(fmtD(start))} – ${esc(fmtD(end))}</span><button class="iconbtn sm" data-act="poff" data-n="-1" aria-label="Next period" ${ui.off ? '' : 'disabled style="opacity:.3"'}>›</button></div></div></div>
     ${delta ? `<div>${delta}</div>` : ''}${sentence}`;
   h += explorerChart(m, days, start, n);
   if (m.partial && end === t) h += `<p class="xs muted">Average leaves out today, which isn't finished yet.</p>`;
@@ -197,7 +197,7 @@ function alcoholCard() {
   const a = (ds, k) => mean(ds.map(d => STATE.d[d][k]).filter(v => v != null));
   const last30 = Object.keys(STATE.d).filter(d => d > addDays(today(), -30) && STATE.d[d].alc).length;
   const rY = a(yes, 'rec'), rN = a(no, 'rec'), hY = a(yes, 'hrv'), hN = a(no, 'hrv'), sY = a(yes, 'rhr'), sN = a(no, 'rhr');
-  const row = (label, v, nn, tone) => `<li><span class="lab">${label}</span><span class="trk"><span class="fill" style="width:${Math.max(2, v)}%;background:var(--${tone})"></span></span><span class="v">${fmt(v, 0)}% <span class="muted">n${nn}</span></span></li>`;
+  const row = (label, v, nn, tone) => `<li><span class="lab">${label}</span><span class="trk"><span class="fill" style="width:${Math.max(2, v)}%;background:var(--${tone})"></span></span><span class="v">${fmt(v, 0)}% <span class="muted">${nn} nights</span></span></li>`;
   return `<section class="card"><div class="card-h"><h2>Alcohol and recovery</h2><span class="eyebrow">WHOOP journal</span></div>
     <ul class="hbars">${row('After alcohol', rY, yes.length, recTone(rY))}${row('No alcohol', rN, no.length, recTone(rN))}</ul>
     <div class="stats">${stat(`${rY - rN >= 0 ? '+' : '−'}${fmt(Math.abs(rY - rN), 0)}`, 'pts', 'recovery')}${stat(`${hY - hN >= 0 ? '+' : '−'}${fmt(Math.abs(hY - hN), 0)}`, 'ms', 'HRV')}${stat(`${sY - sN >= 0 ? '+' : '−'}${fmt(Math.abs(sY - sN), 0)}`, 'bpm', 'resting HR')}</div>

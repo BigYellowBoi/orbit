@@ -47,9 +47,24 @@ function rotationCount() { // completed full rotations (training sessions only)
    changes (STATE.v, bumped on every save, import and sync) or the day turns over.
    ============================================================ */
 function emptyW(w) { // a session started here (w.nw, set by Log) with nothing in it yet: no sets, cardio, notes or duration
-  return !!w && !!w.nw && !w.rest && !(w.ex || []).some(e => doneSets(e).length || (e.note || '').trim()) && !w.cardio?.done && !(w.note || '').trim() && !w.durMin;
+  return !!w && !!w.nw && !w.rest && !(w.ex || []).some(e => (e.sets || []).some(s => s.done) || (e.note || '').trim()) && !w.cardio?.done && !(w.note || '').trim() && !w.durMin;
 }
-function doneSets(ex) { return (ex.sets || []).filter(s => s.done && s.r > 0); }
+/* Working sets: done, with reps, not warm-ups. Sets carry an optional type t (v1.36): 'w' warm-up (left out of volume,
+   bests, history and the Aim's set count), 'd' drop set (counts as a working set). */
+function doneSets(ex) { return (ex.sets || []).filter(s => s.done && s.r > 0 && s.t !== 'w'); }
+/* Warm-up ladder under a working weight: 1 to 3 sets, rising in load and falling in reps, rounded to the lift's step
+   (a common scheme: about 50% x 8, 70% x 5, 85% x 3 before the top set). */
+const WARM = { 1: [[0.6, 5]], 2: [[0.5, 8], [0.75, 4]], 3: [[0.45, 8], [0.65, 5], [0.85, 3]] };
+function warmup(exId, top, n) {
+  if (!(top > 0) || !n) return [];
+  const st = exStep(exId), sch = WARM[Math.min(n, 3)];
+  return Array.from({ length: n }, (_, k) => { const [f, r] = sch[Math.max(0, sch.length - n + k)] || sch[0]; return { w: Math.max(st, Math.round(top * f / st) * st), r, warm: true }; });
+}
+function rowAim(e, j, date, sg = suggest(e.id, date)) { // the Aim for any row: warm-ups from the ladder, working sets by their working index
+  const s = e.sets[j]; if (!sg) return null;
+  if (s && s.t === 'w') { const ws = e.sets.filter(x => x.t === 'w'); return warmup(e.id, sg.w, ws.length)[ws.indexOf(s)] || null; }
+  return setAim(e.id, date, e.sets.slice(0, j).filter(x => x.t !== 'w').length, sg);
+}
 let LIX = { key: null };
 function lix() {
   const key = STATE.v + ':' + today(); if (LIX.key === key) return LIX;
@@ -124,11 +139,14 @@ function fmtLoad(exId, w) {
   if (u === 'plates') return `${fmt(w, 2)} pl`;
   return `${fmt(w, 2)}`;
 }
-function fmtSet(exId, s) { return exDef(exId).u === 'bw' && !s.w ? `${s.r}` : `${fmtLoad(exId, s.w)}×${s.r}`; }
-function setsTxt(exId, sets) { // compress "48×6, 48×6, 48×6" to "48×6 ×3"
+function fmtSet(exId, s) { // "44 kg × 7", "2.75 pl × 8", "BW+5 × 8", "12 reps" (v1.36: units and spaces everywhere)
+  const u = exDef(exId).u; if (u === 'bw' && !s.w) return `${s.r} reps`;
+  return `${fmtLoad(exId, s.w)}${u === 'kg' ? ' kg' : ''} × ${s.r}`;
+}
+function setsTxt(exId, sets) { // compress "48 kg × 6, 48 kg × 6" to "48 kg × 6 (2 sets)"
   const parts = sets.map(s => fmtSet(exId, s)); const out = [];
   for (const p of parts) { const l = out[out.length - 1]; if (l && l.p === p) l.n++; else out.push({ p, n: 1 }); }
-  return out.map(o => o.n > 1 ? `${o.p} ×${o.n}` : o.p).join(', ');
+  return out.map(o => o.n > 1 ? `${o.p} (${o.n} sets)` : o.p).join(', ');
 }
 function scoreTxt(exId, v) { const u = exDef(exId).u; return u === 'bw' && !bwScored(exId) ? `${fmt(v, 0)} reps` : u === 'bw' ? `${fmt(v, 1)} kg` : u === 'plates' ? `${fmt(v, 2)} pl` : `${fmt(v, 1)} kg`; }
 
@@ -176,7 +194,7 @@ function fitLoad(exId, e, startW, date) { // load × reps leaving the lift's res
     let a = startW != null ? startW : Math.max(0, Math.floor((e / (1 + (mid + rir) / 30) - B) / step + 1e-6) * step), r = repsAt(a);
     while (r < d.lo && a - step >= -1e-9) { a -= step; r = repsAt(a); }
     while (r > d.hi && repsAt(a + step) >= d.lo) { a += step; r = repsAt(a); }
-    if (r > d.hi) r = Math.min(r, d.hi + 2);
+    if (r > d.hi) r = d.hi; // the next load doesn't fit the range yet: the top of the range, with a little more in reserve
     return { w: Math.max(0, +a.toFixed(3)), r: Math.max(1, r), rir };
   }
   const step = exStep(exId), mid = Math.round((d.lo + d.hi) / 2), repsAt = w => Math.floor(30 * (e / w - 1) + 1e-6) - rir;
@@ -184,7 +202,7 @@ function fitLoad(exId, e, startW, date) { // load × reps leaving the lift's res
   let r = repsAt(w);
   while (r < d.lo && w - step > 0) { w -= step; r = repsAt(w); } // too heavy for the range now: come down
   while (r > d.hi && repsAt(w + step) >= d.lo) { w += step; r = repsAt(w); } // top of the range passed: step up
-  if (r > d.hi) r = Math.min(r, d.hi + 2); // the next jump doesn't fit the range yet (2 kg dumbbells): a rep or two over first
+  if (r > d.hi) r = d.hi; // the next jump doesn't fit the range yet (a coarse step on a light cable): the top of the range, a little more in reserve (v1.36; was up to 2 reps over)
   return { w: +w.toFixed(3), r: Math.max(1, r), rir };
 }
 function holdTarget(exId, before) { // maintenance: hold current strength
@@ -305,7 +323,8 @@ function sessDur(w) { const m = whoopLiftMin(w.date); return m != null ? m * 60 
    ============================================================ */
 function planWeekly(prog) { // sets per week if one session is trained every day
   const o = prog.order.filter(id => prog.sessions[id]); const out = {}; if (!o.length) return out;
-  for (const id of o) for (const it of prog.sessions[id].items) { const g = exDef(it.ex).g; out[g] = (out[g] || 0) + it.sets; }
+  for (const id of o) for (const it of prog.sessions[id].items) { const d = exDef(it.ex), g = d.g; out[g] = (out[g] || 0) + it.sets; // same rule as Volume (v1.36): secondaries at half a set
+    for (const g2 of d.g2 || SECONDARY[it.ex] || []) if (g2 !== g) out[g2] = (out[g2] || 0) + it.sets / 2; }
   for (const g in out) out[g] = out[g] * 7 / o.length;
   return out;
 }

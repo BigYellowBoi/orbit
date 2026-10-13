@@ -222,9 +222,12 @@ function render(force) {
     drawCharts(v);
     if (Math.abs(scrollY0() - y) > 1) scrollToY(y); // a re-render keeps your place; changing tabs scrolls to the top in go()
   }
+  v.classList.toggle('cols', ['strength', 'body', 'data'].includes(ui.tab) || (ui.tab === 'today' && !(STATE.w[today()] && (!STATE.w[today()].fin || ui.editToday)) && !ui.dayOff)); // two columns on wide screens (CSS decides when)
   document.querySelectorAll('.tabs [data-tab]').forEach(b => b.setAttribute('aria-current', b.dataset.tab === (ui.tab === 'log' ? 'history' : ui.tab) ? 'page' : 'false'));
-  const g = $('#gear'); g.setAttribute('aria-current', ui.tab === 'data' ? 'page' : 'false'); g.setAttribute('aria-label', ui.tab === 'data' ? 'Back' : 'Data, imports and backups');
+  const g = $('#gear'); g.setAttribute('aria-current', ui.tab === 'data' ? 'page' : 'false'); g.setAttribute('aria-label', ui.tab === 'data' ? 'Back' : 'Settings: sync, imports and backups');
   renderSync(); renderMark(); renderUpdate(); renderFab(); renderReorder();
+  fadeCheck();
+  if (ui.tab === 'history' && (ui.histQ || ui.histS)) filterHist(); if (ui.pick && ui.pick.q) filterPick(); // in-place filters survive a re-render
   if (snap) flashChanged(snap);
   if (ui.justDone) { ui.justDone = false; setTimeout(() => $('.hero.just')?.classList.remove('just'), 1400); }
 }
@@ -357,6 +360,15 @@ const ACT = {
   liftsel: el => { if (ui.lift === el.dataset.id) { ui.lift = null; render(true); return; } ui.lift = el.dataset.id; render(true); const c = $('#liftchart'); if (c && c.getBoundingClientRect().top < ($('.top')?.getBoundingClientRect().bottom || 0)) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); },
   liftgo: el => { ui.lift = el.dataset.id; go('strength'); },
   addset: el => { const w = logW(), e = w.ex[+el.dataset.e]; const l = e.sets[e.sets.length - 1]; e.sets.push({ w: null, r: null, pw: l ? (l.w ?? l.pw) : null, pr: l ? (l.r ?? l.pr) : null, done: false }); saveW(w.date); render(true); setTimeout(() => $(`#r${el.dataset.e}_${e.sets.length - 1}`)?.focus(), 30); },
+  settype: el => { const w = logW(), e = w?.ex[+el.dataset.e], st = e?.sets[+el.dataset.s]; if (!st) return; // Normal → Warm-up → Drop → Normal
+    st.t = !st.t ? 'w' : st.t === 'w' ? 'd' : undefined; if (!st.t) delete st.t; saveW(w.date); render(true); },
+  addwarm: el => { const w = logW(), e = w.ex[+el.dataset.e]; const n = e.sets.filter(x => x.t === 'w').length; e.sets.splice(n, 0, { w: null, r: null, done: false, t: 'w' }); saveW(w.date); render(true); }, // warm-ups go before the working sets
+  step: el => { // − / + beside a field: weight by the lift's step, reps by one; an empty field starts from its Aim
+    const i = +el.dataset.e, j = +el.dataset.s, k = el.dataset.k, inp = $(`#${k}${i}_${j}`), w = logW(), e = w?.ex[i]; if (!inp || !e) return;
+    const cur = num(inp.value) ?? num(inp.placeholder) ?? 0, d = +el.dataset.d, st = k === 'w' ? exStep(e.id) : 1;
+    const v = Math.max(0, +(cur + (inp.value === '' ? 0 : d * st)).toFixed(3)); inp.value = k === 'w' ? fmt(v, 3).replace(/,/g, '') : String(Math.round(v));
+    if (k === 'w' && $(`#r${i}_${j}`)?.value === '') { saveW(w.date); const s = e.sets[j]; s.w = v; return; } // weight alone doesn't tick the set
+    setInput(inp, true); },
   remset: el => { const w = logW(), e = w.ex[+el.dataset.e]; if (e.sets.length > 1) e.sets.pop(); saveW(w.date); render(true); },
   remex: el => { const w = logW(), i = +el.dataset.e, e = w.ex[i]; if (doneSets(e).length && ui.confirm !== 'remex' + i) { ui.confirm = 'remex' + i; toast('Tap Remove again to drop logged sets'); return; } w.ex.splice(i, 1); ui.confirm = null; ui.exMore = null; saveW(w.date); render(true); },
   cardiotype: el => { const w = logW(), name = el.dataset.v, wm = Math.round(sum(whoopCardio(w.date, name).map(a => a.min || 0)));
@@ -368,12 +380,23 @@ const ACT = {
   confirm: el => { ui.confirm = el.dataset.v || null; render(true); },
   cancelw: () => { const d = ui.logDate || today(); if (!emptyW(STATE.w[d])) return; delete STATE.w[d]; saveW(d); ui.editToday = false; toast('Session cancelled'); if (ui.tab === 'log') go('history'); else { resetScroll(); render(true); } },
   exmore: el => { const i = +el.dataset.e; ui.exMore = ui.exMore === i ? null : i; ui.confirm = null; render(true); },
-  delw: () => { const d = ui.logDate || today(); delete STATE.w[d]; ui.confirm = null; saveW(d); toast('Session deleted'); render(true); },
+  delw: () => { const d = ui.logDate || today(); delete STATE.w[d]; ui.confirm = null; ui.delArm = 0; saveW(d); toast('Session deleted'); render(true); },
+  delw1: el => { // two taps: the first arms it for 3 s (v1.36)
+    if (ui.delArm && Date.now() - ui.delArm < 3000) { ACT.delw(); return; }
+    ui.delArm = Date.now(); el.textContent = 'Tap again to delete'; el.classList.add('armed');
+    setTimeout(() => { if (Date.now() - ui.delArm >= 2900) { ui.delArm = 0; el.textContent = 'Delete this session'; el.classList.remove('armed'); } }, 3000); },
+  addexid: el => { const id = el.dataset.id, w = logW(); if (!id || !w) return; w.ex.push({ id, sets: prefill(id, 2, w.date) }); ui.pick = null; saveW(w.date); render(true); reveal('#ex' + (w.ex.length - 1)); },
+  pickopen: () => { ui.pick = ui.pick ? null : { q: '' }; render(true); if (ui.pick) setTimeout(() => $('#pickq')?.focus(), 30); },
   per: el => { ui.per = el.dataset.v; ui.off = 0; render(true); },
   poff: el => { ui.off = Math.max(0, (ui.off || 0) + +el.dataset.n); render(true); },
   reorder: () => { if (ui.reo) return ACT.reodone(); ui.reo = { tab: ui.tab, cards: cardOrder(ui.tab, CARD_KEYS[ui.tab] || []), cols: wkCols() }; resetScroll(); render(true); },
   reodone: () => { const r = ui.reo; if (!r) return; S().layout = { ...(S().layout || {}), [r.tab]: r.cards, ...(r.tab === 'body' ? { wkcols: r.cols } : {}) }; ui.reo = null; saveSettings(); resetScroll(); render(true); toast('Order saved'); },
   reoreset: () => { if (!ui.reo) return; ui.reo.cards = (CARD_KEYS[ui.reo.tab] || []).slice(); ui.reo.cols = Object.keys(WKCOLS); render(true); },
+  plantab: el => { ui.planTab = el.dataset.v; resetScroll(); render(true); },
+  liftm: el => { ui.liftM = el.dataset.v; render(true); },
+  liftsall: () => { ui.liftsAll = !ui.liftsAll; render(true); },
+  calmon: el => { ui.calOff = Math.min(0, (ui.calOff || 0) + +el.dataset.n); render(true); },
+  histsess: el => { ui.histS = el.dataset.v || ''; document.querySelectorAll('[data-act="histsess"]').forEach(b => b.classList.toggle('on', (b.dataset.v || '') === ui.histS)); filterHist(); },
   dayoff: el => { const n = +el.dataset.n; ui.dayOff = n === 0 ? 0 : Math.max(-365, Math.min(28, (ui.dayOff || 0) + n)); ui.restPick = null; resetScroll(); render(true); },
   nextset: () => {
     const r = firstEmptySet(); if (!r) return;
@@ -543,12 +566,12 @@ document.addEventListener('pointerup', endDrag); document.addEventListener('poin
 function setInput(el, final) {
   const w = logW(); if (!w) return; const i = +el.dataset.e, j = +el.dataset.s, e = w.ex[i], s = e?.sets[j]; if (!s) return;
   const def = exDef(e.id), wasDone = s.done, prevBest = final ? Math.max(bestBefore(e.id, w.date), ...e.sets.filter((x, k) => k !== j && x.done && x.r > 0).map(x => setScore(e.id, x, w.date))) : 0;
-  setFromInputs(s, num($(`#w${i}_${j}`)?.value), parseInt($(`#r${i}_${j}`)?.value, 10), def.u, setAim(e.id, w.date, j)?.w);
+  setFromInputs(s, num($(`#w${i}_${j}`)?.value), parseInt($(`#r${i}_${j}`)?.value, 10), def.u, rowAim(e, j, w.date)?.w);
   const row = $(`#row${i}_${j}`); if (row) row.classList.toggle('done', s.done);
   if (final && s.done && s.w != null && $(`#w${i}_${j}`) && $(`#w${i}_${j}`).value === '') $(`#w${i}_${j}`).value = fmt(s.w, 2).replace(/,/g, '');
   const st = wStats(w), sm = $('.sess-top .t small'); if (sm) sm.textContent = sm.textContent.replace(/\d+ sets?/, `${st.sets} set${st.sets === 1 ? '' : 's'}`);
   saveW(w.date); renderFab(); // the count of empty sets changes as you fill them
-  if (final && s.done && hasRef(e.id, w.date) && setScore(e.id, s, w.date) > prevBest + 1e-9) { row?.classList.add('pr'); toast(`New best · ${esc(def.name)} ${esc(fmtSet(e.id, s))}`, 'pr'); }
+  if (final && s.done && s.t !== 'w' && hasRef(e.id, w.date) && setScore(e.id, s, w.date) > prevBest + 1e-9) { row?.classList.add('pr'); toast(`New best · ${esc(def.name)} ${esc(fmtSet(e.id, s))}`, 'pr'); }
   else if (final && row && !s.done) row.classList.remove('pr');
 }
 document.addEventListener('input', ev => { const el = ev.target; if (el.matches && el.matches('.set .in')) setInput(el, false); });
@@ -584,6 +607,29 @@ function filterEx() {
   const x = $('#exqx'); if (x) x.hidden = !ui.exQ; const none = $('#exnone'); if (none) none.hidden = n > 0;
 }
 document.addEventListener('input', ev => { if (ev.target.id === 'exq') { ui.exQ = ev.target.value; filterEx(); } });
+/* Swipe the Today header left or right to step a day (v1.36); vertical moves are scrolls and are ignored. */
+let swipe0 = null;
+document.addEventListener('touchstart', ev => { const h = ev.target.closest && ev.target.closest('.page-h.day'); swipe0 = h && ev.touches.length === 1 ? { x: ev.touches[0].clientX, y: ev.touches[0].clientY } : null; }, { passive: true });
+document.addEventListener('touchend', ev => { if (!swipe0 || ui.tab !== 'today') return; const t = ev.changedTouches[0], dx = t.clientX - swipe0.x, dy = t.clientY - swipe0.y; swipe0 = null;
+  if (Math.abs(dx) > 50 && Math.abs(dy) < 30) ACT.dayoff({ dataset: { n: dx < 0 ? '1' : '-1' } }); }, { passive: true });
+function fadeCheck(el) { (el ? [el] : document.querySelectorAll('.tblwrap.fade')).forEach(w => w.classList.toggle('end', w.scrollLeft + w.clientWidth >= w.scrollWidth - 2)); } // the fade marks more columns to the right
+document.addEventListener('scroll', ev => { const t = ev.target; if (t && t.classList && t.classList.contains('fade')) fadeCheck(t); }, true);
+window.addEventListener('resize', () => fadeCheck());
+function filterHist() { // History search and session filter, in place; a week heading hides with its last visible row
+  const q = ui.histQ || '', sid = ui.histS || ''; let any = false;
+  document.querySelectorAll('#view .hist').forEach(g => { let n = 0;
+    g.querySelectorAll('.hrow').forEach(r => { const hit = (!sid || r.dataset.s === sid) && exMatch(r.dataset.q || '', q); r.hidden = !hit; if (hit) n++; });
+    g.hidden = !n; const h = g.previousElementSibling; if (h && h.classList.contains('sec-h')) h.hidden = !n; if (n) any = true; });
+  const e = $('.histempty'); if (e) e.hidden = any;
+}
+document.addEventListener('input', ev => { if (ev.target.id === 'hq') { ui.histQ = ev.target.value; filterHist(); } });
+function filterPick() { // in place, so the keyboard stays up; a group label hides when none of its rows match
+  const q = ui.pick?.q || ''; let any = false, lab = null, labAny = false;
+  const done = () => { if (lab) lab.hidden = !labAny; };
+  document.querySelectorAll('.picklist > li').forEach(li => { if (li.classList.contains('pg')) { done(); lab = li; labAny = false; return; } const hit = exMatch(li.dataset.q || '', q); li.hidden = !hit; if (hit) { any = true; labAny = true; } });
+  done(); const e = $('.pickempty'); if (e) e.hidden = any;
+}
+document.addEventListener('input', ev => { if (ev.target.id === 'pickq' && ui.pick) { ui.pick.q = ev.target.value; filterPick(); } });
 document.addEventListener('keydown', ev => { if (ev.key === 'Enter' && ev.target.id === 'exq') { ev.preventDefault(); ev.target.blur(); } });
 ['pointerdown', 'mousedown'].forEach(t => document.addEventListener(t, ev => { if (ev.target.closest('#exqx')) ev.preventDefault(); })); // keep the keyboard up while clearing
 document.addEventListener('change', ev => { const el = ev.target.closest('[data-in]'); if (!el) return; const f = INP[el.dataset.in]; if (f) f(el); });

@@ -1,6 +1,7 @@
 /* ============================================================
    VIEWS
    ============================================================ */
+const ordinal = n => n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th');
 function pill(tone, text) { return `<span class="pill ${tone || ''}">${esc(text)}</span>`; }
 function stat(v, unit, label, extra) { return `<div class="stat" data-live="${esc(label)}"><b>${v}${unit ? `<small>${esc(unit)}</small>` : ''}</b><span>${esc(label)}</span>${extra || ''}</div>`; }
 function deltaTxt(v, base, d = 0, unit = '', invert = false) {
@@ -10,13 +11,13 @@ function deltaTxt(v, base, d = 0, unit = '', invert = false) {
   return `<span class="delta" style="color:var(${better ? '--good-ink' : '--warn-ink'})">${diff > 0 ? '+' : '−'}${fmt(Math.abs(diff), d)}${unit} vs 30-day</span>`;
 }
 function rxTxt(it) { const d = exDef(it.ex); return `${it.sets} × ${d.lo}${d.hi > d.lo ? '–' + d.hi : ''}`; }
-function prevLine(exId, before) { const sg = suggest(exId, before); return (sg ? `<b class="aimtxt">Aim ${esc(suggestTxt(exId, sg))}</b> · ` : '') + esc(lastLine(exId, before)); }
+function prevLine(exId, before) { const sg = suggest(exId, before), l = lastLine(exId, before); return [sg ? `<b class="aimtxt">Aim ${esc(suggestTxt(exId, sg))}</b>` : '', esc(l)].filter(Boolean).join(' · '); }
 function lastLine(exId, before) {
   const ix = lixEx(exId), n = nBefore(ix.list, before); // Best counts logged sets only; stated maxes just seed the Aim
   let b = null; for (let i = 0; i < n; i++) if (!b || ix.list[i].sc > b.sc) b = ix.list[i];
   const l = lastFor(exId, before), best = b ? `Best ${fmtSet(exId, b.top)}` : '';
   if (l) return `Last ${fmtDate(l.date)} · ${setsTxt(exId, l.sets)}${best ? ' · ' + best : ''}`;
-  return 'Not logged yet';
+  return ''; // never done before: nothing to say (v1.36; was "Not logged yet")
 }
 
 /* ---------- Today: the next session, then today's log once it's started ---------- */
@@ -28,7 +29,7 @@ function dayNav(off) {
 }
 function vDay(off) {
   const d = addDays(today(), off), long = new Date(toUTC(d)).toLocaleDateString('en-AU', { timeZone: 'UTC', weekday: 'long' });
-  let h = `<div class="page-h"><div><div class="eyebrow">${esc(fmtDow(d))} ${esc(fmtDate(d, { year: 'numeric' }))}</div><h1>${off === -1 ? 'Yesterday' : off === 1 ? 'Tomorrow' : esc(long)}</h1></div>${dayNav(off)}</div>`;
+  let h = `<div class="page-h day"><div><div class="eyebrow">${esc(fmtDow(d))} ${esc(fmtDate(d, { year: 'numeric' }))}</div><h1>${off === -1 ? 'Yesterday' : off === 1 ? 'Tomorrow' : esc(long)}</h1></div>${dayNav(off)}</div>`;
   if (off < 0) return h + pastDayHTML(d) + whoopCard(d);
   return h + futureDayHTML(d, off) + stripHTML();
 }
@@ -60,9 +61,9 @@ function futureDayHTML(d, off) {
 function vToday() {
   if (ui.dayOff) return vDay(ui.dayOff);
   const t = today(), w = STATE.w[t], sid = w ? w.s : sessionFor(t), sd = sessDef(sid), o = order(), idx = o.indexOf(sid);
-  let h = `<div class="page-h"><div><div class="eyebrow">${esc(fmtDow(t))} ${esc(fmtDate(t, { year: 'numeric' }))}</div><h1>Today</h1></div><div class="hdr-r">${o.length ? `<span class="pill plain">Rotation ${rotationCount() + 1}</span>` : ''}${dayNav(0)}</div></div>`;
+  let h = `<div class="page-h day"><div><div class="eyebrow">${esc(fmtDow(t))} ${esc(fmtDate(t, { year: 'numeric' }))}</div><h1>Today</h1></div><div class="hdr-r">${o.length ? `<span class="pill plain" title="Your ${ordinal(rotationCount() + 1)} time through the split">${ordinal(rotationCount() + 1)} rotation</span>` : ''}${dayNav(0)}</div></div>`;
   const tail = () => whoopCard() + stripHTML() + weekCard();
-  if (w && (!w.fin || ui.editToday)) return h + logBody(t) + tail(); // the log, until you press Done
+  if (w && (!w.fin || ui.editToday)) return h + logBody(t) + stripHTML() + weekCard(); // the log, until you press Done (no Recovery card while logging, v1.36)
   if (w) return h + doneHero(w, idx, o) + tail();
   if (!sd) return h + `<section class="card"><p>Your programme has no sessions. Add one in Plan.</p><button class="btn" data-act="go" data-tab="plan">Open Plan</button></section>`;
   if (plannedRest(t) && !sd.rest) return h + oneOffRestHero(t, sid) + tail();
@@ -87,6 +88,10 @@ function doneHero(w, idx, o) { // today after Done: a summary, with the log one 
     <div class="rot">${o.map((id, i) => `<i class="${i === idx ? 'on' : i < idx ? 'done' : ''}"></i>`).join('')}</div>
     <div><h1>${esc(sessName(w))}</h1><p class="focus">${esc(sessDef(w.s)?.focus || '')}</p></div>
     <div class="stats">${stat(st.sets, '', 'sets')}${stat(dur ? fmtDur(dur) : '–', '', dur && whoopLiftMin(w.date) != null ? 'duration · WHOOP' : 'duration')}${stat(st.cardio || '–', st.cardio ? 'min' : '', w.cardio?.name || 'Cardio')}</div>
+    ${(() => { // against the last time this session was done (v1.36)
+      const prev = workoutsSorted().filter(x => x.s === w.s && x.date < w.date && !x.rest && wStats(x).sets).pop(); if (!prev) return '';
+      const p = wStats(prev), ds = st.sets - p.sets, dt = (st.kg - p.kg) / 1000, sg = v => (v > 0 ? '+' : v < 0 ? '−' : '±') + fmt(Math.abs(v), 1);
+      return `<p class="small dim">Against ${esc(sessName(prev))} on ${esc(fmtDate(prev.date))}: ${sg(ds)} set${Math.abs(ds) === 1 ? '' : 's'} · ${sg(dt)} t tonnage${prs.length ? ` · ${prs.length} new best${prs.length > 1 ? 's' : ''}` : ''}</p>`; })()}
     ${prs.length ? `<div class="chips">${prs.slice(0, 6).map(p => `<span class="pill acc">${esc(exDef(p.id).name)} ${esc(fmtSet(p.id, p.s))}</span>`).join('')}</div>` : ''}
     <button class="btn wide ghost" data-act="edittoday">Edit log</button></section>`;
 }
@@ -206,20 +211,38 @@ function logBody(d) {
   const ln = lastSessionNote(w);
   if (ln) h += `<section class="card flat lastnote"><span class="eyebrow">Last ${esc(sessName(ln))} · ${esc(fmtDate(ln.date))}</span><p class="small">${esc(ln.note.trim())}</p></section>`;
   const lifts = whoopActs(w.date, LIFT_RE);
-  if (lifts.length) h += lifts.map(a => `<p class="whoopact">WHOOP · ${esc(a.n)}${a.t ? ` from ${esc(a.t)}` : ''}${a.min ? ` · ${fmt(a.min, 0)} min` : ''}${a.str != null ? ` · strain ${fmt(a.str, 1)}` : ''}${a.ahr ? ` · avg ${fmt(a.ahr, 0)} bpm` : ''}${a.kcal ? ` · ${fmt(a.kcal, 0)} kcal` : ''}</p>`).join('');
+  if (lifts.length) h += lifts.map(actChips).join('');
   normSets(w); if (autoCardio(w)) saveW(w.date);
   const prSet = new Set(prsIn(w).map(p => p.s));
   w.ex.forEach((e, i) => { h += exCard(w, e, i, prSet); });
-  const inW = new Set(w.ex.map(e => e.id));
-  const opts = Object.entries(S().ex).filter(([id]) => !inW.has(id)).sort((a, b) => a[1].name.localeCompare(b[1].name));
-  h += `<section class="card flat"><label class="fl">Add an exercise to this session<select class="in" id="addex" data-in="addex"><option value="">Choose…</option>${opts.map(([id, x]) => `<option value="${id}">${esc(x.name)}</option>`).join('')}</select></label></section>`;
+  h += pickerHTML(w);
   h += cardioCard(w);
-  h += `<section class="card"><label class="fl">Duration (min)${wl != null ? ` · WHOOP's ${fmt(wl, 0)} min is used` : ''}<input class="in" id="wdur" inputmode="numeric" data-in="durmin" value="${w.durMin ?? ''}" placeholder="${wl != null ? fmt(wl, 0) : 'optional'}" ${wl != null ? 'disabled' : ''}></label>
+  h += `<section class="card">${wl != null ? `<div class="fl"><span>Duration</span><b class="roval">${esc(fmtDur(wl * 60))} <small>WHOOP</small></b></div>` : `<label class="fl">Duration (min)<input class="in" id="wdur" inputmode="numeric" data-in="durmin" value="${w.durMin ?? ''}" placeholder="optional"></label>`}
     <label class="fl">Session notes<textarea class="in" id="wnote" data-in="note" placeholder="Anything worth remembering next time">${esc(w.note || '')}</textarea></label></section>`;
   h += `<button class="btn wide" data-act="logdone">Done</button>`;
-  h += ui.confirm === 'delw' ? `<section class="card"><p>Delete this session and its sets?</p><div class="btnrow"><button class="btn danger sm" data-act="delw">Delete session</button><button class="link dim" data-act="confirm" data-v="">Keep it</button></div></section>`
-    : `<button class="link danger" data-act="confirm" data-v="delw" style="align-self:flex-start">Delete this session</button>`;
+  h += `<button class="link danger delw" data-act="delw1" style="align-self:flex-start">Delete this session</button>`; // two taps (v1.36)
   return h;
+}
+/* Add exercise (v1.36): a searchable list ranked for the day: the session's own muscles, then muscles its lifts also work
+   and the same movement pattern (push, pull, legs), then abs, then the rest; most recently used first within each. */
+const PATTERN = { chest: 'push', delt_f: 'push', delt_s: 'push', triceps: 'push', back: 'pull', biceps: 'pull', delt_r: 'pull', quads: 'legs', hams: 'legs', calves: 'legs' };
+function pickerHTML(w) {
+  if (!ui.pick) return `<button class="btn ghost wide" data-act="pickopen">+ Exercise</button>`;
+  const inW = new Set(w.ex.map(e => e.id)), sd = sessDef(w.s);
+  const ids = [...(sd?.items || []).map(it => it.ex), ...w.ex.map(e => e.id)];
+  const G = new Set(ids.map(id => exDef(id).g)), G2 = new Set(ids.flatMap(id => exDef(id).g2 || SECONDARY[id] || []));
+  const P = new Set([...G].map(g => PATTERN[g]).filter(Boolean)); // push, pull, legs: the day's movement patterns
+  const rank = x => G.has(x.g) ? 0 : G2.has(x.g) || P.has(PATTERN[x.g]) ? 1 : x.g === 'abs' ? 2 : 3;
+  const used = id => { const l = lixEx(id).list; return l.length ? l[l.length - 1].date : ''; };
+  const all = Object.entries(S().ex).filter(([id, x]) => !inW.has(id) && x.name).map(([id, x]) => ({ id, x, u: used(id), k: rank(x) }))
+    .sort((a, b) => (a.k - b.k) || (b.u > a.u ? 1 : b.u < a.u ? -1 : 0) || a.x.name.localeCompare(b.x.name));
+  all.forEach(r => { r.day = r.k <= 1; });
+  const row = r => `<li data-q="${esc(exHay(r.x))}"><button data-act="addexid" data-id="${r.id}"><span>${esc(r.x.name)}</span><small>${esc(GROUPS[r.x.g] || '')}${r.u ? ` · last ${esc(fmtDate(r.u))}` : ''}</small></button></li>`;
+  const day = all.filter(r => r.day), rest = all.filter(r => !r.day);
+  return `<section class="card pick"><div class="card-h"><h2>Add exercise</h2><button class="link dim" data-act="pickopen">Close</button></div>
+    <div class="srch">${ICON.search}<input class="in left" id="pickq" type="text" inputmode="search" enterkeyhint="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search by name or muscle" aria-label="Search exercises" value="${esc(ui.pick.q || '')}"></div>
+    <ul class="picklist">${day.length ? `<li class="pg">For ${esc(sessName(w))}</li>${day.map(row).join('')}` : ''}${rest.length ? `<li class="pg">Everything else</li>${rest.map(row).join('')}` : ''}</ul>
+    <p class="xs muted pickempty" hidden>No match.</p></section>`;
 }
 function exHistHTML(exId, before) { // the last few sessions of a lift, for a quick look mid-workout
   const rows = [];
@@ -237,20 +260,32 @@ function exMoreHTML(w, e, i) { // swap keeps the slot and set count; same muscle
 }
 function exCard(w, e, i, prSet) {
   const def = exDef(e.id), u = UNITS[def.u] || UNITS.kg, open = ui.exHist === i;
-  const ph = (v, dflt) => v != null ? fmt(v, 2).replace(/,/g, '') : dflt, sg = suggest(e.id, w.date), back = e.sets.length > 1 ? setAim(e.id, w.date, 1, sg) : null;
+  const ph = (v, dflt) => v != null ? fmt(v, 2).replace(/,/g, '') : dflt, sg = suggest(e.id, w.date), back = setAim(e.id, w.date, 1, sg);
+  const last = lastFor(e.id, w.date), nWork = e.sets.filter(s => s.t !== 'w').length;
+  let k = 0; // working-set number
+  const rows = e.sets.map((s, j) => {
+    const warm = s.t === 'w', a = rowAim(e, j, w.date, sg), kk = warm ? null : k++, prev = !warm && last ? last.sets[kk] : null;
+    const tag = warm ? 'W' : s.t === 'd' ? 'D' : String(kk + 1), lbl = warm ? 'warm-up' : s.t === 'd' ? 'drop set' : 'working set';
+    const box = (key, val, phv, im, aria) => `<div class="stp"><button class="sb" data-act="step" data-e="${i}" data-s="${j}" data-k="${key}" data-d="-1" tabindex="-1" aria-label="${aria} down">−</button><input class="in" id="${key}${i}_${j}" inputmode="${im}" enterkeyhint="next" data-in="${key}" data-e="${i}" data-s="${j}" value="${val ?? ''}" placeholder="${phv}" aria-label="Set ${j + 1} ${aria}"><button class="sb" data-act="step" data-e="${i}" data-s="${j}" data-k="${key}" data-d="1" tabindex="-1" aria-label="${aria} up">+</button></div>`;
+    return `<div class="set ${s.done ? 'done' : ''} ${prSet.has(s) ? 'pr' : ''} ${warm ? 'warm' : ''} ${s.t === 'd' ? 'dset' : ''}" id="row${i}_${j}"><button class="sn" data-act="settype" data-e="${i}" data-s="${j}" aria-label="Set ${j + 1}: ${lbl}. Tap to change">${tag}</button>
+      ${box('w', s.w, ph(a ? a.w : s.pw, def.u === 'bw' ? '0' : '–'), 'decimal', esc(u.label))}
+      ${box('r', s.r, ph(a ? a.r : s.pr, '–'), 'numeric', 'reps')}
+      <span class="mark" aria-hidden="true">${ICON.tick}</span>${prev ? `<span class="lastset">Last ${esc(fmtSet(e.id, prev))}</span>` : ''}</div>`;
+  }).join('');
+  const meta = [lastLine(e.id, w.date), def.note].filter(Boolean).map(esc).join(' · ');
   return `<section class="card ex" id="ex${i}"><div class="ex-h"><button class="ex-name" data-act="exhist" data-e="${i}" aria-expanded="${open}"><h3>${esc(def.name)}</h3><span class="chev">${ICON.down}</span></button><span class="rx">${def.lo}${def.hi > def.lo ? '–' + def.hi : ''} reps</span></div>
     ${open ? exHistHTML(e.id, w.date) : ''}
-    ${sg ? `<p class="aim"><b>Aim ${esc(suggestTxt(e.id, sg))}</b>${back?.back ? `, then ${esc(fmtLoad(e.id, back.w))}${def.u === 'kg' ? ' kg' : ''}` : ''} · ${sg.rir} rep${sg.rir === 1 ? '' : 's'} in reserve${S().goal === 'grow' ? ' · overload' : ''}</p>` : ''}
-    <p class="ex-meta">${esc(lastLine(e.id, w.date))}${def.note ? ` · ${esc(def.note)}` : ''}</p>
+    ${sg ? `<p class="aim"><b>Aim ${esc(suggestTxt(e.id, sg))}</b>${nWork > 1 && back?.back ? `, then ${esc(fmtLoad(e.id, back.w))}${def.u === 'kg' ? ' kg' : ''}` : ''} · ${sg.rir} rep${sg.rir === 1 ? '' : 's'} in reserve${S().goal === 'grow' ? ' · overload' : ''}</p>` : ''}
+    ${meta ? `<p class="ex-meta">${meta}</p>` : ''}
     ${(() => { const ln = e.note == null ? lastExerciseNote(e.id, w.date) : null; return ln ? `<p class="ex-lastnote">Note from ${esc(fmtDate(ln.date))}: ${esc(ln.note)}</p>` : ''; })()}
-    <div class="sets"><div class="set hdr"><span>Set</span><span>${esc(u.col)}</span><span>Reps</span><span></span></div>
-    ${e.sets.map((s, j) => { const a = setAim(e.id, w.date, j, sg); return `<div class="set ${s.done ? 'done' : ''} ${prSet.has(s) ? 'pr' : ''}" id="row${i}_${j}"><span class="sn">${j + 1}</span>
-      <input class="in" id="w${i}_${j}" inputmode="decimal" enterkeyhint="next" data-in="w" data-e="${i}" data-s="${j}" value="${s.w ?? ''}" placeholder="${ph(a ? a.w : s.pw, def.u === 'bw' ? '0' : '–')}" aria-label="Set ${j + 1} ${esc(u.label)}">
-      <input class="in" id="r${i}_${j}" inputmode="numeric" enterkeyhint="next" data-in="r" data-e="${i}" data-s="${j}" value="${s.r ?? ''}" placeholder="${ph(a ? a.r : s.pr, '–')}" aria-label="Set ${j + 1} reps">
-      <span class="mark" aria-hidden="true">${ICON.tick}</span></div>`; }).join('')}</div>
+    <div class="sets"><div class="set hdr"><span>Set</span><span>${esc(u.col)}</span><span>Reps</span><span></span></div>${rows}</div>
     ${e.note != null || ui.exNote === i ? `<label class="fl">Exercise note<textarea class="in exnote" id="xn${i}" data-in="exnote" data-e="${i}" placeholder="Seat height, grip, how it felt">${esc(e.note || '')}</textarea></label>` : ''}
-    <div class="ex-foot"><button class="link" data-act="addset" data-e="${i}">+ Set</button>${e.note == null && ui.exNote !== i ? `<button class="link dim" data-act="exnote" data-e="${i}">+ Note</button>` : ''}<button class="link dim more" data-act="exmore" data-e="${i}" aria-expanded="${ui.exMore === i}" aria-label="More for ${esc(def.name)}">${ui.exMore === i ? 'Close' : 'More'}</button></div>
+    <div class="ex-foot"><button class="link" data-act="addset" data-e="${i}">+ Set</button>${sg && sg.w > 0 && def.u !== 'bw' ? `<button class="link dim" data-act="addwarm" data-e="${i}">+ Warm-up</button>` : ''}${e.note == null && ui.exNote !== i ? `<button class="link dim" data-act="exnote" data-e="${i}">+ Note</button>` : ''}<button class="link dim more" data-act="exmore" data-e="${i}" aria-expanded="${ui.exMore === i}" aria-label="More for ${esc(def.name)}">${ui.exMore === i ? 'Close' : 'More'}</button></div>
     ${ui.exMore === i ? exMoreHTML(w, e, i) : ''}</section>`;
+}
+function actChips(a) { // a WHOOP activity as one line of chips (v1.36)
+  const c = [a.t && `from ${esc(a.t)}`, a.min && `${fmt(a.min, 0)} min`, a.str != null && `<span class="strain">strain ${fmt(a.str, 1)}</span>`, a.ahr && `avg ${fmt(a.ahr, 0)} bpm`, a.kcal && `${fmt(a.kcal, 0)} kcal`].filter(Boolean);
+  return `<div class="whoopact"><b>WHOOP · ${esc(a.n)}</b><span class="achips">${c.map(x => `<span>${x}</span>`).join('')}</span></div>`;
 }
 function cardioTypes() { return Object.keys(CARDIO_RE); }
 function cardioCard(w) {
@@ -260,9 +295,8 @@ function cardioCard(w) {
   const acts = whoopCardio(w.date, c.name), wmin = Math.round(sum(acts.map(a => a.min || 0))), fromW = c.done && c.src === 'whoop' && wmin > 0;
   return `<section class="card"><div class="card-h"><h2>${esc(c.name)}</h2>${c.done ? pill('good', fromW ? 'From WHOOP' : 'Done') : pill('', 'After lifting')}</div>
     <div class="chips" role="group" aria-label="Cardio type">${cardioTypes().map(n => `<button class="chip ${n === c.name ? 'on' : ''}" data-act="cardiotype" data-v="${esc(n)}">${esc(n)}</button>`).join('')}</div>
-    <div class="fields" style="grid-template-columns:repeat(2,minmax(0,1fr))"><label class="fl">Minutes<input class="in" id="cmin" inputmode="numeric" data-in="cmin" value="${c.min ?? ''}" ${fromW ? 'disabled' : ''}></label><label class="fl">Level or note<input class="in" id="clvl" data-in="clvl" value="${esc(c.lvl ?? '')}" placeholder="optional"></label></div>
-    ${acts.map(a => `<p class="whoopact">WHOOP · ${esc(a.n)}${a.t ? ` from ${esc(a.t)}` : ''}${a.min ? ` · ${fmt(a.min, 0)} min` : ''}${a.str != null ? ` · strain ${fmt(a.str, 1)}` : ''}${a.ahr ? ` · avg ${fmt(a.ahr, 0)} bpm` : ''}${a.kcal ? ` · ${fmt(a.kcal, 0)} kcal` : ''}</p>`).join('')}
-    ${fromW ? `<p class="xs muted">Minutes come from WHOOP, which overrides anything entered by hand.</p>` : ''}
+    <div class="fields" style="grid-template-columns:repeat(2,minmax(0,1fr))">${fromW ? `<div class="fl"><span>Minutes</span><b class="roval">${fmt(c.min, 0)} min</b></div>` : `<label class="fl">Minutes<input class="in" id="cmin" inputmode="numeric" data-in="cmin" value="${c.min ?? ''}"></label>`}<label class="fl">Level or note<input class="in" id="clvl" data-in="clvl" value="${esc(c.lvl ?? '')}" placeholder="optional"></label></div>
+    ${acts.map(actChips).join('')}
     <div class="btnrow">${fromW ? '' : `<button class="btn ${c.done ? 'ghost' : ''}" data-act="cardio">${c.done ? 'Mark not done' : `Log ${esc(c.name.toLowerCase())}`}</button>`}<button class="link danger" data-act="cardiorem" style="margin-left:auto">Remove</button></div></section>`;
 }
 
@@ -274,6 +308,12 @@ function vHistory() {
   if (ui.hist === 'notes') return h + vNotes();
   h += `<button class="link" data-act="pastlog" style="align-self:flex-start">+ Log a past day</button>`;
   if (!ws.length) return h + `<section class="card"><p class="dim">Sessions you log appear here, grouped by week. Tap one to open or edit it.</p></section>`;
+  h += calendarHTML(ws);
+  // search and session filter, applied in place (filterHist in boot.js) so the keyboard stays up
+  const sids = [...new Set(ws.filter(w => !w.rest).map(w => w.s))].filter(id => sessDef(id)).sort((a, b) => order().indexOf(a) - order().indexOf(b));
+  h += `<div class="srch">${ICON.search}<input class="in left" id="hq" type="text" inputmode="search" enterkeyhint="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search exercises and notes" aria-label="Search history" value="${esc(ui.histQ || '')}"></div>
+    <div class="chips" role="group" aria-label="Session">${[['', 'All'], ...sids.map(id => [id, sessDef(id).name])].map(([id, n]) => `<button class="chip ${(ui.histS || '') === id ? 'on' : ''}" data-act="histsess" data-v="${id}">${esc(n)}</button>`).join('')}</div>
+    <p class="xs muted histempty" hidden>No sessions match.</p>`;
   let wk = null;
   for (const w of ws) {
     const s = weekStart(w.date);
@@ -283,11 +323,27 @@ function vHistory() {
       h += `<div class="sec-h"><span class="eyebrow">Week of ${esc(fmtDate(s))}</span><span class="xs muted">${inW.length} sessions · ${sum(inW.map(x => wStats(x).sets))} sets</span></div><div class="hist">`;
     }
     const st = wStats(w), prs = prsIn(w).length, rec = dayVal(w.date, 'rec'), str = dayVal(w.date, 'str');
-    h += `<button class="hrow" data-act="openlog" data-d="${w.date}"><span class="hdate"><b>${esc(w.date.slice(8))}</b><small>${esc(fmtDow(w.date))}</small></span>
+    const hq = [sessName(w), ...(w.ex || []).filter(e => doneSets(e).length).map(e => exDef(e.id).name), w.note || '', ...(w.ex || []).map(e => e.note || '')].join(' ').toLowerCase();
+    h += `<button class="hrow" data-act="openlog" data-d="${w.date}" data-q="${esc(hq)}" data-s="${esc(w.rest ? '_rest' : w.s)}"><span class="hdate"><b>${esc(w.date.slice(8))}</b><small>${esc(fmtDow(w.date))}</small></span>
       <span class="hmain"><b${w.rest ? ' class="dim"' : ''}>${esc(sessName(w))}</b><small>${w.rest ? (st.cardio ? `${st.cardio} min ${esc(w.cardio.name.toLowerCase())}` : 'No training') : `${st.sets} sets`}${sessDur(w) ? ` · ${fmtDur(sessDur(w))}` : ''}${!w.rest && st.cardio ? ` · ${st.cardio} min ${esc(w.cardio.name.toLowerCase())}` : ''}${prs ? ` · ${prs} best${prs > 1 ? 's' : ''}` : ''}</small></span>
       ${rec != null || str != null ? `<span class="hwh">${rec != null ? `<b class="tn-${recTone(rec)}" aria-label="Recovery ${Math.round(rec)}%">${Math.round(rec)}%</b>` : ''}${str != null ? `<b class="strain" aria-label="Strain ${fmt(str, 1)}">${fmt(str, 1)}</b>` : ''}</span>` : '<span></span>'}${w.note && w.note.trim() ? `<span class="hnote">${esc(w.note.trim())}</span>` : ''}</button>`;
   }
   return h + `</div>`;
+}
+
+/* Calendar (v1.36): a month of training days, a dot per session coloured by its place in the rotation; tap to open. */
+function calendarHTML(ws) {
+  const t = today(), [y, m] = t.split('-').map(Number), off = ui.calOff || 0, mm = ((m - 1 + off) % 12 + 12) % 12, yy = y + Math.floor((m - 1 + off) / 12);
+  const first = `${yy}-${pad(mm + 1)}-01`, days = new Date(Date.UTC(yy, mm + 1, 0)).getUTCDate(), lead = dowMon(first), by = {};
+  for (const w of ws) if (w.date.startsWith(first.slice(0, 7))) by[w.date] = w;
+  const o = order(), PAL = ['var(--s1)', 'var(--s2)', 'var(--s3)', 'var(--strain)', 'var(--warn)'], pc = id => PAL[Math.max(0, o.indexOf(id)) % PAL.length], col = w => w.rest ? 'var(--ink-3)' : pc(w.s);
+  let cells = Array.from({ length: lead }, () => '<span></span>').join('');
+  for (let i = 1; i <= days; i++) { const d = `${first.slice(0, 8)}${pad(i)}`, w = by[d];
+    cells += w ? `<button class="cd${d === t ? ' now' : ''}" data-act="openlog" data-d="${d}" title="${esc(sessName(w))}"><b>${i}</b><i style="background:${col(w)}"></i></button>` : `<span class="cd${d === t ? ' now' : ''}${d > t ? ' fut' : ''}"><b>${i}</b></span>`; }
+  const name = new Date(Date.UTC(yy, mm, 1)).toLocaleDateString('en-AU', { timeZone: 'UTC', month: 'long', year: 'numeric' });
+  const legend = o.filter(id => !isRestSlot(id)).map(id => `<span><i style="background:${pc(id)}"></i>${esc(sessDef(id).name)}</span>`).join('');
+  return `<section class="card cal"><div class="card-h"><h2>${esc(name)}</h2><div class="ex-nav"><button class="iconbtn sm" data-act="calmon" data-n="-1" aria-label="Previous month">‹</button><button class="iconbtn sm" data-act="calmon" data-n="1" aria-label="Next month" ${off >= 0 ? 'disabled' : ''}>›</button></div></div>
+    <div class="calg">${['M', 'T', 'W', 'T', 'F', 'S', 'S'].map(d => `<span class="cdh">${d}</span>`).join('')}${cells}</div><div class="calk">${legend}</div></section>`;
 }
 
 /* ---------- Strength: every lift in one table, one chart ---------- */
@@ -296,33 +352,55 @@ function liftIds() {
   const others = Object.keys(S().ex).filter(id => !ids.includes(id) && records(id)?.logged);
   return [...ids, ...others].filter(id => records(id));
 }
+/* A short "About" toggle for explanations, so the copy stays out of the way (v1.36) */
+const infoHTML = txt => `<details class="info"><summary>About this</summary><p class="xs muted">${txt}</p></details>`;
+/* Lift chart metrics (v1.36): estimated 1RM (the default), heaviest set, and session volume (load × reps over working sets) */
+const LIFT_M = { e1rm: 'e1RM', top: 'Heaviest', vol: 'Volume' };
+function liftMetric(id, m) {
+  const u = exDef(id).u, scored = !(u === 'bw' && !bwScored(id));
+  return lixEx(id).list.map(x => ({ date: x.date, top: x.top, sets: x.sets, y: m === 'top' && scored ? Math.max(...x.sets.map(s => s.w || 0)) : m === 'vol' ? sum(x.sets.map(s => (s.w || 0) * s.r)) || sum(x.sets.map(s => s.r)) : x.sc }));
+}
 function vStrength() {
   const t = today(), ids = liftIds();
   let h = `<div class="page-h"><div><div class="eyebrow">From your logbook</div><h1>Strength</h1></div></div>`;
   if (!ids.length) return h + `<section class="card"><p class="dim small">Log a session, or add your maxes under Plan → Exercises, and your lifts show up here.</p></section>`;
   const pick = ui.lift && ids.includes(ui.lift) ? ui.lift : (ids.find(id => liftSeries(id).length) || ids[0]);
-  const ser = liftSeries(pick), from = ser.length && diffDays(ser[0].date, t) > 27 ? ser[0].date : addDays(t, -27), ax = dateAxis(from, t), xi = d => diffDays(from, d), u = exDef(pick).u;
+  const u = exDef(pick).u, scored = !(u === 'bw' && !bwScored(pick)), m = scored && LIFT_M[ui.liftM] ? ui.liftM : 'e1rm';
+  const ser = liftMetric(pick, m), from = ser.length && diffDays(ser[0].date, t) > 27 ? ser[0].date : addDays(t, -27), ax = dateAxis(from, t), xi = d => diffDays(from, d);
+  const unit = u === 'plates' ? 'pl' : 'kg', ys = ser.map(p => p.y), lo = Math.min(...ys), hi = Math.max(...ys), span = hi - lo, padY = Math.max(u === 'plates' ? .1 : 1, ys.length ? (span < Math.abs(hi) * .04 ? Math.abs(hi) * .04 : span * .15) : 1); // one point or a flat run still gets a sensible axis
+  const yLab = !scored ? 'Best reps per session' : m === 'top' ? `Heaviest set per session (${u === 'plates' ? 'plates / side' : u === 'bw' ? 'kg added' : 'kg'})` : m === 'vol' ? `Session volume (${unit} × reps, working sets)` : `Estimated 1RM per session (${u === 'plates' ? 'plates / side' : u === 'bw' ? 'kg, body weight included' : 'kg'})`;
+  const recent = lixEx(pick).list.slice(-6).reverse();
   const cards = [];
   cards.push({ k: 'chart', t: 'Lift chart', h: `<section class="card" id="liftchart"><label class="fl">Lift<select class="in" id="liftpick" data-in="lift">${ids.map(id => `<option value="${id}" ${id === pick ? 'selected' : ''}>${esc(exDef(id).name)}</option>`).join('')}</select></label>
-    <div class="card-h"><span class="small dim">${u === 'bw' && !bwScored(pick) ? 'Best reps per session' : `Estimated 1RM per session (${u === 'plates' ? 'plates / side' : u === 'bw' ? 'kg, body weight included' : 'kg'})`}</span></div>
-    ${chartHTML({ h: 170, ...ax, refY: null, yPad: u === 'plates' ? .1 : 1, yFmt: v => fmt(v, u === 'plates' ? 2 : 0), series: [{ color: 'var(--s1)', pts: ser.map(p => ({ x: xi(p.date), y: p.y })), dots: true, r: 3.5, end: true }], hoverXs: ser.map(p => xi(p.date)), tip: x => { const p = ser.find(q => xi(q.date) === x); return p ? `<b>${esc(fmtDate(p.date))}</b><br>${esc(fmtSet(pick, p.top))} · ${esc(scoreTxt(pick, p.y))}` : ''; }, empty: 'No sets logged for this lift yet', label: 'Lift trend' })}</section>` });
+    <div class="card-h"><span class="small dim">${esc(yLab)}</span>${scored ? `<div class="seg" role="group" aria-label="Measure">${Object.entries(LIFT_M).map(([k, l]) => `<button class="${k === m ? 'on' : ''}" data-act="liftm" data-v="${k}">${l}</button>`).join('')}</div>` : ''}</div>
+    ${chartHTML({ h: 170, ...ax, refY: null, yPad: padY, yFmt: v => fmt(v, u === 'plates' && m !== 'vol' ? 2 : 0), series: [{ color: 'var(--s1)', pts: ser.map(p => ({ x: xi(p.date), y: p.y })), dots: true, r: 3.5, end: true }], hoverXs: ser.map(p => xi(p.date)), tip: x => { const p = ser.find(q => xi(q.date) === x); return p ? `<b>${esc(fmtDate(p.date))}</b><br>${esc(fmtSet(pick, p.top))} · ${esc(m === 'e1rm' ? scoreTxt(pick, p.y) : m === 'vol' ? fmt(p.y, 0) + ' ' + unit + ' × reps' : fmtLoad(pick, p.y) + (u === 'kg' ? ' kg' : ''))}` : ''; }, empty: 'No sets logged for this lift yet', label: 'Lift trend' })}
+    ${recent.length ? `<div class="sec"><span class="eyebrow">Recent sessions</span><ul class="exlist recent">${recent.map(x => `<li><span class="mono xs">${esc(fmtD(x.date))}</span><span class="rx">${esc(setsTxt(pick, x.sets))}</span></li>`).join('')}</ul></div>` : ''}</section>` });
   const bestLogged = id => lixEx(id).list.reduce((a, x) => !a || x.sc > a.sc ? x : a, null); // stated maxes are only a starting point for the Aim, so Best waits for real sets
-  cards.push({ k: 'lifts', t: 'Lifts table', h: `<section class="card"><div class="tblwrap"><table class="tbl lifts"><thead><tr><th>Lift</th><th class="n">Best</th><th class="n">Last</th><th class="n">4 wk</th></tr></thead><tbody>
-    ${ids.map(id => { const r = records(id), m = maintenance(id), [tone, word] = MSTATE[m.state]; return `<tr class="${id === pick && ui.lift ? 'sel' : ''}" data-act="liftsel" data-id="${id}"><td>${esc(exDef(id).name)}</td>
-      <td class="n">${(b => b ? `${esc(fmtSet(id, b.top))}<br><span class="xs muted">${esc(fmtDMY(b.date))}</span>` : '<span class="muted">–</span>')(bestLogged(id))}</td>
-      <td class="n">${m.last ? `${esc(fmtSet(id, m.last.top))}<br><span class="xs muted">${esc(fmtDate(m.last.date))}</span>` : '<span class="muted">–</span>'}</td>
-      <td class="n">${tone ? `<span class="pill plain ${tone}" title="${word}">${(m.ch >= 0 ? '+' : '−') + fmt(Math.abs(m.ch), 1)}%</span>` : `<span class="xs muted">${m.state === 'new' ? 'Too new' : '–'}</span>`}</td></tr>`; }).join('')}
-    </tbody></table></div>
-    <p class="xs muted">Best: strongest logged set. 4 wk: your typical session over the last 4 weeks against the 2 months before; green is within 2.5% or up, amber down to 5%, red further. Too new: nothing older to compare yet.</p></section>` });
+  const row = id => { const mm = maintenance(id), [tone, word] = MSTATE[mm.state]; return `<tr class="${id === pick && ui.lift ? 'sel' : ''}" data-act="liftsel" data-id="${id}"><td>${esc(exDef(id).name)}</td>
+      <td class="n">${(b => b ? `${esc(fmtSet(id, b.top))}<br><span class="xs muted">${esc(fmtD(b.date))}</span>` : '<span class="muted">–</span>')(bestLogged(id))}</td>
+      <td class="n">${mm.last ? `${esc(fmtSet(id, mm.last.top))}<br><span class="xs muted">${esc(fmtD(mm.last.date))}</span>` : '<span class="muted">–</span>'}</td>
+      <td class="n">${tone ? `<span class="pill plain ${tone}" title="${word}">${(mm.ch >= 0 ? '+' : '−') + fmt(Math.abs(mm.ch), 1)}%</span>` : `<span class="xs muted">${mm.state === 'new' ? 'Too new' : '–'}</span>`}</td></tr>`; };
+  // grouped by session in rotation order; lifts never logged wait behind Show all (v1.36)
+  const logged = id => lixEx(id).list.length > 0, groups = [], seen = new Set();
+  for (const sid of order()) { const sd = sessDef(sid); if (!sd || isRestSlot(sid)) continue; const g = sd.items.map(it => it.ex).filter(id => ids.includes(id) && !seen.has(id)); g.forEach(id => seen.add(id)); if (g.length) groups.push([sd.name, g]); }
+  const other = ids.filter(id => !seen.has(id)); if (other.length) groups.push(['Other lifts', other]);
+  const hidden = ui.liftsAll ? 0 : ids.filter(id => !logged(id)).length;
+  cards.push({ k: 'lifts', t: 'Lifts table', h: `<section class="card"><div class="tblwrap"><table class="tbl lifts"><thead><tr><th>Lift</th><th class="n">Best</th><th class="n">Last</th><th class="n">4 wk</th></tr></thead>
+    ${groups.map(([n, g]) => { const vis = g.filter(id => ui.liftsAll || logged(id)); return vis.length ? `<tbody><tr class="grp"><th colspan="4" scope="rowgroup">${esc(n)}</th></tr>${vis.map(row).join('')}</tbody>` : ''; }).join('')}
+    </table></div>
+    <div class="btnrow" style="justify-content:space-between">${hidden || ui.liftsAll ? `<button class="link dim" data-act="liftsall">${ui.liftsAll ? 'Hide lifts not logged yet' : `Show all (${hidden} not logged yet)`}</button>` : '<span></span>'}</div>
+    ${infoHTML('Best: strongest logged set. 4 wk: your typical session over the last 4 weeks against the 2 months before; green is within 2.5% or up, amber down to 5%, red further. Too new: nothing older to compare yet.')}</section>` });
   // Bands from research, not from the plan: ~3 hard sets a week held size and strength in younger adults (Bickel et al., 2011:
   // a ninth of the training dose, one set of each of three exercises once a week); 10-20 a week is the usual growth range,
   // with diminishing returns above it (Schoenfeld et al., 2017; Pelland et al., 2024).
   const HOLD = 3, GLO = 10, GHI = 20, plan = planWeekly(S().prog), done = doneByGroup(addDays(t, -6), t), gs = GROUP_ORDER.filter(g => plan[g] || done[g]);
   const mx = Math.max(GHI + 2, ...gs.map(g => done[g] || 0)), pc = v => v / mx * 100;
-  const tone = n => n < HOLD ? 'warn' : n >= GLO ? 'good' : '';
+  // a muscle whose session is still coming in the next 2 days isn't behind, it's due: grey, not amber (v1.36)
+  const due = new Set(upcoming(3).filter(x => !x.done && sessDef(x.s)).flatMap(x => sessDef(x.s).items.flatMap(it => [exDef(it.ex).g, ...(exDef(it.ex).g2 || SECONDARY[it.ex] || [])])));
+  const tone = (n, g) => n < HOLD ? (due.has(g) ? 'due' : 'warn') : n >= GLO ? 'good' : '';
   cards.push({ k: 'volume', t: 'Volume, last 7 days', h: `<section class="sec" data-card="volume"><div class="sec-h"><span class="eyebrow">Volume · last 7 days</span></div><section class="card"><div class="legend"><span><i class="ln" style="background:var(--s1);height:8px;width:12px"></i>Sets done</span><span><i class="tk"></i>Hold, ~${HOLD}</span><span><i class="bandk"></i>Grow, ${GLO}–${GHI}</span></div>
-    <ul class="hbars">${gs.map(g => { const n = done[g] || 0; return `<li><span class="lab">${esc(GROUPS[g])}</span><span class="trk"><span class="band" style="left:${pc(GLO)}%;width:${pc(GHI) - pc(GLO)}%"></span><span class="fill" style="width:${pc(Math.min(n, mx))}%"></span><span class="tgt" style="left:calc(${pc(HOLD)}% - 1px)"></span></span><span class="v ${tone(n) ? 'tn-' + tone(n) : ''}">${fmt(n, 1)}</span></li>`; }).join('')}</ul>
-    <p class="xs muted">Hard sets per muscle, last 7 days; compounds count half for the muscles they also work. About 3 a week holds (Bickel et al., 2011); 10–20 grows (Schoenfeld et al., 2017; Pelland et al., 2024).</p></section></section>` });
+    <ul class="hbars">${gs.map(g => { const n = done[g] || 0, tn = tone(n, g); return `<li><span class="lab">${esc(GROUPS[g])}</span><span class="trk"><span class="band" style="left:${pc(GLO)}%;width:${pc(GHI) - pc(GLO)}%"></span><span class="fill" style="width:${pc(Math.min(n, mx))}%"></span><span class="tgt" style="left:calc(${pc(HOLD)}% - 1px)"></span></span><span class="v ${tn ? 'tn-' + tn : ''}"${tn === 'due' ? ' title="Its session is coming up"' : ''}>${fmt(n, 1)}</span></li>`; }).join('')}</ul>
+    ${infoHTML('Hard sets per muscle over the last 7 days; compounds count half for the muscles they also work, and warm-ups don\'t count. About 3 a week holds (Bickel et al., 2011); 10–20 grows (Schoenfeld et al., 2017; Pelland et al., 2024). Grey: that muscle\'s session is due in the next 2 days.')}</section></section>` });
   const det = doneByGroupDetail(addDays(t, -6), t), dg = GROUP_ORDER.filter(g => det[g]);
   if (dg.length) cards.push({ k: 'volsrc', t: 'Volume breakdown', h: `<section class="sec" data-card="volsrc"><div class="sec-h"><span class="eyebrow">Volume breakdown · last 7 days</span></div><section class="card"><div class="tblwrap"><table class="tbl volsrc"><thead><tr><th>Exercise</th><th class="n">Sets</th><th class="n">Counts</th></tr></thead>
     ${dg.map(g => `<tbody><tr class="grp"><th scope="rowgroup">${esc(GROUPS[g])}</th><td></td><td class="n">${fmt(sum(det[g].map(r => r.credit)), 1)}</td></tr>
@@ -361,20 +439,32 @@ function partialCard() {
   return `<section class="card"><div class="card-h"><h2>Partly logged?</h2><span class="eyebrow">expenditure</span></div>
     <ul class="rows partq">${f.map(x => `<li><span>${esc(fmtDow(x.d))} ${esc(fmtDate(x.d))}</span><div class="seg" role="group" aria-label="${esc(fmtDate(x.d))}">${[['1', 'Partly'], ['0', 'Complete']].map(([v, l]) => `<button class="${x.ans === (v === '1') ? 'on' : ''}" data-act="partial" data-date="${x.d}" data-v="${v}">${l}</button>`).join('')}</div><span class="sub">${fmt(x.kcal, 0)} kcal, ${fmt(x.pct * 100, 0)}% of the days before${x.ans == null ? ` · treated as ${x.part ? 'partly logged' : 'complete'}` : ''}</span></li>`).join('')}</ul></section>`;
 }
+/* Energy (v1.36): trend weight and its rate, expenditure, and the week's intake, in one place */
+function energyCard() {
+  const t = today(), twD = latestWith('tw'), exD = latestWith('exp'); if (!twD && !exD) return '';
+  const wr = weightRate(), k7 = []; for (let i = 1; i <= 7; i++) { const v = dayVal(addDays(t, -i), 'kcal'); if (v > 0) k7.push(v); }
+  const ex = exD ? dayVal(exD, 'exp') : null, ik = k7.length >= 4 ? mean(k7) : null;
+  const tile = (label, v, unit, sub) => `<div class="rt" data-live="${esc(label)}"><span>${esc(label)}</span>${v == null ? '<b class="nil">–</b>' : `<b>${v}${unit ? `<small>${esc(unit)}</small>` : ''}</b>`}${sub ? `<em>${sub}</em>` : ''}</div>`;
+  return `<section class="card rcard"><div class="card-h"><h2>Energy</h2><span class="eyebrow">${exD && STATE.d[exD]?.exp != null ? 'MacroFactor' : 'Orbit estimate'}</span></div><div class="rtiles e4">
+    ${tile('Trend weight', twD ? fmt(dayVal(twD, 'tw'), 1) : null, 'kg', twD && twD !== t ? esc(fmtD(twD)) : '')}
+    ${tile('Rate', wr ? (wr.wk >= 0 ? '+' : '−') + fmt(Math.abs(wr.wk), 2) : null, 'kg/wk', wr ? `${wr.pct >= 0 ? '+' : '−'}${fmt(Math.abs(wr.pct), 2)}% a week` : '')}
+    ${tile('Expenditure', ex != null ? fmt(ex, 0) : null, 'kcal', '')}
+    ${tile('Intake, 7 days', ik != null ? fmt(ik, 0) : null, 'kcal', ik != null && ex != null ? `${ik - ex >= 0 ? '+' : '−'}${fmt(Math.abs(ik - ex), 0)} vs expenditure` : '')}</div></section>`;
+}
 function vBody() {
-  let h = `<div class="page-h"><div><div class="eyebrow">WHOOP · MacroFactor · Apple Health</div><h1>Body</h1></div></div>`;
-  h += freshHTML() + partialCard();
+  let h = `<div class="page-h"><div><div class="eyebrow">Recovery · energy · trends</div><h1>Body</h1></div></div>`;
+  h += freshHTML() + partialCard() + energyCard();
   const cards = [{ k: 'trends', t: 'Trends', h: explorerHTML() }, { k: 'alcohol', t: 'Alcohol and recovery', h: alcoholCard() }];
   const ra = recoveryAfter().filter(r => r.n >= 2).sort((a, b) => b.avg - a.avg);
   if (ra.length >= 2) cards.push({ k: 'recafter', t: 'Recovery the morning after', h: `<section class="card"><div class="card-h"><h2>Recovery the morning after</h2><span class="eyebrow">all time</span></div><p class="xs muted">Average next-day WHOOP recovery after each session type. Small samples move a lot; read it as a hint.</p>
-    <ul class="hbars">${ra.map(r => `<li><span class="lab">${esc(r.k)}</span><span class="trk"><span class="fill" style="width:${Math.max(2, r.avg)}%;background:var(--${recTone(r.avg)})"></span></span><span class="v">${fmt(r.avg, 0)}% <span class="muted">n${r.n}</span></span></li>`).join('')}</ul></section>` });
+    <ul class="hbars">${ra.map(r => `<li><span class="lab">${esc(r.k)}</span><span class="trk"><span class="fill" style="width:${Math.max(2, r.avg)}%;background:var(--${recTone(r.avg)})"></span></span><span class="v">${fmt(r.avg, 0)}% <span class="muted">${r.n}×</span></span></li>`).join('')}</ul></section>` });
   const nW = ui.weeksAll ? 26 : 8, wrows = weekRows(nW).filter(r => r.sessions || r.rec != null || r.kcal != null || r.tw != null);
   if (wrows.length) {
     const c = (v, d = 0, u = '') => v == null ? '<span class="muted">–</span>' : fmt(v, d) + u;
     const cols = ui.reo?.tab === 'body' ? ui.reo.cols : wkCols(), m = '<span class="muted">–</span>';
     const cell = { sessions: r => r.sessions || m, sets: r => r.sets || m, cardio: r => r.cardio ? r.cardio + ' min' : m, rec: r => r.rec != null ? `<span style="color:var(--${recTone(r.rec)}-ink)">${fmt(r.rec, 0)}%</span>` : m,
       hrv: r => c(r.hrv, 0), slp: r => r.slp != null ? fmt(r.slp / 60, 1) + ' h' : m, kcal: r => c(r.kcal, 0), p: r => c(r.p, 0, ' g'), dtw: r => r.dtw != null ? (r.dtw >= 0 ? '+' : '−') + fmt(Math.abs(r.dtw), 2) : m };
-    cards.push({ k: 'weekly', t: 'Weekly summary', h: `<section class="sec"><div class="sec-h"><span class="eyebrow">Weekly summary</span><span class="xs muted">weeks start Monday</span></div><section class="card"><div class="tblwrap"><table class="tbl wk"><thead><tr><th>Week</th>${cols.map(k => `<th class="n">${esc(WKCOLS[k])}</th>`).join('')}</tr></thead><tbody>
+    cards.push({ k: 'weekly', t: 'Weekly summary', h: `<section class="sec"><div class="sec-h"><span class="eyebrow">Weekly summary</span><span class="xs muted">weeks start Monday</span></div><section class="card"><div class="tblwrap fade"><table class="tbl wk"><thead><tr><th>Week</th>${cols.map(k => `<th class="n">${esc(WKCOLS[k])}</th>`).join('')}</tr></thead><tbody>
       ${wrows.map(r => `<tr><td>${esc(fmtDate(r.ws))}${r.cur ? ' <span class="xs muted">so far</span>' : ''}</td>${cols.map(k => `<td class="n">${cell[k](r)}</td>`).join('')}</tr>`).join('')}
       </tbody></table></div><div class="btnrow" style="justify-content:space-between"><span class="xs muted">Daily averages; sessions, sets and cardio are totals. Weight Δ is the trend weight change.</span><button class="link" data-act="weeksall">${ui.weeksAll ? 'Show 8 weeks' : 'Show 26 weeks'}</button></div></section></section>` });
   }
@@ -394,11 +484,18 @@ function vPlan() {
   const pairs = p => new Set(Object.entries(p.sessions).flatMap(([sid, sd]) => sd.items.map(i => sid + ':' + i.ex)));
   const mine = pairs(cur), near = match || Object.keys(PRESETS).map(k => { const ps = pairs(PRESETS[k]); return { k, sc: [...ps].filter(x => mine.has(x)).length / Math.max(ps.size, mine.size, 1) }; }).sort((a, b) => b.sc - a.sc).find(x => x.sc >= 0.5)?.k;
   let h = `<div class="page-h"><div><div class="eyebrow">${match ? esc(PRESETS[match].name) : near ? esc(PRESETS[near].name) + ', edited' : 'Custom split'} · ${trainIds().length} sessions${o.length > trainIds().length ? ` + ${o.length - trainIds().length} rest` : ''}</div><h1>Plan</h1></div></div>`;
+  const pt = ['split', 'targets', 'sessions', 'exercises'].includes(ui.planTab) ? ui.planTab : 'sessions'; // one part at a time (v1.36)
+  h += `<div class="seg plantabs" role="tablist" aria-label="Plan">${[['split', 'Split'], ['targets', 'Targets'], ['sessions', 'Sessions'], ['exercises', 'Exercises']].map(([k, l]) => `<button role="tab" aria-selected="${k === pt}" class="${k === pt ? 'on' : ''}" data-act="plantab" data-v="${k}">${l}</button>`).join('')}</div>`;
+  if (pt === 'split') {
   h += `<section class="sec"><div class="sec-h"><span class="eyebrow">Split</span></div><div class="grid2">${Object.entries(PRESETS).map(([k, p]) => `<button class="opt ${near === k ? 'on' : ''}" data-act="preset" data-id="${k}"><b>${esc(p.name)}${near === k && !match ? ' <span class="xs muted">· edited</span>' : ''}</b><span class="seqs">${p.order.map(id => esc(p.sessions[id].name)).join(' → ')}</span><span>${esc(p.blurb)}</span></button>`).join('')}</div>
     ${ui.confirm && ui.confirm.startsWith('preset:') ? `<div class="prev"><p>${ui.confirm.slice(7) === near && !match ? `Reset to the original <b>${esc(PRESETS[near].name)}</b>? Your edits to the session lists are undone` : `Switch to <b>${esc(PRESETS[ui.confirm.slice(7)].name)}</b>? Your session lists are replaced`}; logged sessions and history stay as they are.</p><div class="btnrow"><button class="btn sm" data-act="usepreset" data-id="${ui.confirm.slice(7)}">${ui.confirm.slice(7) === near && !match ? 'Reset' : 'Switch'}</button><button class="link dim" data-act="confirm" data-v="">Cancel</button></div></div>` : ''}</section>`;
 
+  }
+  if (pt === 'targets') {
   h += progressionCard();
 
+  }
+  if (pt === 'split') {
   // weekly sets comparison
   const cols = [['ppl4', PRESETS.ppl4], ['ulppl5', PRESETS.ulppl5]]; if (!match) cols.push(['yours', cur]);
   const vols = cols.map(([, p]) => planWeekly(p));
@@ -407,8 +504,10 @@ function vPlan() {
     <div class="tblwrap"><table class="tbl"><thead><tr><th>Muscle</th>${cols.map(([k, p]) => `<th class="n">${k === 'yours' ? 'Yours' : k === 'ppl4' ? 'Current' : 'U/L/PPL'}</th>`).join('')}</tr></thead><tbody>
     ${gs.map(g => `<tr><td>${esc(GROUPS[g])}</td>${vols.map((v, i) => { const base = vols[0][g] || 0, x = v[g] || 0; const tag = i && x > base + .5 ? ' <span class="xs" style="color:var(--accent)">▲</span>' : i && x < base - .5 ? ' <span class="xs muted">▼</span>' : ''; return `<td class="n">${fmt(x, 1)}${tag}</td>`; }).join('')}</tr>`).join('')}
     </tbody></table></div>
-    <p class="xs muted">Direct sets a week if you train daily. Growth needs about 10–20; holding far less.</p></section>`;
+    ${infoHTML("Sets a week if you train every day, counted like Volume on Strength: compounds give half a set to the muscles they also work. Growth needs about 10–20; holding far less.")}</section>`;
 
+  }
+  if (pt === 'sessions') {
   // sessions editor
   h += `<section class="sec"><div class="sec-h"><span class="eyebrow">Sessions, in rotation order</span><span class="btnrow"><button class="link" data-act="addrest">+ Rest day</button><button class="link" data-act="addsess">+ Session</button></span></div>`;
   const delBtn = sid => ui.confirm === 'dels:' + sid ? `<span class="btnrow"><button class="btn danger sm" data-act="delsess" data-id="${sid}">${sessDef(sid).rest ? 'Remove' : 'Delete'}</button><button class="link dim" data-act="confirm" data-v="">Keep</button></span>` : `<button class="link danger" data-act="confirm" data-v="dels:${sid}">${sessDef(sid).rest ? 'Remove rest day' : 'Delete session'}</button>`;
@@ -433,6 +532,8 @@ function vPlan() {
   h += `</div><p class="xs muted">Drag the handles to reorder.</p>`;
   h += `</section>`;
 
+  }
+  if (pt === 'exercises') {
   // exercise library
   const exs = Object.entries(S().ex).sort((a, b) => GROUP_ORDER.indexOf(a[1].g) - GROUP_ORDER.indexOf(b[1].g) || a[1].name.localeCompare(b[1].name));
   const q = ui.exQ || '', shown = exs.filter(([id, x]) => ui.editEx === id || exMatch(exHay(x), q)).length;
@@ -442,6 +543,8 @@ function vPlan() {
     ${exs.map(([id, x]) => { const hide = ui.editEx !== id && !exMatch(exHay(x), q) ? ' hidden' : '', hay = ` data-q="${esc(exHay(x))}"`; return ui.editEx === id ? `<li style="display:block" data-edit="1"${hay}>${exEditor(id, x)}</li>` : `<li${hay}${hide}><span>${esc(x.name)}</span><button class="link" data-act="editex" data-id="${id}">Edit</button><span class="sub">${esc(GROUPS[x.g] || '')} · ${esc(UNITS[x.u]?.label || x.u)} · ${x.lo}–${x.hi} reps${x.base && x.base.r ? ` · max ${esc(fmtSet(id, x.base))}` : ''}</span></li>`; }).join('')}
   </ul><p class="xs muted" id="exnone" ${shown ? 'hidden' : ''}>No exercises match.</p></section></section>`;
 
+  }
+  if (pt === 'split') {
   // settings
   h += `<section class="sec"><div class="sec-h"><span class="eyebrow">Settings</span></div><section class="card"><div class="fields">
     <label class="fl">Cardio after lifting<select class="in" id="st_cn" data-in="cname">${cardioTypes().map(n => `<option value="${n}" ${n === S().cardio.name ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
@@ -451,6 +554,7 @@ function vPlan() {
     <label class="fl">Suggested weight and reps<select class="in" id="st_sg" data-in="suggest"><option value="1" ${S().suggest !== false ? 'selected' : ''}>On</option><option value="0" ${S().suggest === false ? 'selected' : ''}>Off</option></select></label>
   </div><p class="xs muted">Plate weight converts plate machines to kg for tonnage.</p>
   <p class="xs muted">Aims follow Targets above. Change a lift's weight step or reps in reserve under Exercises.</p></section></section>`;
+  }
   return h;
 }
 function goalLabel() { return S().goal === 'grow' ? `Overload +${fmt((S().progRate ?? 0.005) * 100, 2)}%/wk` : 'Maintenance'; }
@@ -466,7 +570,7 @@ function progressionCard() {
     ${grow && cutCheck() ? (() => { const c = cutCheck(); return `<p class="small warnnote">Your trend weight is falling about ${fmt(Math.abs(c.wk), 2)} kg a week (${fmt(Math.abs(c.pct), 1)}%). In a deficit like that strength usually holds but gains slow down (Murphy &amp; Koehler, 2022), so Overload at +${fmt(rate * 100, 2)}%/wk may outrun you. Maintenance, or the 0.25% rate, fits better until the cut ends.</p>`; })() : ''}
     <label class="fl">Lift<select class="in" id="proglift" data-in="proglift">${ids.map(id => `<option value="${id}" ${id === pick ? 'selected' : ''}>${esc(exDef(id).name)}</option>`).join('')}</select></label>
     ${plan ? `<div class="tblwrap"><table class="tbl goal"><thead><tr><th>Week</th><th class="n ${grow ? '' : 'act'}">Maintenance</th><th class="n ${grow ? 'act' : ''}">Overload</th><th class="n">Gain</th></tr></thead><tbody>
-      ${plan.map(p => `<tr><td>Week ${p.k}</td><td class="n ${grow ? '' : 'act'}">${hold ? esc(suggestTxt(pick, hold)) : '–'}</td><td class="n ${grow ? 'act' : ''}">${esc(suggestTxt(pick, p))}</td><td class="n">+${fmt(p.g * 100, 1)}%</td></tr>`).join('')}
+      ${plan.map(p => `<tr><td>Week ${p.k}</td><td class="n ${grow ? '' : 'act'}">${hold ? esc(suggestTxt(pick, hold)) : '–'}</td><td class="n ${grow ? 'act' : ''}">${esc(suggestTxt(pick, p))}</td><td class="n">+${(p.g * 100).toFixed(1)}%</td></tr>`).join('')}
     </tbody></table></div>` : ''}
     <p class="xs muted">Both leave ${rir} rep${rir === 1 ? '' : 's'} in reserve and update from your logged sets. Overload adds reps before load.</p></section></section>`;
 }
@@ -492,24 +596,24 @@ function exEditor(id, x) {
 function vData() {
   const im = S().imports || {};
   const last = k => im[k] ? `Last import ${new Date(im[k].at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })} · ${im[k].n} days · ${esc(im[k].range)}` : 'Not imported yet';
-  let h = `<div class="page-h"><div><div class="eyebrow">Imports, backups, storage</div><h1>Data</h1></div></div>`;
+  let h = `<div class="page-h"><div><div class="eyebrow">Sync, imports, backups</div><h1>Settings</h1></div></div>`;
   if (window.GH_SYNC) h += GH.card() + Helper.card() + Helper.traffic() + Helper.explain(); else h += `<section class="card"><div class="card-h"><h2>Where your data lives</h2><span id="sync2">${Cloud.ready ? pill('good', 'Synced') : pill('', 'This browser')}</span></div><p class="small dim">${Cloud.ready ? 'Saved to your private storage for this app on claude.ai, so it follows you between phone and desktop. A copy is also kept in this browser.' : 'Saving in this browser only. Cloud sync starts when the app is opened from claude.ai while signed in.'}</p></section>`;
   const impBox = src => { const p = ui.imp[src]; if (!p) return '';
     return `<div class="prev" id="imp-${src}"><div class="card-h"><b>Ready to import</b></div><p><b>${esc(p.summary)}</b></p><p class="dim">${esc(previewRange(p.days))}</p><p class="xs muted">From ${esc(p.files.join(', '))}.</p>
       <div class="btnrow"><button class="btn" data-act="doimport" data-v="${src}">Import</button><button class="link dim" data-act="cancelimp" data-v="${src}">Cancel</button></div></div>`; };
   h += `<section class="card"><div class="card-h"><h2>WHOOP</h2><span class="eyebrow">recovery · HRV · sleep · strain</span></div>
-    <ol class="steps"><li>In the WHOOP app, open the menu and choose <b>Data Export</b>.</li><li>WHOOP emails you a download link, usually within minutes.</li><li>Choose the .zip below. Only needed for the journal (alcohol); everything else syncs by itself.</li></ol>
-    <div class="drop" data-drop="whoop"><input type="file" class="file" id="f_whoop" accept=".zip,.csv,text/csv,application/zip" multiple data-in="fwhoop"><span class="xs muted">${last('whoop')}</span></div>${impBox('whoop')}</section>`;
+    <details class="info"><summary>How to export</summary><ol class="steps"><li>In the WHOOP app, open the menu and choose <b>Data Export</b>.</li><li>WHOOP emails you a download link, usually within minutes.</li><li>Choose the .zip below. Only needed for the journal (alcohol); everything else syncs by itself.</li></ol></details>
+    <div class="drop" data-drop="whoop"><label class="btn sm ghost filebtn">Choose file<input type="file" class="vh" id="f_whoop" accept=".zip,.csv,text/csv,application/zip" multiple data-in="fwhoop"></label><span class="xs muted">${last('whoop')}</span></div>${impBox('whoop')}</section>`;
   h += `<section class="card"><div class="card-h"><h2>MacroFactor</h2><span class="eyebrow">intake · weight · expenditure</span></div>
-    <ol class="steps"><li>In MacroFactor, go to <b>More → Data Management → Data Export</b>.</li><li>Include nutrition, scale weight, weight trend and expenditure, choose a time frame, then save the spreadsheet.</li><li>Choose it below. Re-importing is safe.</li></ol>
-    <div class="drop" data-drop="mf"><input type="file" class="file" id="f_mf" accept=".xlsx,.xls,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple data-in="fmf"><span class="xs muted">${last('mf')}</span></div>${impBox('mf')}</section>`;
+    <details class="info"><summary>How to export</summary><ol class="steps"><li>In MacroFactor, go to <b>More → Data Management → Data Export</b>.</li><li>Include nutrition, scale weight, weight trend and expenditure, choose a time frame, then save the spreadsheet.</li><li>Choose it below. Re-importing is safe.</li></ol></details>
+    <div class="drop" data-drop="mf"><label class="btn sm ghost filebtn">Choose file<input type="file" class="vh" id="f_mf" accept=".xlsx,.xls,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple data-in="fmf"></label><span class="xs muted">${last('mf')}</span></div>${impBox('mf')}</section>`;
   h += `<section class="card"><div class="card-h"><h2>Apple Health</h2><span class="eyebrow">steps · headphones · MacroFactor</span></div>
     <p class="small dim">New days arrive through Health Auto Export. For older days, import an Orbit Health file (.json).</p>
-    <div class="drop" data-drop="ah"><input type="file" class="file" id="f_ah" accept=".json,application/json" data-in="fah"><span class="xs muted">${last('ah')}</span></div>${impBox('ah')}</section>`;
+    <div class="drop" data-drop="ah"><label class="btn sm ghost filebtn">Choose file<input type="file" class="vh" id="f_ah" accept=".json,application/json" data-in="fah"></label><span class="xs muted">${last('ah')}</span></div>${impBox('ah')}</section>`;
   h += `<section class="card"><div class="card-h"><h2>Backups</h2></div>
     <div class="btnrow"><button class="btn sm ghost" data-act="export" data-v="json">Save full backup (.json)</button><button class="btn sm ghost" data-act="export" data-v="csv">Save sets (.csv)</button></div>
     ${ui.exportText ? `<div class="exportbox sec"><span class="xs muted">Saving files isn't available here. Copy this instead.</span><textarea class="in" id="exporttext" readonly>${esc(ui.exportText)}</textarea><button class="btn sm" data-act="copyexport">Copy</button></div>` : ''}
-    <label class="fl">Restore from a backup<input type="file" class="file" id="f_backup" accept=".json,application/json" data-in="fbackup"></label></section>`;
+    <label class="btn sm ghost filebtn" style="align-self:flex-start">Restore from a backup<input type="file" class="vh" id="f_backup" accept=".json,application/json" data-in="fbackup"></label></section>`;
   h += `<section class="card"><div class="card-h"><h2>Start over</h2></div>
     ${ui.confirm === 'reset' ? `<p class="small">This deletes every session, import and setting, here and in cloud storage. Save a backup first if you might want it.</p><div class="btnrow"><button class="btn danger sm" data-act="reset">Delete everything</button><button class="link dim" data-act="confirm" data-v="">Cancel</button></div>`
       : `<button class="link danger" data-act="confirm" data-v="reset" style="align-self:flex-start">Delete all data</button>`}</section>`;
