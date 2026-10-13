@@ -88,7 +88,7 @@ function whoopCard() {
   if (x.rr != null) extra.push(stat(fmt(x.rr, 1), 'rpm', 'Respiratory rate', deltaTxt(x.rr, base('rr'), 1, '', true)));
   if (x.spo2 != null) extra.push(stat(fmt(x.spo2, 0), '%', 'Blood oxygen'));
   if (x.skt != null) extra.push(stat(fmt(x.skt, 1), '°C', 'Skin temp', deltaTxt(x.skt, base('skt'), 1, '°')));
-  const stY = stepsOf(addDays(t, -1)); if (stY != null) extra.push(stat(fmt(stY, 0), '', 'Steps, yesterday'));
+  const stT = stepsOf(t); if (stT != null) extra.push(stat(fmt(stT, 0), '', 'Steps, today'));
   return `<section class="card"><div class="card-h"><h2>Recovery</h2>${x.rec != null ? pill(tone, recWord(x.rec)) : ''}</div>
     <div class="recov">${ring(x.rec, tone, str)}<div class="stats" style="grid-template-columns:repeat(2,minmax(0,1fr))">
       ${stat(x.hrv != null ? fmt(x.hrv, 0) : '–', 'ms', 'HRV', hb ? `<span class="delta" style="color:var(${hb.state === 'below' ? '--warn-ink' : hb.state === 'within' ? '--good-ink' : '--ink-2'})">7-day ${HRV_STATE[hb.state][1].toLowerCase()}</span>` : '')}

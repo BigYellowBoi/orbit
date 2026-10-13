@@ -11,8 +11,8 @@
      GET  /sync?key=…       run a sync now
      GET  /backfill?key=…&from=YYYY-MM   redo the history backfill from a month
      POST /health?key=…     Apple Health numbers from the Shortcut (see worker/README.md)
-   Cron (every 10 min): sync the last 3 days when WHOOP reported a change or 3 h have passed;
-   otherwise fill in history one or two months at a time.
+   Cron (every 10 min): sync the last 3 days when WHOOP reported a change or 3 h have passed; in between, refresh
+   today's steps and strain every 30 min (WHOOP has no webhook for those); otherwise fill in history a month or two at a time.
 
    Settings (Cloudflare → Worker → Settings)
      Variables: WHOOP_CLIENT_ID, GH_REPO (e.g. BigYellowBoi/orbit-data), optional GH_BRANCH (main),
@@ -207,6 +207,18 @@ async function syncRecent(env, b) {
   const covered = []; for (let d = from; d <= t; d = addDays(d, 1)) covered.push(d);
   return saveDays(env, b, days, acts, covered, `WHOOP sync ${t}`);
 }
+async function pollToday(env, b, st) { // today's cycle: steps and strain grow all day and WHOOP sends no event for them
+  const t = todayLocal(env), cycles = await whoopList(env, b, '/v2/cycle', new Date(Date.parse(localMidnightISO(t, env)) - 36 * 3600e3).toISOString(), new Date().toISOString());
+  let vals = null;
+  for (const c of cycles) {
+    const st0 = local(c.start, c.timezone_offset, env), date = st0.h >= 15 ? addDays(st0.date, 1) : st0.date; if (date !== t) continue;
+    vals = clean({ stp: typeof c.step_count === 'number' ? c.step_count : null, str: c.score_state === 'SCORED' && c.score ? r1(c.score.strain) : null, kb: c.score_state === 'SCORED' && c.score?.kilojoule != null ? Math.round(c.score.kilojoule / 4.184) : null });
+  }
+  if (!vals || !Object.keys(vals).length) return false;
+  const key = JSON.stringify([t, vals]); if (st.today === key) return false; // unchanged since the last look: no GitHub calls
+  await writeMonth(env, b, t.slice(0, 7), items => { items[t] = { ...(items[t] || {}), ...vals }; }, `WHOOP today ${t}`);
+  st.today = key; return true;
+}
 async function backfillStep(env, b, st) {
   let done = 0;
   while (st.bf && !st.bf.done && b.left() > 22) { // one month needs roughly 8 WHOOP requests and 2 GitHub ones
@@ -225,11 +237,13 @@ async function run(env, { force }) {
   const st = await getJ(env, 'status') || {}, b = budget();
   if (!(await env.ORBIT_KV.get('tok'))) return { ok: false, msg: 'WHOOP not connected' };
   const dirty = await env.ORBIT_KV.get('dirty'), due = force || dirty || !st.lastSync || Date.now() - st.lastSync > 3 * 3600e3;
+  const quick = !due && Date.now() - (st.todayAt || 0) > 29 * 60e3; // 30-min look at today's steps and strain
   const out = { ok: true };
   try {
-    if (due) { out.wrote = await syncRecent(env, b); st.lastSync = Date.now(); if (dirty) await env.ORBIT_KV.delete('dirty'); }
+    if (due) { out.wrote = await syncRecent(env, b); st.lastSync = st.todayAt = Date.now(); st.today = null; if (dirty) await env.ORBIT_KV.delete('dirty'); }
+    else if (quick) { out.today = await pollToday(env, b, st); st.todayAt = Date.now(); }
     if (st.bf && !st.bf.done && b.left() > 22) out.months = await backfillStep(env, b, st);
-    if (!due && !out.months) return { ok: true, idle: true }; // nothing done: don't spend a KV write
+    if (!due && !quick && !out.months) return { ok: true, idle: true }; // nothing done: don't spend a KV write
     st.lastError = null;
   } catch (e) { st.lastError = String(e.message || e); st.errAt = Date.now(); out.ok = false; out.error = st.lastError; }
   out.requests = b.used; await putJ(env, 'status', st); return out;

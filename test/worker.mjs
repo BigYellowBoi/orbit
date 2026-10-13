@@ -124,6 +124,16 @@ ok(!repo['orbit/dy/2026-04.json'], 'the month before the backfill start is left 
 console.log('idle');
 kvPuts = 0; const c0 = await cron(); ok(c0 === 0 && kvPuts === 0, 'nothing due: no requests, no KV writes');
 
+/* ---------- 3b. 30-minute look at today's steps and strain ---------- */
+console.log('today refresh');
+const ago = m => { const s = JSON.parse(kv.get('status')); s.todayAt = Date.now() - m * 60e3; kv.set('status', JSON.stringify(s)); };
+const tc = H.cycle.find(c => c.end === utc(today, '22:30')); tc.step_count = 4321; tc.score.strain = 6.78;
+ago(31); const cq = await cron(); ok(day(today).stp === 4321 && day(today).str === 6.8, `today's steps and strain refreshed (${cq} requests)`);
+ok(cq <= 4, 'refresh is cheap (one WHOOP list, one GitHub read and write)');
+ok(day(today).rec != null && day(today).slp != null, "today's other fields kept");
+ago(31); const cq2 = await cron(); ok(cq2 === 1, 'unchanged steps: one WHOOP call, no GitHub calls');
+ago(10); const cq3 = await cron(); ok(cq3 === 0, 'within 30 minutes: nothing');
+
 /* ---------- 4. webhook ---------- */
 console.log('webhook');
 const body = JSON.stringify({ user_id: 1, id: 'x', type: 'recovery.updated', trace_id: 't' }), ts = String(Date.now());
