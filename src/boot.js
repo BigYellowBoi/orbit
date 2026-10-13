@@ -217,6 +217,7 @@ function go(tab) {
   if (tab === 'log' && (!ui.logDate || ui.logDate >= today())) { tab = 'today'; ui.editToday = true; } // today's log lives on Today
   if (ui.tab === 'today' && tab !== 'today') ui.editToday = false;
   ui.exNote = null; ui.noteEdit = null; ui.exHist = null;
+  if (tab !== ui.tab) ui.exQ = ''; // exercise search lasts while you stay on Plan
   if (tab === 'body' && ui.tab !== 'body') { ui.metric = 'rec'; ui.per = 'M'; ui.off = 0; }
   if (tab === 'data' && ui.tab === 'data') tab = ui.prevTab || 'today'; else if (tab === 'data') ui.prevTab = ui.tab;
   if (tab === 'today') ui.logDate = null;
@@ -304,6 +305,7 @@ const ACT = {
   delsess: el => { const id = el.dataset.id; S().prog.order = S().prog.order.filter(x => x !== id); delete S().prog.sessions[id]; ui.confirm = null; saveSettings(); render(true); },
   remitem: el => { sessDef(el.dataset.id).items.splice(+el.dataset.j, 1); saveSettings(); render(true); },
   newex: () => { const id = 'x' + Date.now().toString(36); S().ex[id] = X('New exercise', 'other', 'kg', 90, 8, 12, null, null); ui.editEx = id; saveSettings(); render(true); },
+  exqclear: () => { ui.exQ = ''; const i = $('#exq'); if (i) { i.value = ''; i.focus(); } filterEx(); },
   editex: el => { ui.editEx = el.dataset.id || null; render(true); },
   saveex: el => {
     const x = S().ex[el.dataset.id]; if (!x) return;
@@ -425,6 +427,15 @@ function setInput(el, final) {
   else if (final && row && !s.done) row.classList.remove('pr');
 }
 document.addEventListener('input', ev => { const el = ev.target; if (el.matches && el.matches('.set .in')) setInput(el, false); });
+/* ---------- exercise search (Plan): filters rows in place so the input keeps focus ---------- */
+function filterEx() {
+  const list = $('#exlist'); if (!list) return; let n = 0;
+  for (const li of list.children) { const on = !!li.dataset.edit || exMatch(li.dataset.q || '', ui.exQ); li.hidden = !on; if (on) n++; }
+  const x = $('#exqx'); if (x) x.hidden = !ui.exQ; const none = $('#exnone'); if (none) none.hidden = n > 0;
+}
+document.addEventListener('input', ev => { if (ev.target.id === 'exq') { ui.exQ = ev.target.value; filterEx(); } });
+document.addEventListener('keydown', ev => { if (ev.key === 'Enter' && ev.target.id === 'exq') { ev.preventDefault(); ev.target.blur(); } });
+['pointerdown', 'mousedown'].forEach(t => document.addEventListener(t, ev => { if (ev.target.closest('#exqx')) ev.preventDefault(); })); // keep the keyboard up while clearing
 document.addEventListener('change', ev => { const el = ev.target.closest('[data-in]'); if (!el) return; const f = INP[el.dataset.in]; if (f) f(el); });
 document.addEventListener('keydown', ev => {
   if (ev.key !== 'Enter' || !ev.target.matches('.set .in')) return;

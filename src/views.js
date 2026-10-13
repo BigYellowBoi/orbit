@@ -270,6 +270,10 @@ function vBody() {
 }
 
 /* ---------- Plan ---------- */
+/* Exercise search: every word has to appear in the name, muscle group or load unit. Typing filters the rendered rows
+   in place (filterEx in boot.js) so the keyboard stays up; ui.exQ keeps the filter across re-renders, e.g. Edit and Save. */
+function exHay(x) { return `${x.name} ${GROUPS[x.g] || ''} ${UNITS[x.u]?.label || ''}`.toLowerCase(); }
+function exMatch(hay, q) { return String(q || '').toLowerCase().split(/\s+/).filter(Boolean).every(w => hay.includes(w)); }
 function progSig(p) { return JSON.stringify({ o: p.order, s: Object.fromEntries(Object.entries(p.sessions).map(([k, v]) => [k, v.items.map(i => i.ex + i.sets)])) }); }
 function vPlan() {
   const cur = S().prog, sig = progSig(cur), o = order();
@@ -316,9 +320,12 @@ function vPlan() {
 
   // exercise library
   const exs = Object.entries(S().ex).sort((a, b) => GROUP_ORDER.indexOf(a[1].g) - GROUP_ORDER.indexOf(b[1].g) || a[1].name.localeCompare(b[1].name));
-  h += `<section class="sec"><div class="sec-h"><span class="eyebrow">Exercises</span><button class="link" data-act="newex">+ Exercise</button></div><section class="card"><ul class="rows">
-    ${exs.map(([id, x]) => ui.editEx === id ? `<li style="display:block">${exEditor(id, x)}</li>` : `<li><span>${esc(x.name)}</span><button class="link" data-act="editex" data-id="${id}">Edit</button><span class="sub">${esc(GROUPS[x.g] || '')} · ${esc(UNITS[x.u]?.label || x.u)} · ${x.lo}–${x.hi} reps${x.base && x.base.r ? ` · max ${esc(fmtSet(id, x.base))}` : ''}</span></li>`).join('')}
-  </ul></section></section>`;
+  const q = ui.exQ || '', shown = exs.filter(([id, x]) => ui.editEx === id || exMatch(exHay(x), q)).length;
+  h += `<section class="sec"><div class="sec-h"><span class="eyebrow">Exercises</span><button class="link" data-act="newex">+ Exercise</button></div><section class="card">
+    <div class="srch">${ICON.search}<input class="in left" id="exq" type="text" inputmode="search" enterkeyhint="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search by name or muscle" aria-label="Search exercises" value="${esc(q)}"><button class="srch-x" id="exqx" data-act="exqclear" aria-label="Clear search" ${q ? '' : 'hidden'}>${ICON.x}</button></div>
+    <ul class="rows exlist" id="exlist">
+    ${exs.map(([id, x]) => { const hide = ui.editEx !== id && !exMatch(exHay(x), q) ? ' hidden' : '', hay = ` data-q="${esc(exHay(x))}"`; return ui.editEx === id ? `<li style="display:block" data-edit="1"${hay}>${exEditor(id, x)}</li>` : `<li${hay}${hide}><span>${esc(x.name)}</span><button class="link" data-act="editex" data-id="${id}">Edit</button><span class="sub">${esc(GROUPS[x.g] || '')} · ${esc(UNITS[x.u]?.label || x.u)} · ${x.lo}–${x.hi} reps${x.base && x.base.r ? ` · max ${esc(fmtSet(id, x.base))}` : ''}</span></li>`; }).join('')}
+  </ul><p class="xs muted" id="exnone" ${shown ? 'hidden' : ''}>No exercises match.</p></section></section>`;
 
   // settings
   h += `<section class="sec"><div class="sec-h"><span class="eyebrow">Settings</span></div><section class="card"><div class="fields">

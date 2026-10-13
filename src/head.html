@@ -189,6 +189,14 @@ textarea.in { text-align: left; font-size: 15px; min-height: 76px; padding: 10px
 .rows > li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); font-size: 14px; }
 .rows > li:first-child { border-top: 0; }
 .rows > li .sub { grid-column: 1 / -1; font-size: 12.5px; color: var(--ink-3); }
+.rows > li[hidden] { display: none; }
+.exlist > li { border-top: 0; } .exlist > li:not([hidden]) ~ li { border-top: 1px solid var(--line); } /* a line between visible rows only, while filtered */
+.srch { position: relative; margin-bottom: 6px; }
+.srch > svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--ink-3); pointer-events: none; }
+.srch .in { font-size: 16px; padding-left: 38px; padding-right: 44px; }
+.srch-x { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 34px; height: 34px; border: 0; border-radius: 50%; background: transparent; color: var(--ink-3); display: grid; place-items: center; }
+.srch-x[hidden] { display: none; }
+.srch-x svg { width: 16px; height: 16px; padding: 3px; box-sizing: content-box; border-radius: 50%; background: var(--line-2); color: var(--ink); }
 .hrow { width: 100%; text-align: left; display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
 .hdate { display: flex; flex-direction: column; line-height: 1.2; } .hdate b { font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; } .hdate small { font-family: var(--f-mono); font-size: 10.5px; color: var(--ink-3); text-transform: uppercase; }
 .hmain { display: flex; flex-direction: column; min-width: 0; } .hmain b { font-weight: 600; font-size: 14.5px; } .hmain small { font-size: 12.5px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
