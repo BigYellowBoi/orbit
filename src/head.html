@@ -130,7 +130,7 @@ button.pill { border: 0; font: inherit; font-size: 12.5px; font-weight: 500; cur
 .sd.now { border-color: var(--accent); background: var(--accent-soft); }
 .sd.now.done { opacity: 1; } .sd.now.done b::after { content: ' ✓'; color: var(--good-ink); font-weight: 600; } /* today stays highlighted once logged */
 .chips.one { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; } .chips.one::-webkit-scrollbar { display: none; }
-.chips.one { gap: 6px; justify-content: space-between; } /* WHOOP left, Apple Health right, MacroFactor the same distance from each */ .chips.one .pill { font-size: 12px; padding: 3px 8px; flex: none; }
+.chips.one { gap: 6px; justify-content: flex-start; } /* grouped on the left (v1.34) */ .chips.one .pill { font-size: 12px; padding: 3px 8px; flex: none; }
 .sd.done { opacity: .6; }
 .sd.rest b { color: var(--ink-3); font-weight: 500; }
 button.sd { font: inherit; color: inherit; text-align: left; cursor: pointer; }
