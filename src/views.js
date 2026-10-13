@@ -72,15 +72,15 @@ function weekCard() {
 }
 
 /* ---------- WHOOP on Today: only this morning's numbers, so nothing stale shows ---------- */
-function ring(v, tone, strain) { // inner ring: recovery (0–100%); outer ring: day strain (0–21), as on the WHOOP home screen
+function ring(v, tone, strain) { // inner ring: recovery (0–100%); outer ring: today's strain so far (0–21) in WHOOP blue, as on the WHOOP home screen
   const arc = (r, f, col, w) => { const c = 2 * Math.PI * r; return `<circle cx="56" cy="56" r="${r}" fill="none" stroke="var(--surface-3)" stroke-width="${w}"/>` + (f > 0 ? `<circle cx="56" cy="56" r="${r}" fill="none" stroke="${col}" stroke-width="${w}" stroke-linecap="round" stroke-dasharray="${(c * Math.min(1, f)).toFixed(1)} ${c.toFixed(1)}"/>` : ''); };
   const col = { good: 'var(--good)', warn: 'var(--warn)', bad: 'var(--bad)' }[tone] || 'var(--ink-3)';
-  return `<div class="ring" role="img" aria-label="Recovery ${v == null ? 'unknown' : Math.round(v) + '%'}${strain != null ? `, strain ${fmt(strain, 1)}` : ''}"><svg viewBox="0 0 112 112">${arc(51, strain != null ? strain / 21 : 0, 'var(--s1)', 6)}${arc(40, Math.max(0, Math.min(100, v || 0)) / 100, col, 6)}</svg><b style="color:${col}">${v == null ? '–' : Math.round(v)}<small style="color:inherit;opacity:.75">%</small></b></div>`;
+  return `<div class="ring" role="img" aria-label="Recovery ${v == null ? 'unknown' : Math.round(v) + '%'}${strain != null ? `, strain ${fmt(strain, 1)}` : ''}"><svg viewBox="0 0 112 112">${arc(51, strain != null ? strain / 21 : 0, 'var(--strain)', 6)}${arc(40, Math.max(0, Math.min(100, v || 0)) / 100, col, 6)}</svg><b style="color:${col}">${v == null ? '–' : Math.round(v)}<small style="color:inherit;opacity:.75">%</small></b></div>`;
 }
 function whoopCard() {
   const t = today(), x = STATE.d[t];
   if (!x || (x.rec == null && x.slp == null)) return ''; // older numbers live in Body
-  const tone = recTone(x.rec), hb = hrvBand(t), base = k => avgOver(k, t, 30, true)?.avg, strY = dayVal(addDays(t, -1), 'str');
+  const tone = recTone(x.rec), hb = hrvBand(t), base = k => avgOver(k, t, 30, true)?.avg, str = x.str;
   let note = '';
   if (hb && hb.state === 'below' && tone !== 'bad') note = `<p class="note">Your 7-day HRV is below your normal range (${fmt(hb.lo, 0)}–${fmt(hb.hi, 0)} ms). A sustained drop often reflects accumulated fatigue, poor sleep or illness, so it's worth watching over the next few days.</p>`;
   if (tone === 'bad') note = `<p class="note">Red recovery. The rotation stays the same; a lighter day is reasonable, such as stopping sets 2–3 reps short and keeping the ${esc(S().cardio.name.toLowerCase())} easy. Treat the score as a guide, not a rule.</p>`;
@@ -90,16 +90,16 @@ function whoopCard() {
   if (x.skt != null) extra.push(stat(fmt(x.skt, 1), '°C', 'Skin temp', deltaTxt(x.skt, base('skt'), 1, '°')));
   const stY = stepsOf(addDays(t, -1)); if (stY != null) extra.push(stat(fmt(stY, 0), '', 'Steps, yesterday'));
   return `<section class="card"><div class="card-h"><h2>Recovery</h2>${x.rec != null ? pill(tone, recWord(x.rec)) : ''}</div>
-    <div class="recov">${ring(x.rec, tone, strY)}<div class="stats" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+    <div class="recov">${ring(x.rec, tone, str)}<div class="stats" style="grid-template-columns:repeat(2,minmax(0,1fr))">
       ${stat(x.hrv != null ? fmt(x.hrv, 0) : '–', 'ms', 'HRV', hb ? `<span class="delta" style="color:var(${hb.state === 'below' ? '--warn-ink' : hb.state === 'within' ? '--good-ink' : '--ink-2'})">7-day ${HRV_STATE[hb.state][1].toLowerCase()}</span>` : '')}
       ${stat(x.rhr != null ? fmt(x.rhr, 0) : '–', 'bpm', 'Resting HR', deltaTxt(x.rhr, base('rhr'), 0, '', true))}
     </div></div>
     <div class="stats">
       ${stat(x.slp != null ? fmt(x.slp / 60, 1) : '–', 'h', 'Asleep', x.sp != null ? `<span class="delta">${fmt(x.sp, 0)}% of need${x.sd ? ` · debt ${fmt(x.sd, 0)} min` : ''}</span>` : '')}
-      ${stat(strY != null ? `<span style="color:var(--s1)">${fmt(strY, 1)}</span>` : '–', '', 'Strain, yesterday')}
+      ${stat(str != null ? `<span style="color:var(--strain)">${fmt(str, 1)}</span>` : '–', '', 'Strain, today')}
       ${extra.join('')}
     </div>${note}
-    <span class="xs muted">WHOOP · this morning</span></section>`;
+    <span class="xs muted">WHOOP · today</span></section>`;
 }
 
 /* ---------- Log: one day's session. Today's renders inside Today; past days open from History ---------- */
