@@ -159,11 +159,20 @@ async function resetAll() {
 /* ============================================================
    RENDER
    ============================================================ */
-/* Scrolling: the page scrolls. All scroll calls go through these helpers. */
-const scroller = () => window;
-const scrollY0 = () => window.scrollY;
-const scrollToY = (top, smooth) => window.scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' });
-function resetScroll() { // to the top, and stop any momentum still running (iOS keeps flinging unless overflow is cut for a frame)
+/* Scrolling: the page scrolls, unless the Scroll box layout is on (Pages only, html.sbox, switched on the Data screen):
+   then only #scroll scrolls and the header and tab bar sit outside it. iOS swallows a tap that stops momentum on the
+   page itself (no touch or click event reaches it), so with the page scrolling a tab tap mid-fling only stops the
+   scroll. With the content in its own box, the tab bar isn't part of the moving surface and the tap arrives.
+   All scroll calls go through these helpers. */
+const SBOX = document.documentElement.classList.contains('sbox');
+const scroller = () => SBOX ? $('#scroll') : window;
+const scrollY0 = () => SBOX ? $('#scroll').scrollTop : window.scrollY;
+const scrollToY = (top, smooth) => scroller().scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' });
+function resetScroll() { // to the top, and stop any momentum still running
+  if (SBOX) { // swap in a fresh, empty-handed scroll box: the old one, and any fling it had, goes with it
+    const old = $('#scroll'), box = old.cloneNode(false); while (old.firstChild) box.appendChild(old.firstChild); old.replaceWith(box); return;
+  }
+  // iOS keeps flinging the page unless overflow is cut for a frame
   const de = document.documentElement; de.style.overflow = 'hidden'; window.scrollTo(0, 0); requestAnimationFrame(() => { de.style.overflow = ''; window.scrollTo(0, 0); });
 }
 let pendingRender = false;
@@ -248,6 +257,7 @@ const ACT = {
   prograte: el => { S().progRate = +el.dataset.v; if (S().goal === 'grow') S().growFrom = today(); saveSettings(); render(true); },
   update: () => { location.replace(location.pathname + '?v=' + encodeURIComponent(ui.update || Date.now())); },
   updlater: () => { ui.updLater = ui.update; renderUpdate(); },
+  layout: el => { try { if (el.dataset.v === 'box') localStorage.setItem('orbit-scrollbox', '1'); else localStorage.removeItem('orbit-scrollbox'); } catch (e) { } location.reload(); },
   edittoday: () => { ui.editToday = true; render(true); },
   pastlog: () => { ui.logDate = addDays(today(), -1); ui.pickSess = null; go('log'); },
   exhist: el => { const i = +el.dataset.e; ui.exHist = ui.exHist === i ? null : i; render(true); },
@@ -427,7 +437,7 @@ document.addEventListener('keydown', ev => {
    ============================================================ */
 (function boot() {
   try { history.scrollRestoration = 'manual'; } catch (e) { }
-  const top = () => window.scrollTo(0, 0); // opening the app always starts at the top
+  const top = () => { window.scrollTo(0, 0); if (SBOX) scrollToY(0); }; // opening the app always starts at the top
   // iOS home-screen launches can sit at an offset that a plain scrollTo(0, 0) treats as already done; a 1px nudge forces a real scroll
   window.addEventListener('load', () => setTimeout(() => { window.scrollTo(0, 1); window.scrollTo(0, 0); }, 60));
   window.addEventListener('pageshow', top); window.addEventListener('load', top);

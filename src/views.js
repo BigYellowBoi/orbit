@@ -388,6 +388,9 @@ function vData() {
   h += `<section class="card"><div class="card-h"><h2>Start over</h2></div>
     ${ui.confirm === 'reset' ? `<p class="small">This deletes every session, import and setting, here and in cloud storage. Save a backup first if you might want it.</p><div class="btnrow"><button class="btn danger sm" data-act="reset">Delete everything</button><button class="link dim" data-act="confirm" data-v="">Cancel</button></div>`
       : `<button class="link danger" data-act="confirm" data-v="reset" style="align-self:flex-start">Delete all data</button>`}</section>`;
+  if (window.GH_SYNC) h += `<section class="card"><div class="card-h"><h2>Scrolling</h2>${pill(SBOX ? 'acc' : '', SBOX ? 'Testing' : 'Standard')}</div>
+    <div class="seg" role="group" aria-label="Scrolling layout" style="align-self:flex-start"><button class="${SBOX ? '' : 'on'}" data-act="layout" data-v="page">Standard</button><button class="${SBOX ? 'on' : ''}" data-act="layout" data-v="box">Scroll box</button></div>
+    <p class="xs muted">Scroll box keeps the tab bar outside the scrolling area, so tapping a tab while the page is still moving takes you straight to the top of that tab. It's a test layout: if the bottom of the screen gets cut off or scrolling sticks, switch back. Switching reloads the app; your data stays.</p></section>`;
   h += `<p class="xs muted" style="text-align:center">Orbit v${esc(APP_VERSION)}${ui.update ? ` · <button class="link" data-act="update">v${esc(ui.update)} is ready, update</button>` : ''}</p>`;
   return h;
 }

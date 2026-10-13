@@ -13,6 +13,8 @@
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="manifest" href="manifest.webmanifest">
 <script>try { localStorage.removeItem('orbit-layout'); localStorage.removeItem('orbit-hdr'); } catch (e) { } /* retired layout experiments */</script>
+<script>/* Scroll box layout (test, switched on the Data screen): only #scroll scrolls; see boot.js */
+try { if (localStorage.getItem('orbit-scrollbox') === '1') document.documentElement.classList.add('sbox'); } catch (e) { }</script>
 <style>
 html, body { margin: 0; }
 html { -webkit-text-size-adjust: 100%; }
@@ -20,6 +22,12 @@ body { min-height: 100vh; } /* vh includes the safe areas in home-screen apps (W
 /* iOS draws a blurred band over the top of home-screen apps, reaching about 14pt below the status bar. Tested on an
    iPhone 13 Pro Max (v1.3 Display check): the header row is sharp only when moved below it. */
 @media (display-mode: standalone) { html:root { --hdrdrop: 14px; } }
+/* Scroll box: the content scrolls inside a fixed box anchored to all four edges. No vh or 100% heights: the earlier
+   pinned shell sized itself with those and came out short on the 13 Pro Max (WebKit bug 254868), while position: fixed
+   with top and bottom anchors to the real screen edges, as the tab bar does. The page itself has nothing to scroll. */
+html.sbox body { min-height: 0; }
+html.sbox #scroll { position: fixed; top: 0; right: 0; bottom: 0; left: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: contain;
+  padding: 0 16px calc(var(--tabh) + 28px + env(safe-area-inset-bottom, 0px)); }
 </style>
 <title>Orbit</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -348,7 +356,7 @@ details.more > summary::-webkit-details-marker { display: none; }
     <span class="brand"><span id="mark" class="mark-wrap"></span>Orbit</span>
     <button class="iconbtn" id="gear" data-act="go" data-tab="data" aria-label="Data, imports and backups"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg></button>
 </header>
-<div class="wrap"><main id="view"></main></div>
+<div id="scroll"><div class="wrap"><main id="view"></main></div></div>
 <nav class="tabs" aria-label="Sections"><div class="tabs-in">
   <button data-act="go" data-tab="today"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 8 8"/><path d="M12 8v4l2.5 2"/></svg>Today</button>
   <button data-act="go" data-tab="history"><svg viewBox="0 0 24 24"><path d="M5 6h14M5 12h14M5 18h9"/></svg>History</button>
@@ -458,7 +466,7 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.8'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.9'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
@@ -1733,6 +1741,9 @@ function vData() {
   h += `<section class="card"><div class="card-h"><h2>Start over</h2></div>
     ${ui.confirm === 'reset' ? `<p class="small">This deletes every session, import and setting, here and in cloud storage. Save a backup first if you might want it.</p><div class="btnrow"><button class="btn danger sm" data-act="reset">Delete everything</button><button class="link dim" data-act="confirm" data-v="">Cancel</button></div>`
       : `<button class="link danger" data-act="confirm" data-v="reset" style="align-self:flex-start">Delete all data</button>`}</section>`;
+  if (window.GH_SYNC) h += `<section class="card"><div class="card-h"><h2>Scrolling</h2>${pill(SBOX ? 'acc' : '', SBOX ? 'Testing' : 'Standard')}</div>
+    <div class="seg" role="group" aria-label="Scrolling layout" style="align-self:flex-start"><button class="${SBOX ? '' : 'on'}" data-act="layout" data-v="page">Standard</button><button class="${SBOX ? 'on' : ''}" data-act="layout" data-v="box">Scroll box</button></div>
+    <p class="xs muted">Scroll box keeps the tab bar outside the scrolling area, so tapping a tab while the page is still moving takes you straight to the top of that tab. It's a test layout: if the bottom of the screen gets cut off or scrolling sticks, switch back. Switching reloads the app; your data stays.</p></section>`;
   h += `<p class="xs muted" style="text-align:center">Orbit v${esc(APP_VERSION)}${ui.update ? ` · <button class="link" data-act="update">v${esc(ui.update)} is ready, update</button>` : ''}</p>`;
   return h;
 }
@@ -1898,11 +1909,20 @@ async function resetAll() {
 /* ============================================================
    RENDER
    ============================================================ */
-/* Scrolling: the page scrolls. All scroll calls go through these helpers. */
-const scroller = () => window;
-const scrollY0 = () => window.scrollY;
-const scrollToY = (top, smooth) => window.scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' });
-function resetScroll() { // to the top, and stop any momentum still running (iOS keeps flinging unless overflow is cut for a frame)
+/* Scrolling: the page scrolls, unless the Scroll box layout is on (Pages only, html.sbox, switched on the Data screen):
+   then only #scroll scrolls and the header and tab bar sit outside it. iOS swallows a tap that stops momentum on the
+   page itself (no touch or click event reaches it), so with the page scrolling a tab tap mid-fling only stops the
+   scroll. With the content in its own box, the tab bar isn't part of the moving surface and the tap arrives.
+   All scroll calls go through these helpers. */
+const SBOX = document.documentElement.classList.contains('sbox');
+const scroller = () => SBOX ? $('#scroll') : window;
+const scrollY0 = () => SBOX ? $('#scroll').scrollTop : window.scrollY;
+const scrollToY = (top, smooth) => scroller().scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' });
+function resetScroll() { // to the top, and stop any momentum still running
+  if (SBOX) { // swap in a fresh, empty-handed scroll box: the old one, and any fling it had, goes with it
+    const old = $('#scroll'), box = old.cloneNode(false); while (old.firstChild) box.appendChild(old.firstChild); old.replaceWith(box); return;
+  }
+  // iOS keeps flinging the page unless overflow is cut for a frame
   const de = document.documentElement; de.style.overflow = 'hidden'; window.scrollTo(0, 0); requestAnimationFrame(() => { de.style.overflow = ''; window.scrollTo(0, 0); });
 }
 let pendingRender = false;
@@ -1987,6 +2007,7 @@ const ACT = {
   prograte: el => { S().progRate = +el.dataset.v; if (S().goal === 'grow') S().growFrom = today(); saveSettings(); render(true); },
   update: () => { location.replace(location.pathname + '?v=' + encodeURIComponent(ui.update || Date.now())); },
   updlater: () => { ui.updLater = ui.update; renderUpdate(); },
+  layout: el => { try { if (el.dataset.v === 'box') localStorage.setItem('orbit-scrollbox', '1'); else localStorage.removeItem('orbit-scrollbox'); } catch (e) { } location.reload(); },
   edittoday: () => { ui.editToday = true; render(true); },
   pastlog: () => { ui.logDate = addDays(today(), -1); ui.pickSess = null; go('log'); },
   exhist: el => { const i = +el.dataset.e; ui.exHist = ui.exHist === i ? null : i; render(true); },
@@ -2166,7 +2187,7 @@ document.addEventListener('keydown', ev => {
    ============================================================ */
 (function boot() {
   try { history.scrollRestoration = 'manual'; } catch (e) { }
-  const top = () => window.scrollTo(0, 0); // opening the app always starts at the top
+  const top = () => { window.scrollTo(0, 0); if (SBOX) scrollToY(0); }; // opening the app always starts at the top
   // iOS home-screen launches can sit at an offset that a plain scrollTo(0, 0) treats as already done; a 1px nudge forces a real scroll
   window.addEventListener('load', () => setTimeout(() => { window.scrollTo(0, 1); window.scrollTo(0, 0); }, 60));
   window.addEventListener('pageshow', top); window.addEventListener('load', top);
