@@ -235,6 +235,10 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
    ACTIONS
    ============================================================ */
 const logW = () => STATE.w[ui.logDate || today()];
+function sweepCardio() { // WHOOP's cardio often lands after a session is done (the sync helper brings it in later), so check recent days whenever data arrives
+  const from = addDays(today(), -14);
+  for (const w of Object.values(STATE.w)) if (w.date >= from && STATE.d[w.date]?.acts && autoCardio(w)) saveW(w.date);
+}
 function sweepEmpty() { for (const d of Object.keys(STATE.w)) if (d < today()) dropEmpty(d); } // sessions started and never used on earlier days
 function dropEmpty(date) { if (emptyW(STATE.w[date])) { delete STATE.w[date]; saveW(date); return true; } return false; }
 const ACT = {
@@ -503,5 +507,5 @@ document.addEventListener('keydown', ev => {
   const h = (location.hash || '').slice(1), hh = h === 'trends' ? 'body' : h; if (VIEWS[hh] && hh !== 'log') ui.tab = hh;
   render(true); top(); requestAnimationFrame(top);
   connectCloud();
-  setTimeout(() => { sweepEmpty(); render(); }, 0); // after sync code has loaded, so the deletes sync too
+  setTimeout(() => { sweepEmpty(); sweepCardio(); render(); }, 0); // after sync code has loaded, so the deletes sync too
 })();

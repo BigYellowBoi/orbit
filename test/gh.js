@@ -140,6 +140,18 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   check(d6.stp === 9000 && d6.stpi === 8500 && d6.hrv === 80, 'repo keeps the helper’s fields and the device’s: ' + JSON.stringify(d6));
   check(await A.evaluate(() => STATE.d['2026-10-01'].stp) === 9000, 'device has the helper’s fields too');
 
+  console.log('6c. WHOOP cardio arrives through the helper after the session is done');
+  const td = await A.evaluate(() => { const t = today(); const w = newWorkout(t, order()[0]); w.fin = true; w.ex[0].sets[0] = { w: 40, r: 8, done: true }; w.cardio = { name: 'Stairmaster', min: 30, lvl: null, done: false }; STATE.w[t] = w; saveW(t); render(true); return t; });
+  await wait(2800); await A.evaluate(() => GH.sync()); await wait(600);
+  const tm = 'orbit/dy/' + td.slice(0, 7) + '.json', its = read(tm)?.items || {};
+  G.head = putCommit(putTree({ ...files(), [tm]: putBlob(JSON.stringify({ items: { ...its, [td]: { ...(its[td] || {}), acts: [{ n: 'Weightlifting', t: '17:00', min: 62 }, { n: 'Stairmaster', t: '18:05', min: 31.4 }] } } })) }), [G.head]);
+  await A.evaluate(() => GH.sync()); await wait(800);
+  const c6 = await A.evaluate(t => STATE.w[t].cardio, td);
+  check(c6.done && c6.min === 31 && c6.src === 'whoop', 'done session picks up WHOOP’s Stairmaster on the next sync, no Edit log needed: ' + JSON.stringify(c6));
+  check((await A.evaluate(() => document.querySelector('.hero .stats')?.textContent || '')).includes('31'), 'Today’s done card shows the minutes');
+  await wait(2800); check(read('orbit/wk/' + td.slice(0, 7) + '.json')?.items[td]?.cardio?.min === 31, 'and the updated session is pushed back to the repo');
+  await A.evaluate(t => { delete STATE.w[t]; saveW(t); }, td); await wait(2800);
+
   console.log('7. Restore on A replaces data everywhere');
   await A.evaluate(() => { restoreBackup({ app: 'orbit', settings: S(), workouts: { '2026-08-08': { date: '2026-08-08', s: order()[0], ex: [] } }, days: {} }); }); await wait(2600);
   const f7 = Object.keys(files()).sort();

@@ -492,7 +492,7 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.22'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.23'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
@@ -2088,6 +2088,10 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
    ACTIONS
    ============================================================ */
 const logW = () => STATE.w[ui.logDate || today()];
+function sweepCardio() { // WHOOP's cardio often lands after a session is done (the sync helper brings it in later), so check recent days whenever data arrives
+  const from = addDays(today(), -14);
+  for (const w of Object.values(STATE.w)) if (w.date >= from && STATE.d[w.date]?.acts && autoCardio(w)) saveW(w.date);
+}
 function sweepEmpty() { for (const d of Object.keys(STATE.w)) if (d < today()) dropEmpty(d); } // sessions started and never used on earlier days
 function dropEmpty(date) { if (emptyW(STATE.w[date])) { delete STATE.w[date]; saveW(date); return true; } return false; }
 const ACT = {
@@ -2356,7 +2360,7 @@ document.addEventListener('keydown', ev => {
   const h = (location.hash || '').slice(1), hh = h === 'trends' ? 'body' : h; if (VIEWS[hh] && hh !== 'log') ui.tab = hh;
   render(true); top(); requestAnimationFrame(top);
   connectCloud();
-  setTimeout(() => { sweepEmpty(); render(); }, 0); // after sync code has loaded, so the deletes sync too
+  setTimeout(() => { sweepEmpty(); sweepCardio(); render(); }, 0); // after sync code has loaded, so the deletes sync too
 })();
 /* ============================================================
    GITHUB SYNC (GitHub Pages build only)
@@ -2445,7 +2449,7 @@ const GH = {
     if (!m.first) for (const p in m.known) if (!remote[p] && this.removeRemote(p)) ch = true; // deleted on another device
     if (m.first) this.markLocalOnly(remote);
     m.head = head; m.tree = commit.tree.sha; m.known = remote; m.first = false;
-    if (ch) { sweepEmpty(); bump(); cacheLocal(); render(); }
+    if (ch) { sweepEmpty(); sweepCardio(); bump(); cacheLocal(); render(); }
     return ch;
   },
   merge(p, o) {

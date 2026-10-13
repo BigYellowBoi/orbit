@@ -85,7 +85,7 @@ const GH = {
     if (!m.first) for (const p in m.known) if (!remote[p] && this.removeRemote(p)) ch = true; // deleted on another device
     if (m.first) this.markLocalOnly(remote);
     m.head = head; m.tree = commit.tree.sha; m.known = remote; m.first = false;
-    if (ch) { sweepEmpty(); bump(); cacheLocal(); render(); }
+    if (ch) { sweepEmpty(); sweepCardio(); bump(); cacheLocal(); render(); }
     return ch;
   },
   merge(p, o) {
