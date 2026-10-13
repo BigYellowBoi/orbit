@@ -79,7 +79,9 @@ const day = d => month(d.slice(0, 7))[d] || {};
 const req = (p, opt) => W.fetch(new Request('https://orbit-sync.me.workers.dev' + p, opt), env, ctx);
 const waits = []; const ctx = { waitUntil: p => waits.push(p) };
 const settle = async () => { while (waits.length) await waits.shift(); };
-const cron = async () => { calls = 0; const c = { waitUntil: p => waits.push(p) }; await W.scheduled({}, env, c); await settle(); return calls; };
+// scheduled runs carry scheduledTime; by default a time just outside the fixed full-sync windows (local hh:00-04 for hh % 3 == 0), so results don't depend on the clock
+const offSlot = () => { const n = Date.now(), l = new Date(n + 600 * 60000); return l.getUTCHours() % 3 === 0 && l.getUTCMinutes() < 5 ? n - 6 * 60000 : n; };
+const cron = async (at = offSlot()) => { calls = 0; const c = { waitUntil: p => waits.push(p) }; await W.scheduled({ scheduledTime: at }, env, c); await settle(); return calls; };
 
 /* ---------- 1. sign-in ---------- */
 console.log('sign-in');
@@ -236,6 +238,27 @@ ok(sj.whoop.connected === true && sj.whoop.checkedAt > Date.now() - 3600e3 && sj
 ok(!JSON.stringify(sj).match(/k3y|ghtok|csecret|refresh|access/), 'status.json holds no secrets');
 const st2 = JSON.parse(kv.get('status')); st2.lastError = 'GitHub read 401'; st2.errAt = Date.now(); kv.set('status', JSON.stringify(st2));
 ok((await (await req('/status.json')).json()).whoop.error === 'GitHub read 401', 'status.json reports the last problem');
+
+/* ---------- fixed full-sync times and round timestamps ---------- */
+console.log('fixed times');
+{
+  const at = (hm, plusDays = 1) => Date.parse(addD(today, plusDays) + 'T' + hm + ':00Z') - 600 * 60000; // local (+10:00) time on a coming day
+  const st0 = () => JSON.parse(kv.get('status'));
+  let c = await cron(at('12:00')); ok(c > 4 && st0().lastSync === at('12:00'), '12:00: full sync at a fixed time');
+  c = await cron(at('14:55')); ok(c <= 4 && st0().lastSync === at('12:00'), '14:55: no full sync, just today\'s look');
+  c = await cron(at('15:00')); ok(c > 4 && st0().lastSync === at('15:00') && st0().fullSlot, `15:00: full sync (${c} requests), stamped exactly 15:00`);
+  c = await cron(at('15:00') + 40e3); ok(c <= 4, 'a late duplicate of the 15:00 run doesn\'t sync again');
+  c = await cron(at('15:05')); ok(c <= 4, '15:05: back to the 5-minute look');
+  const s1 = st0(), body2 = JSON.stringify({ user_id: 1, id: 'y', type: 'workout.updated', trace_id: 't2' }), ts2 = String(Date.now());
+  await req('/webhook', { method: 'POST', body: body2, headers: { 'x-whoop-signature': crypto.createHmac('sha256', 'csecret').update(ts2 + body2).digest('base64'), 'x-whoop-signature-timestamp': ts2 } }); await settle();
+  ok(st0().lastSync === s1.lastSync && st0().hookAt > 0, 'a notification sync runs but leaves the shown (round) time alone');
+  c = await cron(at('18:00')); ok(c > 4 && st0().lastSync === at('18:00'), '18:00: the next fixed full sync');
+  const sj = await (await req('/status.json')).json(); const m = new Date(sj.whoop.checkedAt + 600 * 60000).getUTCMinutes();
+  ok(m % 5 === 0 && new Date(sj.whoop.checkedAt).getUTCSeconds() === 0, `status shows a round time (:${String(m).padStart(2, '0')})`);
+  // a missed slot (helper down at 21:00) is caught up once, then the fixed times carry on
+  c = await cron(at('21:40')); ok(c > 4, 'missed 21:00: caught up at the next run');
+  c = await cron(at('21:45')); ok(c <= 4, 'then not again until 00:00');
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 fs.rmSync(tmp, { recursive: true, force: true });

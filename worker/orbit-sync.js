@@ -13,7 +13,7 @@
      GET  /backfill?key=…&from=YYYY-MM   redo the history backfill from a month
      POST /health?key=…     Apple Health numbers from the Shortcut or Health Auto Export (see worker/README.md)
    WHOOP notification (webhook): sync the last 3 days straight away.
-   Cron (every 5 min): sync the last 3 days if a notification sync failed or 3 h have passed; otherwise refresh today's
+   Cron (every 5 min): sync the last 3 days at fixed local times (00:00, 03:00 … 21:00) or if a notification sync failed; otherwise refresh today's
    steps and strain (WHOOP has no webhook for those), and fill in history a month or two at a time.
    Daily budget: ~288 cron runs x 1 WHOOP call + ~8 full syncs and a few notification syncs x ~6 calls, well inside
    WHOOP's 10,000 a day and 100 a minute (one run uses at most 45). KV writes stay far below the free plan's 1,000 a day.
@@ -47,7 +47,7 @@ export default {
       return text('Not found', 404);
     } catch (e) { return text('Error: ' + (e.message || e), 500); }
   },
-  async scheduled(ev, env, ctx) { ctx.waitUntil(run(env, {})); },
+  async scheduled(ev, env, ctx) { ctx.waitUntil(run(env, { at: ev.scheduledTime })); }, // stamped with the scheduled minute, not the start time, so times stay round
 };
 
 /* ---------- small helpers ---------- */
@@ -63,6 +63,9 @@ function offMin(off, env) { const m = /^([+-])(\d{2}):?(\d{2})$/.exec(off || env
 function local(iso, off, env) { const d = new Date(Date.parse(iso) + offMin(off, env) * 60000), s = d.toISOString(); return { date: s.slice(0, 10), hm: s.slice(11, 16), h: d.getUTCHours() }; }
 function addDays(date, n) { const d = new Date(date + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
 function localMidnightISO(date, env) { return new Date(Date.parse(date + 'T00:00:00Z') - offMin(null, env) * 60000).toISOString(); }
+function fullSlot(ms, env) { // fixed full-sync times, local: every 3 h on the hour (00:00, 03:00 … 21:00); the 5-minute cron hits each one
+  const l = local(new Date(ms).toISOString(), null, env); return l.h % 3 === 0 && +l.hm.slice(3) < 5 ? l.date + 'T' + l.hm.slice(0, 2) : null;
+}
 function todayLocal(env) { return local(new Date().toISOString(), null, env).date; }
 const clean = o => { for (const k in o) if (o[k] == null || Number.isNaN(o[k])) delete o[k]; return o; };
 function b64enc(str) { const by = new TextEncoder().encode(str); let s = ''; for (let i = 0; i < by.length; i += 0x8000) s += String.fromCharCode.apply(null, by.subarray(i, i + 0x8000)); return btoa(s); }
@@ -238,16 +241,20 @@ async function backfillStep(env, b, st) {
   }
   return done;
 }
-async function run(env, { force, hook } = {}) {
+async function run(env, { force, hook, at } = {}) {
   const st = await getJ(env, 'status') || {}, b = budget(); b.hook = !!hook;
   if (!(await env.ORBIT_KV.get('tok'))) return { ok: false, msg: 'WHOOP not connected' };
-  const dirty = hook ? null : await env.ORBIT_KV.get('dirty'), due = force || dirty || !st.lastSync || Date.now() - st.lastSync > 3 * 3600e3;
+  const now = at || Date.now(), slot = hook ? null : fullSlot(now, env); // scheduled runs carry their round scheduled time
+  const dirty = hook ? null : await env.ORBIT_KV.get('dirty'), due = force || dirty || !st.lastSync || (slot && st.fullSlot !== slot) || now - st.lastSync > 3.25 * 3600e3; // fixed times; the fallback only if a slot was missed
   const out = { ok: true }; let save = false;
   try {
-    if (due) { out.wrote = await syncRecent(env, b); st.lastSync = st.todayAt = Date.now(); st.today = null; if (dirty || hook) await env.ORBIT_KV.delete('dirty'); save = true; }
+    if (due) {
+      out.wrote = await syncRecent(env, b); st.today = null; if (dirty || hook) await env.ORBIT_KV.delete('dirty'); save = true;
+      if (hook) st.hookAt = Date.now(); else { st.lastSync = st.todayAt = now; if (slot) st.fullSlot = slot; } // a notification sync doesn't move the shown (round) times
+    }
     else { // every run looks at today's steps and strain (WHOOP sends no event for them); status is only rewritten on a change or every 25 min, to save KV writes
       out.today = await pollToday(env, b, st);
-      if (out.today || Date.now() - (st.todayAt || 0) > 25 * 60e3) { st.todayAt = Date.now(); save = true; }
+      if (out.today || now - (st.todayAt || 0) > 25 * 60e3) { st.todayAt = now; save = true; }
     }
     if (!hook && st.bf && !st.bf.done && b.left() > 22) { out.months = await backfillStep(env, b, st); if (out.months) save = true; }
     if (st.lastError) { st.lastError = null; save = true; }
