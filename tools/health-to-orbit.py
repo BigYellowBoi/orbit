@@ -9,6 +9,8 @@ Data -> Apple Health in Orbit. Same day fields and rounding as the sync helper's
 
 Usage:  python3 health-to-orbit.py export.zip [-o orbit-health.json] [--from 2025-01-01]
 Streams the XML, so a multi-GB export is fine. Standard library only.
+Exact duplicate samples (same type, source, start, end and value) are counted once: exports can
+hold MacroFactor's nutrition entries two or three times over, which doubles the day's totals.
 """
 import argparse, json, math, sys, zipfile, datetime
 import xml.etree.ElementTree as ET
@@ -37,7 +39,7 @@ def open_xml(path):
 
 def convert(path, start=None):
     days, sums, hpe, wts = {}, {}, {}, {}
-    n = 0
+    n, seen, dups = 0, set(), 0
     for _, el in ET.iterparse(open_xml(path), events=('end',)):
         if el.tag != 'Record':
             if el.tag in ('Workout', 'ActivitySummary', 'Correlation'):
@@ -53,6 +55,12 @@ def convert(path, start=None):
             el.clear(); continue
         if start and date < start:
             el.clear(); continue
+        if t not in SUM and t not in (T + 'StepCount', T + 'BodyMass', T + 'HeadphoneAudioExposure'):
+            el.clear(); continue
+        key = hash((t, el.get('sourceName'), sd, ed, el.get('value')))  # MacroFactor's entries can appear 2-3 times over
+        if key in seen:
+            dups += 1; el.clear(); continue
+        seen.add(key)
         if t == T + 'StepCount':
             if 'iphone' in (el.get('device') or '').lower() or 'iphone' in (el.get('sourceName') or '').lower():
                 sums.setdefault(date, {}).setdefault('stpi', 0.0)
@@ -88,7 +96,7 @@ def convert(path, start=None):
         x = {k: round(v, DEC[k]) if DEC[k] else int(round(v)) for k, v in days[date].items() if v and v > 0}
         if x:
             out[date] = x
-    return out, n
+    return out, n, dups
 
 
 def main():
@@ -97,13 +105,13 @@ def main():
     ap.add_argument('-o', '--out', default='orbit-health.json')
     ap.add_argument('--from', dest='start', help='only days on or after YYYY-MM-DD')
     a = ap.parse_args()
-    days, n = convert(a.export, a.start)
+    days, n, dups = convert(a.export, a.start)
     if not days:
         sys.exit('No steps, nutrition, weight or headphone data found.')
     with open(a.out, 'w') as fh:
         json.dump({'app': 'orbit-health', 'v': 1, 'days': days}, fh, separators=(',', ':'))
     keys = sorted({k for d in days.values() for k in d})
-    print(f'{len(days)} days ({min(days)} to {max(days)}) from {n:,} records: {", ".join(keys)} -> {a.out}')
+    print(f'{len(days)} days ({min(days)} to {max(days)}) from {n:,} records, {dups:,} exact duplicates skipped: {", ".join(keys)} -> {a.out}')
 
 
 if __name__ == '__main__':
