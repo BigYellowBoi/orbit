@@ -369,6 +369,7 @@ const ACT = {
     const v = Math.max(0, +(cur + (inp.value === '' ? 0 : d * st)).toFixed(3)); inp.value = k === 'w' ? fmt(v, 3).replace(/,/g, '') : String(Math.round(v));
     if (k === 'w' && $(`#r${i}_${j}`)?.value === '') { saveW(w.date); const s = e.sets[j]; s.w = v; return; } // weight alone doesn't tick the set
     setInput(inp, true); },
+  remwarm: el => { const w = logW(), e = w?.ex[+el.dataset.e], j = +el.dataset.s; if (e?.sets[j]?.t !== 'w') return; e.sets.splice(j, 1); saveW(w.date); render(true); }, // a warm-up added by mistake (v1.40)
   remset: el => { const w = logW(), e = w.ex[+el.dataset.e]; if (e.sets.length > 1) e.sets.pop(); saveW(w.date); render(true); },
   remex: el => { const w = logW(), i = +el.dataset.e, e = w.ex[i]; if (doneSets(e).length && ui.confirm !== 'remex' + i) { ui.confirm = 'remex' + i; toast('Tap Remove again to drop logged sets'); return; } w.ex.splice(i, 1); ui.confirm = null; ui.exMore = null; saveW(w.date); render(true); },
   cardiotype: el => { const w = logW(), name = el.dataset.v, wm = Math.round(sum(whoopCardio(w.date, name).map(a => a.min || 0)));
@@ -589,6 +590,38 @@ function endDrag(ev) {
   saveSettings(); render(true);
 }
 document.addEventListener('pointerup', endDrag); document.addEventListener('pointercancel', endDrag);
+
+/* ---------- keyboard bar (v1.40): the iPhone number pad has no return key, so on touch screens a bar sits on top of the
+   keyboard while a set field is focused: ‹ › step through the weight and reps fields in page order, Done closes the keyboard.
+   Its buttons never take focus (touchstart and mousedown are cancelled), so the keyboard stays up between fields. */
+const COARSE = () => matchMedia('(pointer: coarse)').matches;
+const setFields = () => [...document.querySelectorAll('#view .set:not(.hdr) .in')];
+function kbar() {
+  const a = document.activeElement, on = COARSE() && !!a?.matches?.('#view .set .in');
+  let b = $('#kbar'); document.body.classList.toggle('kbon', on);
+  if (!on) { if (b) b.classList.remove('on'); return; }
+  if (!b) {
+    b = document.createElement('div'); b.id = 'kbar'; b.className = 'kbar';
+    b.innerHTML = '<button data-k="-1" aria-label="Previous field">‹</button><button data-k="1" aria-label="Next field">›</button><span></span><button data-k="0" class="kd">Done</button>';
+    b.addEventListener('touchstart', ev => ev.preventDefault(), { passive: false }); b.addEventListener('mousedown', ev => ev.preventDefault());
+    b.addEventListener('pointerup', ev => { const k = ev.target.closest('button'); if (k && !k.disabled) kbarGo(+k.dataset.k); });
+    document.body.appendChild(b);
+  }
+  const f = setFields(), i = f.indexOf(a);
+  b.querySelector('[data-k="-1"]').disabled = i <= 0; b.querySelector('[data-k="1"]').disabled = i < 0 || i >= f.length - 1;
+  b.classList.add('on'); kbarPos();
+}
+function kbarPos() { const b = $('#kbar'); if (!b || !b.classList.contains('on')) return; const vv = window.visualViewport; b.style.top = ((vv ? vv.offsetTop + vv.height : innerHeight) - b.offsetHeight) + 'px'; }
+function kbarGo(k) {
+  const a = document.activeElement; if (!k) { a?.blur(); return; }
+  const f = setFields(), n = f[f.indexOf(a) + k]; if (!n) return;
+  n.focus({ preventScroll: true });
+  const r = n.getBoundingClientRect(), vv = window.visualViewport, top = ($('.top')?.getBoundingClientRect().bottom || 0) + 8;
+  const bot = (vv ? vv.offsetTop + vv.height : innerHeight) - ($('#kbar')?.offsetHeight || 0) - 8;
+  if (r.top < top || r.bottom > bot) scroller().scrollBy(0, r.top + r.height / 2 - (top + bot) / 2); // keep the new field between the header and the keyboard
+}
+document.addEventListener('focusin', kbar); document.addEventListener('focusout', () => setTimeout(kbar, 30));
+window.visualViewport?.addEventListener('resize', kbarPos); window.visualViewport?.addEventListener('scroll', kbarPos);
 
 /* ---------- set rows: saved and counted as you type ---------- */
 function setInput(el, final) {

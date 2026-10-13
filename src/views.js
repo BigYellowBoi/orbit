@@ -217,7 +217,7 @@ function logBody(d) {
   h += `<div class="exs" data-list="logex">${w.ex.map((e, i) => exCard(w, e, i, prSet)).join('')}</div>`; // drag handles reorder this day's exercises (v1.39)
   h += pickerHTML(w);
   h += cardioCard(w);
-  h += `<section class="card">${wl != null ? `<div class="fl"><span>Duration</span><b class="roval">${esc(fmtDur(wl * 60))} <small>WHOOP</small></b></div>` : `<label class="fl">Duration (min)<input class="in" id="wdur" inputmode="numeric" data-in="durmin" value="${w.durMin ?? ''}" placeholder="optional"></label>`}
+  h += `<section class="card">${wl != null ? `<div class="fl"><span>Workout duration</span><b class="roval">${esc(fmtDur(wl * 60))} <small>WHOOP</small></b></div>` : `<label class="fl">Workout duration (min)<input class="in" id="wdur" inputmode="numeric" data-in="durmin" value="${w.durMin ?? ''}" placeholder="optional"></label>`}
     <label class="fl">Session notes<textarea class="in" id="wnote" data-in="note" placeholder="Anything worth remembering next time">${esc(w.note || '')}</textarea></label></section>`;
   h += `<button class="btn wide" data-act="logdone">Done</button>`;
   h += `<button class="link danger delw" data-act="delw1" style="align-self:flex-start">Delete this session</button>`; // two taps (v1.36)
@@ -270,7 +270,7 @@ function exCard(w, e, i, prSet) {
     return `<div class="set ${s.done ? 'done' : ''} ${prSet.has(s) ? 'pr' : ''} ${warm ? 'warm' : ''} ${s.t === 'd' ? 'dset' : ''}" id="row${i}_${j}"><button class="sn" data-act="settype" data-e="${i}" data-s="${j}" aria-label="Set ${j + 1}: ${lbl}. Tap to change">${tag}</button>
       ${box('w', s.w, ph(a ? a.w : s.pw, def.u === 'bw' ? '0' : '–'), 'decimal', esc(u.label))}
       ${box('r', s.r, ph(a ? a.r : s.pr, '–'), 'numeric', 'reps')}
-      <span class="mark" aria-hidden="true">${ICON.tick}</span>${prev ? `<span class="lastset">Last ${esc(fmtSet(e.id, prev))}</span>` : ''}</div>`;
+      ${warm ? `<button class="mark rmw" data-act="remwarm" data-e="${i}" data-s="${j}" tabindex="-1" aria-label="Remove this warm-up">×</button>` : `<span class="mark" aria-hidden="true">${ICON.tick}</span>`}${prev ? `<span class="lastset">Last ${esc(fmtSet(e.id, prev))}</span>` : ''}</div>`;
   }).join('');
   const meta = [lastLine(e.id, w.date), def.note].filter(Boolean).map(esc).join(' · ');
   return `<section class="card ex" id="ex${i}" data-dragitem data-i="${i}"><div class="ex-h">${w.ex.length > 1 ? `<span class="grip" data-grip="ex" aria-label="Drag to reorder ${esc(def.name)}" role="button" tabindex="-1">${ICON.grip}</span>` : ''}<button class="ex-name" data-act="exhist" data-e="${i}" aria-expanded="${open}"><h3>${esc(def.name)}</h3><span class="chev">${ICON.down}</span></button><span class="rx">${def.lo}${def.hi > def.lo ? '–' + def.hi : ''} reps</span></div>
