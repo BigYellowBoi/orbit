@@ -231,6 +231,57 @@ Object.assign(ACT, {
   ghnow: () => GH.sync(),
   ghoff: () => { GH.disconnect(); ui.confirm = null; toast('Sync is off on this device'); render(true); },
 });
+/* AUTOMATIC SYNC: the sync helper (worker/) reports when it last reached WHOOP and last received Apple Health numbers
+   at <helper>/status.json. The Data screen shows that, so a stalled helper is easy to spot. The address is kept in settings. */
+const Helper = {
+  st: null, at: 0, err: null, busy: false,
+  url() { return String(S().helper || '').trim().replace(/\/+$/, ''); },
+  async refresh(force) {
+    const u = this.url(); if (!u || this.busy || (!force && Date.now() - this.at < 60e3)) return;
+    this.busy = true;
+    try {
+      const r = await fetch(u + '/status.json', { cache: 'no-store' });
+      if (r.status === 404) throw new Error('The helper needs updating: paste the latest orbit-sync.js into Cloudflare.');
+      if (!r.ok) throw new Error('The sync helper answered with an error (' + r.status + ').');
+      this.st = await r.json(); this.err = null;
+    } catch (e) { this.err = e instanceof TypeError ? 'Couldn’t reach the sync helper. Check the address, or try again when you’re online.' : e.message; }
+    this.busy = false; this.at = Date.now(); if (ui.tab === 'data') render();
+  },
+  when(t) {
+    if (!t) return null;
+    const d = new Date(t), day = todayStr(), ds = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`, clock = d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' });
+    const m = Math.round((Date.now() - t) / 60000), rel = m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 24 * 60 ? `${Math.round(m / 60)} h ago` : '';
+    return `${ds === day ? 'today' : ds === addDays(day, -1) ? 'yesterday' : fmtDate(ds)}, ${clock}${rel ? ' · ' + rel : ''}`;
+  },
+  card() {
+    const u = this.url();
+    if (!u || ui.helperEdit) return `<section class="card"><div class="card-h"><h2>Automatic sync</h2><span class="eyebrow">sync helper</span></div>
+      <p class="small dim">Add your sync helper's address to see when WHOOP and Apple Health last came in.</p>
+      <label class="fl">Helper address<input class="in left" id="hl_u" value="${esc(u)}" placeholder="https://orbit-sync.yourname.workers.dev" inputmode="url" autocapitalize="off" autocomplete="off" spellcheck="false"></label>
+      <div class="btnrow"><button class="btn sm" data-act="helpersave">Save</button>${u ? '<button class="link dim" data-act="helpercancel">Cancel</button>' : ''}</div></section>`;
+    this.refresh();
+    const w = this.st?.whoop, h = this.st?.health, wAt = this.when(w?.checkedAt), hAt = this.when(h?.at);
+    const wPill = !this.st ? pill('', this.err ? 'Unknown' : 'Checking…') : !w.connected ? pill('warn', 'Not connected') : w.error ? pill('bad', 'Problem') : !w.checkedAt || Date.now() - w.checkedAt > 75 * 60e3 ? pill('warn', 'Behind') : pill('good', 'Running');
+    const hPill = !this.st ? '' : !h?.at ? pill('', 'Not set up') : Date.now() - h.at > 36 * 3600e3 ? pill('warn', 'Behind') : pill('good', 'Running');
+    return `<section class="card"><div class="card-h"><h2>Automatic sync</h2><span class="eyebrow">sync helper</span></div>
+      <ul class="rows"><li><span>WHOOP</span>${wPill}<span class="sub">${this.st ? (wAt ? `Last sync ${esc(wAt)}` : 'Not synced yet') : '&nbsp;'}${w && w.history && w.history !== 'complete' ? ` · history filling in, next ${esc(w.history)}` : ''}</span></li>
+        <li><span>Apple Health</span>${hPill}<span class="sub">${this.st ? (hAt ? `Last received ${esc(hAt)}` : 'Nothing received yet') : '&nbsp;'}</span></li></ul>
+      ${w?.error ? `<p class="small" style="color:var(--bad-ink)">${esc(w.error)}</p>` : ''}${this.err ? `<p class="small" style="color:var(--warn-ink)">${esc(this.err)}</p>` : ''}
+      <p class="xs muted">WHOOP is checked every 30 minutes, and right away when WHOOP reports new sleep, recovery or a workout.</p>
+      <div class="btnrow"><button class="link" data-act="helperrefresh">Refresh</button><button class="link dim" data-act="helperedit" style="margin-left:auto">Change address</button></div></section>`;
+  },
+};
+Object.assign(ACT, {
+  helpersave: () => {
+    let v = ($('#hl_u')?.value || '').trim().replace(/\/+$/, ''); if (v && !/^https?:\/\//i.test(v)) v = 'https://' + v;
+    if (v && !/^https:\/\/[^\s/]+$/i.test(v)) { toast('Use just the address, like https://orbit-sync.yourname.workers.dev', 'bad'); return; }
+    S().helper = v || null; ui.helperEdit = false; Helper.st = null; Helper.err = null; Helper.at = 0; saveSettings(); render(true);
+  },
+  helpercancel: () => { ui.helperEdit = false; render(true); },
+  helperedit: () => { ui.helperEdit = true; render(true); },
+  helperrefresh: () => { Helper.refresh(true); },
+});
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && ui.tab === 'data') Helper.refresh(true); });
 GH.boot();
 /* Update check: GitHub Pages and iOS can keep serving an older copy for a while. version.json is fetched past every cache;
    if it names a newer build, Today shows an Update ready button that reloads under a fresh URL. */

@@ -90,6 +90,7 @@ Run the shortcut once by hand; the response should be `{"ok": true, "days": 1}`.
 | Address | What it does |
 |---|---|
 | `/` | Status: connected, last sync, history progress, last problem |
+| `/status.json` | The same as JSON; Orbit's Data screen reads it |
 | `/auth?key=…` | Connect or reconnect WHOOP |
 | `/sync?key=…` | Sync the last few days now |
 | `/backfill?key=…&from=2024-11` | Fetch WHOOP history again from a month |

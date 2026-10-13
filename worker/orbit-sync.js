@@ -5,6 +5,7 @@
 
    Routes
      GET  /                 status page (no secrets shown)
+     GET  /status.json      the same as JSON, readable from any page (Orbit's Data screen shows it)
      GET  /auth?key=…       connect WHOOP (key = SYNC_KEY), redirects to WHOOP's consent page
      GET  /callback         WHOOP sends you back here; tokens are stored in KV, history backfill starts
      POST /webhook          WHOOP event (signature checked); marks data as changed for the next run
@@ -29,6 +30,7 @@ export default {
     const url = new URL(req.url), key = url.searchParams.get('key'), authed = env.SYNC_KEY && key === env.SYNC_KEY;
     try {
       if (url.pathname === '/' && req.method === 'GET') return statusPage(env);
+      if (url.pathname === '/status.json' && req.method === 'GET') return statusJson(env);
       if (url.pathname === '/auth' && req.method === 'GET') { if (!authed) return text('Add ?key= with your SYNC_KEY.', 403); return startAuth(env, url); }
       if (url.pathname === '/callback' && req.method === 'GET') return finishAuth(env, url, ctx);
       if (url.pathname === '/webhook' && req.method === 'POST') return webhook(env, req);
@@ -283,15 +285,26 @@ async function health(env, req) {
   else put(String(body.date || todayLocal(env)).slice(0, 10), body || {});
   if (!Object.keys(days).length) return text('No recognised values. Keys: ' + Object.keys(HEALTH_KEYS).join(', ') + ', kj, hpraw', 400);
   const b = budget(); await saveDays(env, b, days, {}, [], 'Apple Health ' + Object.keys(days).sort().pop());
+  await env.ORBIT_KV.put('healthAt', String(Date.now())); // own key, so it can't race the cron's status write
   return json({ ok: true, days: Object.keys(days).length });
 }
 
 /* ---------- status page ---------- */
 const ago = t => { if (!t) return 'never'; const s = (Date.now() - t) / 1000; return s < 90 ? 'just now' : s < 5400 ? Math.round(s / 60) + ' min ago' : s < 129600 ? Math.round(s / 3600) + ' h ago' : Math.round(s / 86400) + ' days ago'; };
 function page(h1, body) { return `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><title>Orbit sync</title><style>body{font:16px/1.5 -apple-system,system-ui,sans-serif;background:#0a0c0f;color:#e8ebef;margin:0;padding:28px 20px;max-width:560px}h1{font-size:22px;margin:0 0 12px}a{color:#b388ff}p,li{color:#a5adb8}b{color:#e8ebef}</style><h1>${h1}</h1>${body}`; }
+async function status(env) {
+  const st = await getJ(env, 'status') || {}, h = await env.ORBIT_KV.get('healthAt');
+  return { st, conn: !!(await env.ORBIT_KV.get('tok')), checked: Math.max(st.lastSync || 0, st.todayAt || 0) || null, healthAt: h ? +h : null };
+}
+async function statusJson(env) { // no secrets: connection state, times and the last problem
+  const { st, conn, checked, healthAt } = await status(env);
+  const o = { v: 1, whoop: { connected: conn, checkedAt: checked, error: st.lastError || null, errAt: st.lastError ? st.errAt || null : null, history: !st.bf ? null : st.bf.done ? 'complete' : st.bf.next }, health: { at: healthAt } };
+  return new Response(JSON.stringify(o), { headers: { 'content-type': 'application/json', 'access-control-allow-origin': '*', 'cache-control': 'no-store' } });
+}
 async function statusPage(env) {
-  const st = await getJ(env, 'status') || {}, conn = !!(await env.ORBIT_KV.get('tok'));
-  return html(page('Orbit sync', `<ul><li>WHOOP: <b>${conn ? 'connected' : 'not connected'}</b></li><li>Last sync: <b>${ago(st.lastSync)}</b></li>
+  const { st, conn, checked, healthAt } = await status(env);
+  return html(page('Orbit sync', `<ul><li>WHOOP: <b>${conn ? 'connected' : 'not connected'}</b></li><li>Last sync: <b>${ago(checked)}</b></li>
+    <li>Apple Health: <b>${healthAt ? 'last received ' + ago(healthAt) : 'nothing received yet'}</b></li>
     <li>History: <b>${!st.bf ? 'not started' : st.bf.done ? 'complete' : 'filling in, next ' + st.bf.next}</b></li>
     ${st.lastError ? `<li>Last problem (${ago(st.errAt)}): <b>${st.lastError.replace(/</g, '&lt;')}</b></li>` : ''}</ul>`));
 }

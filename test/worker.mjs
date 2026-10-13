@@ -192,6 +192,14 @@ ok(repo['orbit/dy/' + y.slice(0, 7) + '.json'].sha === before, 'unchanged values
 /* ---------- 8. backfill restart ---------- */
 r = await req('/backfill?key=k3y&from=2026-09'); ok(r.status === 200 && JSON.parse(kv.get('status')).bf.next === '2026-09', '/backfill restarts from a month');
 
+console.log('status.json');
+r = await req('/status.json'); const sj = await r.json();
+ok(r.headers.get('access-control-allow-origin') === '*' && r.headers.get('cache-control') === 'no-store', 'status.json readable from the app, never cached');
+ok(sj.whoop.connected === true && sj.whoop.checkedAt > Date.now() - 3600e3 && sj.health.at > Date.now() - 3600e3, 'status.json has WHOOP and Apple Health times');
+ok(!JSON.stringify(sj).match(/k3y|ghtok|csecret|refresh|access/), 'status.json holds no secrets');
+const st2 = JSON.parse(kv.get('status')); st2.lastError = 'GitHub read 401'; st2.errAt = Date.now(); kv.set('status', JSON.stringify(st2));
+ok((await (await req('/status.json')).json()).whoop.error === 'GitHub read 401', 'status.json reports the last problem');
+
 console.log(`\n${pass} passed, ${fail} failed`);
 fs.rmSync(tmp, { recursive: true, force: true });
 process.exit(fail ? 1 : 0);
