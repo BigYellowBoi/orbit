@@ -11,7 +11,7 @@ const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const core = fs.readFileSync(path.join(root, 'src/core.js'), 'utf8');
 const engineSrc = fs.readFileSync(path.join(root, 'src/engine.js'), 'utf8');
 const EXPOSE = `globalThis.E = { STATE, S, today, addDays, diffDays, sessionFor, upcoming, lastFor, bestBefore, bestSet, records, hasHistory, hasRef,
-  liftSeries, maintenance, strengthRef, suggest, setAim, cutCheck, progression, prsIn, setScore, e1rm, exRir, exStep, derived, xpRun: typeof xpRun !== "undefined" ? xpRun : null, XP: typeof XP !== "undefined" ? XP : null, partialFlags: typeof partialFlags !== "undefined" ? partialFlags : null, warmup: typeof warmup !== "undefined" ? warmup : null, rowAim: typeof rowAim !== "undefined" ? rowAim : null, doneSets, planWeekly, wStats, fmtSet, dayVal, scoreTxt, newWorkout, restRecord,
+  liftSeries, maintenance, strengthRef, suggest, setAim, cutCheck, progression, prsIn, setScore, e1rm, exRir, exStep, derived, xpRun: typeof xpRun !== "undefined" ? xpRun : null, XP: typeof XP !== "undefined" ? XP : null, partialFlags: typeof partialFlags !== "undefined" ? partialFlags : null, warmup: typeof warmup !== "undefined" ? warmup : null, rowAim: typeof rowAim !== "undefined" ? rowAim : null, doneSets, planWeekly, wStats, fmtSet, dayVal, scoreTxt, newWorkout, restRecord, moveEx: typeof moveEx !== "undefined" ? moveEx : null, movedIdx: typeof movedIdx !== "undefined" ? movedIdx : null,
   bump: () => { STATE.v++; } };`;
 
 function load(engine = engineSrc) {
@@ -250,6 +250,24 @@ if (process.env.OLD_ENGINE) {
   const tn = go(N), to = go(O);
   console.log(`History-style PR pass: new ${tn.toFixed(1)} ms, old ${to.toFixed(1)} ms`);
   ok(tn < to, 'new engine is faster');
+}
+
+/* ---------- exercise order inside a day's log (v1.39) ---------- */
+{
+  const E = load(); ok(!!E.moveEx && !!E.movedIdx, 'moveEx and movedIdx exist'); const t = E.today(), w = E.newWorkout(t, 'push1'), ids = w.ex.map(e => e.id), n = ids.length;
+  w.ex[0].sets = [{ w: 20, r: 10, done: true, t: 'w' }, { w: 60, r: 8, done: true }, { w: 57.5, r: null, done: false }]; w.ex[0].note = 'seat 4';
+  const first = w.ex[0], planBefore = JSON.stringify(E.S().prog);
+  ok(E.moveEx(w, 0, n - 1) === true, 'moveEx reports a move');
+  ok(w.ex.length === n && w.ex[n - 1] === first, 'first exercise moves to the end, same object');
+  ok(first.sets.length === 3 && first.sets[0].t === 'w' && first.sets[1].done && first.note === 'seat 4', 'sets, warm-ups, ticks and note travel with it');
+  ok(w.ex.map(e => e.id).join() === [...ids.slice(1), ids[0]].join(), 'the others keep their order');
+  ok(JSON.stringify(E.S().prog) === planBefore, 'the Plan is untouched');
+  E.moveEx(w, n - 1, 0); ok(w.ex.map(e => e.id).join() === ids.join(), 'moving back restores the order');
+  ok(!E.moveEx(w, 1, 1) && !E.moveEx(w, -1, 0) && !E.moveEx(w, 0, n) && !E.moveEx({ ex: [] }, 0, 0) && !E.moveEx(null, 0, 1), 'no-op and out-of-range moves are refused');
+  const perm = (from, to) => { const a = [...Array(5).keys()]; const [m] = a.splice(from, 1); a.splice(to, 0, m); return a; };
+  let good = true; for (let f = 0; f < 5; f++) for (let to = 0; to < 5; to++) { const a = perm(f, to); for (let i = 0; i < 5; i++) if (a[E.movedIdx(i, f, to)] !== i) good = false; }
+  ok(good, 'movedIdx follows every index through every move');
+  ok(E.movedIdx(null, 0, 2) === null && E.movedIdx(undefined, 0, 2) === undefined, 'movedIdx leaves an empty pick alone');
 }
 
 console.log(`${passes} passed, ${fails} failed`);

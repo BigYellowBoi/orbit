@@ -184,7 +184,7 @@ function resetScroll() { // to the top, and stop any momentum still running
   // iOS keeps flinging the page unless overflow is cut for a frame
   const de = document.documentElement; de.style.overflow = 'hidden'; window.scrollTo(0, 0); requestAnimationFrame(() => { de.style.overflow = ''; window.scrollTo(0, 0); });
 }
-let pendingRender = false;
+let pendingRender = false, drag = null; // drag: a reorder in progress (see the drag section)
 function editingInView() { const a = document.activeElement; return a && $('#view')?.contains(a) && /INPUT|TEXTAREA|SELECT/.test(a.tagName) && a.type !== 'file'; }
 /* Background updates (a sync pull, the helper's status, the Traffic card) patch the page in place: only text and attributes
    that differ change, so nothing on screen jumps and a scroll in progress keeps its momentum. iOS has no scroll anchoring,
@@ -211,7 +211,7 @@ function keepAnchor(change) {
   if (a && a.isConnected && $('#view').contains(a)) { const d = a.getBoundingClientRect().top - at; if (Math.abs(d) > 0.5) scroller().scrollBy(0, d); }
 }
 function render(force) {
-  if (!force && editingInView()) { pendingRender = true; return; }
+  if (!force && (editingInView() || drag)) { pendingRender = true; return; } // a background update waits for the drag to end
   pendingRender = false;
   const v = $('#view'), y = scrollY0(), snap = !force && ui.tab === render.tab ? liveSnap() : null; CHART_REG.clear(); render.tab = ui.tab;
   if (snap) keepAnchor(() => { morphHTML(v, (VIEWS[ui.tab] || vToday)()); drawCharts(v); }); // a background re-render of the same screen: patch in place
@@ -517,35 +517,57 @@ async function readFiles(el, reader) {
   try { const p = await reader(files); ui.imp[p.src] = p; $('#toast').className = 'toast'; render(true); setTimeout(() => $('#imp-' + p.src)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50); }
   catch (e) { console.warn(e); toast(esc(e.message || 'That file couldn’t be read.'), 'bad'); el.value = ''; }
 }
-/* ---------- drag to reorder (sessions, and exercises within a session) ---------- */
-let drag = null;
+/* ---------- drag to reorder (sessions, exercises within a session, exercises in a day's log) ----------
+   Positions are worked out in content space (pointer travel plus how far the page has scrolled since the drag began),
+   so the list can auto-scroll under a still finger at the header or tab bar edge and the maths stays right. */
+let flushedEl = null; // a field saved by hand as a drag starts: its own change event (fired on blur) is skipped
+function flushField() { // save whatever field is being typed in, against the order it was typed in, then let go of it
+  const a = document.activeElement; if (!editingInView()) return;
+  const f = a.matches('.set .in') ? () => setInput(a, true) : INP[a.dataset?.in];
+  if (f) { f(a); flushedEl = a; }
+  a.blur();
+}
 document.addEventListener('pointerdown', ev => {
   const g = ev.target.closest('[data-grip]'); if (!g || ev.button > 0) return;
   const el = g.closest('[data-dragitem]'), list = el?.parentElement; if (!el || !list) return;
   const sibs = [...list.children].filter(c => c.hasAttribute('data-dragitem')); if (sibs.length < 2) return;
+  ev.preventDefault();
+  if (g.dataset.grip === 'ex') flushField(); // a set or note mid-typing is saved before anything moves (v1.39)
   const rects = sibs.map(s => s.getBoundingClientRect());
   const gap = rects.length > 1 ? Math.max(0, rects[1].top - rects[0].bottom) : 8;
-  drag = { el, list, sibs, rects, gap, from: sibs.indexOf(el), to: sibs.indexOf(el), y0: ev.clientY, kind: g.dataset.grip, pid: ev.pointerId };
+  drag = { el, list, sibs, rects, gap, from: sibs.indexOf(el), to: sibs.indexOf(el), y0: ev.clientY, y: ev.clientY, sy0: scrollY0(), kind: g.dataset.grip, pid: ev.pointerId, raf: 0 };
   try { g.setPointerCapture(ev.pointerId); } catch (e) { }
-  el.classList.add('dragging'); document.body.classList.add('is-dragging'); ev.preventDefault();
+  el.classList.add('dragging'); document.body.classList.add('is-dragging');
 });
-document.addEventListener('pointermove', ev => {
-  if (!drag || ev.pointerId !== drag.pid) return;
+function dragLayout() {
   const { rects, from, sibs, el, gap } = drag;
   const top = rects[0].top, bot = rects[rects.length - 1].bottom;
-  const dy = Math.max(top - rects[from].top, Math.min(bot - rects[from].bottom, ev.clientY - drag.y0));
+  const dy = Math.max(top - rects[from].top, Math.min(bot - rects[from].bottom, drag.y - drag.y0 + scrollY0() - drag.sy0));
   el.style.transform = `translateY(${dy}px)`;
-  const mid = rects[from].top + rects[from].height / 2 + dy;
-  let to = 0; for (let i = 0; i < rects.length; i++) if (i !== from && mid > rects[i].top + rects[i].height / 2) to++;
+  const mid = i => rects[i].top + rects[i].height / 2; // the dragged edge passing a neighbour's middle swaps them, so cards of any height can reach either end
+  let to = from;
+  for (let i = from + 1; i < rects.length; i++) if (rects[from].bottom + dy > mid(i)) to = i;
+  for (let i = from - 1; i >= 0; i--) if (rects[from].top + dy < mid(i)) to = i;
   drag.to = to;
   const shift = rects[from].height + gap;
   sibs.forEach((s, i) => { if (i === from) return; const t = from < to && i > from && i <= to ? -shift : from > to && i >= to && i < from ? shift : 0; s.style.transform = t ? `translateY(${t}px)` : ''; });
-  const hb = $('.top')?.getBoundingClientRect().bottom || 60; // auto-scroll only when the finger reaches the header or the tab bar
-  if (ev.clientY < hb + 24) scroller().scrollBy(0, -8); else if (ev.clientY > window.innerHeight - 90) scroller().scrollBy(0, 8);
+}
+function dragEdge() { // auto-scroll while the finger rests at the header or the tab bar
+  if (!drag) return; drag.raf = 0;
+  const hb = $('.top')?.getBoundingClientRect().bottom || 60, tb = Math.min(window.innerHeight - 90, ($('.tabs')?.getBoundingClientRect().top || window.innerHeight) - 24);
+  const v = drag.y < hb + 24 ? -Math.min(16, 4 + (hb + 24 - drag.y) / 3) : drag.y > tb ? Math.min(16, 4 + (drag.y - tb) / 3) : 0;
+  if (!v) return;
+  const y = scrollY0(); scroller().scrollBy(0, v); if (scrollY0() === y) return; // at the end already
+  dragLayout(); drag.raf = requestAnimationFrame(dragEdge);
+}
+document.addEventListener('pointermove', ev => {
+  if (!drag || ev.pointerId !== drag.pid) return;
+  drag.y = ev.clientY; dragLayout();
+  if (!drag.raf) drag.raf = requestAnimationFrame(dragEdge);
 });
 function endDrag(ev) {
   if (!drag || (ev && ev.pointerId !== drag.pid)) return;
-  const { from, to, kind, list, sibs } = drag; drag = null;
+  const { from, to, kind, list, sibs, raf } = drag; drag = null; cancelAnimationFrame(raf); flushedEl = null;
   const y = scrollY0(), keep = () => { if (Math.abs(scrollY0() - y) > 1) scrollToY(y); };
   if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
   requestAnimationFrame(keep); setTimeout(keep, 80); setTimeout(keep, 250); // iOS can jump to the top after the dragged row is replaced
@@ -555,6 +577,12 @@ function endDrag(ev) {
     const keys = sibs.map(s => s.dataset.k), [m] = keys.splice(from, 1); keys.splice(to, 0, m);
     if (kind === 'col') ui.reo.cols = keys; else ui.reo.cards = [...keys, ...ui.reo.cards.filter(k => !keys.includes(k))];
     render(true); return;
+  }
+  if (kind === 'ex') { // that day's log only; open history, More and note fields follow their exercise
+    const w = logW(); if (!w || !moveEx(w, from, to)) { render(true); return; }
+    ui.exHist = movedIdx(ui.exHist, from, to); ui.exMore = movedIdx(ui.exMore, from, to); ui.exNote = movedIdx(ui.exNote, from, to);
+    if (/^remex\d+$/.test(ui.confirm || '')) ui.confirm = null;
+    saveW(w.date); render(true); return;
   }
   if (kind === 'sess') { const ids = sibs.map(s => s.dataset.id); const [m] = ids.splice(from, 1); ids.splice(to, 0, m); S().prog.order = ids; }
   else { const items = sessDef(list.dataset.id).items; const [m] = items.splice(from, 1); items.splice(to, 0, m); }
@@ -632,7 +660,7 @@ function filterPick() { // in place, so the keyboard stays up; a group label hid
 document.addEventListener('input', ev => { if (ev.target.id === 'pickq' && ui.pick) { ui.pick.q = ev.target.value; filterPick(); } });
 document.addEventListener('keydown', ev => { if (ev.key === 'Enter' && ev.target.id === 'exq') { ev.preventDefault(); ev.target.blur(); } });
 ['pointerdown', 'mousedown'].forEach(t => document.addEventListener(t, ev => { if (ev.target.closest('#exqx')) ev.preventDefault(); })); // keep the keyboard up while clearing
-document.addEventListener('change', ev => { const el = ev.target.closest('[data-in]'); if (!el) return; const f = INP[el.dataset.in]; if (f) f(el); });
+document.addEventListener('change', ev => { const el = ev.target.closest('[data-in]'); if (!el) return; if (el === flushedEl) { flushedEl = null; return; } const f = INP[el.dataset.in]; if (f) f(el); });
 document.addEventListener('keydown', ev => {
   if (ev.key !== 'Enter' || !ev.target.matches('.set .in')) return;
   ev.preventDefault(); const all = [...document.querySelectorAll('.set .in')], k = all.indexOf(ev.target);

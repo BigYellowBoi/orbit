@@ -273,6 +273,12 @@ function newWorkout(date, sid) {
     cardio: { name: S().cardio.name, min: S().cardio.min, lvl: null, done: false }, note: '',
   };
 }
+/* Exercise order inside one day's log (v1.39): the whole entry moves (sets, warm-ups, ticks, note); the Plan is untouched. */
+function moveEx(w, from, to) {
+  const n = w?.ex?.length || 0; if (!(from >= 0 && from < n && to >= 0 && to < n) || from === to) return false;
+  const [m] = w.ex.splice(from, 1); w.ex.splice(to, 0, m); return true;
+}
+const movedIdx = (i, from, to) => i == null || i < 0 ? i : i === from ? to : from < to && i > from && i <= to ? i - 1 : from > to && i >= to && i < from ? i + 1 : i; // where index i sits after moveEx
 function newWorkoutAuto(date, sid) { const w = newWorkout(date, sid); autoCardio(w); return w; }
 function restRecord(date) { // a rest day: fills a planned rest slot if one is due, otherwise the rotation waits
   const next = sessionFor(date), s = isRestSlot(next) ? next : '_rest';

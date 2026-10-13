@@ -214,7 +214,7 @@ function logBody(d) {
   if (lifts.length) h += lifts.map(actChips).join('');
   normSets(w); if (autoCardio(w)) saveW(w.date);
   const prSet = new Set(prsIn(w).map(p => p.s));
-  w.ex.forEach((e, i) => { h += exCard(w, e, i, prSet); });
+  h += `<div class="exs" data-list="logex">${w.ex.map((e, i) => exCard(w, e, i, prSet)).join('')}</div>`; // drag handles reorder this day's exercises (v1.39)
   h += pickerHTML(w);
   h += cardioCard(w);
   h += `<section class="card">${wl != null ? `<div class="fl"><span>Duration</span><b class="roval">${esc(fmtDur(wl * 60))} <small>WHOOP</small></b></div>` : `<label class="fl">Duration (min)<input class="in" id="wdur" inputmode="numeric" data-in="durmin" value="${w.durMin ?? ''}" placeholder="optional"></label>`}
@@ -273,7 +273,7 @@ function exCard(w, e, i, prSet) {
       <span class="mark" aria-hidden="true">${ICON.tick}</span>${prev ? `<span class="lastset">Last ${esc(fmtSet(e.id, prev))}</span>` : ''}</div>`;
   }).join('');
   const meta = [lastLine(e.id, w.date), def.note].filter(Boolean).map(esc).join(' · ');
-  return `<section class="card ex" id="ex${i}"><div class="ex-h"><button class="ex-name" data-act="exhist" data-e="${i}" aria-expanded="${open}"><h3>${esc(def.name)}</h3><span class="chev">${ICON.down}</span></button><span class="rx">${def.lo}${def.hi > def.lo ? '–' + def.hi : ''} reps</span></div>
+  return `<section class="card ex" id="ex${i}" data-dragitem data-i="${i}"><div class="ex-h">${w.ex.length > 1 ? `<span class="grip" data-grip="ex" aria-label="Drag to reorder ${esc(def.name)}" role="button" tabindex="-1">${ICON.grip}</span>` : ''}<button class="ex-name" data-act="exhist" data-e="${i}" aria-expanded="${open}"><h3>${esc(def.name)}</h3><span class="chev">${ICON.down}</span></button><span class="rx">${def.lo}${def.hi > def.lo ? '–' + def.hi : ''} reps</span></div>
     ${open ? exHistHTML(e.id, w.date) : ''}
     ${sg ? `<p class="aim"><b>Aim ${esc(suggestTxt(e.id, sg))}</b>${nWork > 1 && back?.back ? `, then ${esc(fmtLoad(e.id, back.w))}${def.u === 'kg' ? ' kg' : ''}` : ''} · ${sg.rir} rep${sg.rir === 1 ? '' : 's'} in reserve${S().goal === 'grow' ? ' · overload' : ''}</p>` : ''}
     ${meta ? `<p class="ex-meta">${meta}</p>` : ''}

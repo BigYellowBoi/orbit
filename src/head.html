@@ -234,6 +234,10 @@ textarea.in { text-align: left; font-size: 15px; min-height: 76px; padding: 10px
 .ex { gap: 10px; }
 .ex-h { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
 .ex-h h3 { font-size: 17px; min-width: 0; }
+.exs { display: flex; flex-direction: column; gap: 14px; }
+.ex-h .grip { width: 36px; min-height: 40px; margin: -10px -4px -10px -12px; align-self: center; }
+.ex-h .grip + .ex-name { margin-right: auto; }
+.card.ex.dragging { border-color: var(--accent); }
 .ex-h .rx { font-family: var(--f-mono); font-size: 12.5px; color: var(--ink-2); white-space: nowrap; }
 .ex-name { display: flex; align-items: center; gap: 6px; background: none; border: 0; padding: 0; text-align: left; min-width: 0; color: inherit; }
 .ex-name .chev { color: var(--ink-3); } .ex-name[aria-expanded="true"] .chev { transform: rotate(180deg); }
