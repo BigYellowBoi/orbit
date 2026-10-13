@@ -37,6 +37,19 @@ const near = (a, b, tol, msg) => ok(Math.abs(a - b) <= tol, `${msg}: ${a} vs ${b
   E.STATE.w[E.addDays(t, -1)] = E.restRecord(E.addDays(t, -1));
   ok(E.sessionFor(t) === 'pull', 'a rest day does not advance the rotation');
   ok(E.upcoming(5).map(x => x.s).join() === 'pull,push2,legs,push1,pull', 'upcoming cycles the rotation');
+  E.S().restPlan = [E.addDays(t, 2)];
+  ok(E.upcoming(5).map(x => x.s).join() === 'pull,push2,_rest,legs,push1', 'a planned rest day pushes the rotation back a day');
+  E.S().restPlan = [t];
+  ok(E.upcoming(3).map(x => x.s).join() === '_rest,pull,push2' && E.upcoming(1)[0].planned, 'planned rest today: today is rest, Pull waits');
+  ok(E.sessionFor(t) === 'pull', 'planning rest does not change what is next when you do train');
+  // a planned rest that lands on a rotation rest slot just fills it
+  E.S().prog.sessions.r1 = { name: 'Rest', items: [], rest: true }; E.S().prog.order = ['push1', 'pull', 'r1', 'push2', 'legs'];
+  E.S().restPlan = [E.addDays(t, 1)];
+  ok(E.upcoming(5).map(x => x.s).join() === 'pull,r1,push2,legs,push1', 'planned rest on a rest slot uses the slot, no extra shift');
+  E.S().restPlan = [E.addDays(t, 2)];
+  ok(E.upcoming(5).map(x => x.s).join() === 'pull,r1,_rest,push2,legs', 'planned rest after a rest slot adds a day');
+  E.STATE.w[t] = E.restRecord(t); E.S().restPlan = [t];
+  ok(E.upcoming(2)[0].done && E.upcoming(2)[0].planned === false, 'a logged day wins over the plan');
 }
 
 /* ---------- follow the Aim ---------- */

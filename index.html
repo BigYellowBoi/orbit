@@ -132,6 +132,13 @@ button.pill { border: 0; font: inherit; font-size: 12.5px; font-weight: 500; cur
 .sd.now { border-color: var(--accent); background: var(--accent-soft); }
 .sd.done { opacity: .6; }
 .sd.rest b { color: var(--ink-3); font-weight: 500; }
+button.sd { font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.sd.planned { border-style: dashed; }
+.sd.pick { border-color: var(--accent); }
+.pickrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); font-size: 13.5px; }
+.pickrow .btn { flex: none; }
+.restchip { display: inline-flex; align-items: center; gap: 6px; padding-right: 3px; }
+.ed-x.sm { width: 24px; height: 24px; border: 0; }
 
 /* stats */
 .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
@@ -481,7 +488,7 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.18'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.19'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
@@ -516,12 +523,18 @@ function sessionFor(date) {
 function isRestSlot(id) { return !!sessDef(id)?.rest; }
 function trainIds() { return order().filter(id => !isRestSlot(id)); }
 function nextTraining(id) { const o = order(); if (!o.length) return null; let s = id; for (let i = 0; i <= o.length; i++) { if (s && !isRestSlot(s)) return s; s = nextAfter(s); } return trainIds()[0] || null; }
-function upcoming(n) { // [{date, s, done}] starting today; assumes you train every day from here
+/* Planned rest days (S().restPlan, dates from today on): a one-off day off ahead. Like any unlogged day, it uses up a
+   rotation rest slot if one is due; otherwise the rotation waits and the sessions after it move back a day. */
+function plannedRest(date) { return (S().restPlan || []).includes(date); }
+function upcoming(n) { // [{date, s, done, planned}] starting today; assumes you train every day from here except planned rest
   const out = [], t = today(), rec = STATE.w[t];
   let s = rec ? (sessDef(rec.s) ? rec.s : '_rest') : sessionFor(t);
-  out.push({ date: t, s, done: !!rec });
-  s = rec ? sessionFor(addDays(t, 1)) : nextAfter(s);
-  for (let i = 1, d = addDays(t, 1); i < n; i++, d = addDays(d, 1)) { out.push({ date: d, s, done: false }); s = nextAfter(s); }
+  if (!rec && plannedRest(t) && !isRestSlot(s)) out.push({ date: t, s: '_rest', done: false, planned: true });
+  else { out.push({ date: t, s, done: !!rec, planned: !rec && plannedRest(t) }); s = rec ? sessionFor(addDays(t, 1)) : nextAfter(s); }
+  for (let i = 1, d = addDays(t, 1); i < n; i++, d = addDays(d, 1)) {
+    if (plannedRest(d) && !isRestSlot(s)) { out.push({ date: d, s: '_rest', done: false, planned: true }); continue; }
+    out.push({ date: d, s, done: false, planned: plannedRest(d) }); s = nextAfter(s);
+  }
   return out;
 }
 function slotName(id) { return id === '_rest' ? 'Rest' : sessDef(id)?.name || ''; }
@@ -1428,6 +1441,7 @@ function vToday() {
   if (w && (!w.fin || ui.editToday)) return h + logBody(t) + tail(); // the log, until you press Done
   if (w) return h + doneHero(w, idx, o) + tail();
   if (!sd) return h + `<section class="card"><p>Your programme has no sessions. Add one in Plan.</p><button class="btn" data-act="go" data-tab="plan">Open Plan</button></section>`;
+  if (plannedRest(t) && !sd.rest) return h + oneOffRestHero(t, sid) + tail();
   if (sd.rest) return h + plannedRestHero(sid) + tail();
   h += `<section class="card hero"><div class="card-h"><span class="eyebrow">Next up · ${idx + 1} of ${o.length}</span>${S().suggest !== false ? `<button class="pill ${S().goal === 'grow' ? 'acc' : ''}" data-act="goalflip" aria-label="Targets: ${esc(goalLabel())}. Tap to switch">${esc(goalLabel())}</button>` : ''}</div>
     <div class="rot">${o.map((id, i) => `<i class="${i === idx ? 'on' : i < idx ? 'done' : ''}"></i>`).join('')}</div>
@@ -1441,7 +1455,7 @@ function vToday() {
 }
 function doneHero(w, idx, o) { // today after Done: a summary, with the log one tap away
   if (w.rest) return `<section class="card hero"><div class="card-h"><span class="eyebrow">Rest day${isRestSlot(w.s) ? ' · planned' : ''}</span>${pill('', 'Logged')}</div>
-    <div><h1>Rest</h1><p class="focus">${isRestSlot(w.s) ? 'Planned rest from your rotation.' : 'The rotation waits.'} Tomorrow: ${esc(slotName(sessionFor(addDays(w.date, 1))))}.</p></div>
+    <div><h1>Rest</h1><p class="focus">${isRestSlot(w.s) ? 'Planned rest from your rotation.' : 'The rotation waits.'} Tomorrow: ${esc(slotName(upcoming(2)[1].s))}.</p></div>
     ${w.cardio?.done ? `<p class="small dim">${esc(w.cardio.name)} · ${w.cardio.min || 0} min</p>` : ''}
     <div class="btnrow" style="justify-content:space-between"><button class="btn sm ghost" data-act="edittoday">${w.cardio?.done || w.note ? 'Edit day' : 'Log cardio or notes'}</button><button class="link dim" data-act="unrest">Undo rest day</button></div></section>`;
   const st = wStats(w), dur = sessDur(w), prs = prsIn(w);
@@ -1452,9 +1466,25 @@ function doneHero(w, idx, o) { // today after Done: a summary, with the log one 
     ${prs.length ? `<div class="chips">${prs.slice(0, 6).map(p => `<span class="pill acc">${esc(exDef(p.id).name)} ${esc(fmtSet(p.id, p.s))}</span>`).join('')}</div>` : ''}
     <button class="btn wide ghost" data-act="edittoday">Edit log</button></section>`;
 }
-function stripHTML() {
-  const up = upcoming(Math.max(5, order().length + 1));
-  return `<section class="sec"><div class="sec-h"><span class="eyebrow">Coming up</span></div><div class="strip">${up.map((u, i) => `<div class="sd ${i === 0 ? (u.done ? 'done' : 'now') : ''} ${u.s === '_rest' || isRestSlot(u.s) ? 'rest' : ''}"><small>${i === 0 ? 'Today' : i === 1 ? 'Tmrw' : esc(fmtDow(u.date))}</small><b>${esc(slotName(u.s))}</b></div>`).join('')}</div></section>`;
+function stripHTML() { // the next days; tap one to plan it as a rest day (or undo that)
+  const up = upcoming(Math.max(5, order().length + 1)), t = today(), pick = up.find((u, i) => i > 0 && u.date === ui.restPick);
+  const later = (S().restPlan || []).filter(d => d >= t).sort(), lab = d => `${fmtDow(d)} ${fmtDate(d)}`;
+  let h = `<section class="sec"><div class="sec-h"><span class="eyebrow">Coming up</span><button class="link" data-act="restplan">${ui.restPlanOpen ? 'Done' : `Plan rest${later.length ? ` (${later.length})` : ''}`}</button></div><div class="strip">${up.map((u, i) => {
+    const cls = `sd ${i === 0 ? (u.done ? 'done' : 'now') : ''} ${u.s === '_rest' || isRestSlot(u.s) ? 'rest' : ''} ${u.planned ? 'planned' : ''} ${pick && pick.date === u.date ? 'pick' : ''}`;
+    const inner = `<small>${i === 0 ? 'Today' : i === 1 ? 'Tmrw' : esc(fmtDow(u.date))}</small><b>${esc(slotName(u.s))}</b>`;
+    return i > 0 ? `<button class="${cls}" data-act="strippick" data-date="${u.date}" aria-label="${esc(lab(u.date))}: ${esc(slotName(u.s))}">${inner}</button>` : `<div class="${cls}">${inner}</div>`; }).join('')}</div>`;
+  if (pick) h += `<div class="pickrow"><span><b>${esc(lab(pick.date))}</b> · ${pick.planned ? 'planned rest' : isRestSlot(pick.s) ? 'rest from your rotation' : esc(slotName(pick.s))}</span>${pick.planned ? `<button class="btn sm ghost" data-act="restoff" data-date="${pick.date}">Train this day</button>` : isRestSlot(pick.s) ? '' : `<button class="btn sm" data-act="reston" data-date="${pick.date}">Rest this day</button>`}</div>`;
+  if (ui.restPlanOpen) h += `<section class="card"><div class="card-h"><h2>Planned rest days</h2></div>
+    ${later.length ? `<div class="chips">${later.map(d => `<span class="pill plain restchip">${esc(lab(d))}<button class="ed-x sm" data-act="restoff" data-date="${d}" aria-label="Remove rest on ${esc(lab(d))}">${ICON.x}</button></span>`).join('')}</div>` : '<p class="xs muted">None yet.</p>'}
+    <label class="fl">Add a day<input class="in" type="date" id="restadd" data-in="restadd" min="${t}"></label>
+    <p class="xs muted">Tap a day above for this week, or pick any date here. On a planned rest day the rotation waits, so the sessions after it move back a day. If a rest slot from your rotation is due that day, the planned rest just fills it.</p></section>`;
+  return h + `</section>`;
+}
+function oneOffRestHero(t, sid) { // today was planned as a rest day
+  return `<section class="card hero"><div class="card-h"><span class="eyebrow">Planned rest</span></div>
+    <div><h1>Rest</h1><p class="focus">You planned today off. The rotation waits: ${esc(slotName(sid))} is next when you train.</p></div>
+    <div class="sec"><span class="xs muted">Train anyway</span><div class="chips">${[sid, ...trainIds().filter(id => id !== sid)].filter(id => sessDef(id)).map(id => `<button class="chip ${id === sid ? 'on' : ''}" data-act="start" data-id="${id}">${esc(sessDef(id).name)}</button>`).join('')}</div></div>
+    <div class="btnrow" style="justify-content:space-between"><button class="btn sm ghost" data-act="restday">Log rest day</button><button class="link dim" data-act="restoff" data-date="${t}">Cancel planned rest</button></div></section>`;
 }
 function plannedRestHero(sid) {
   const o = order(), idx = o.indexOf(sid), sd = sessDef(sid);
@@ -2022,7 +2052,7 @@ function go(tab) {
   if (tab === 'log' && (!ui.logDate || ui.logDate >= today())) { tab = 'today'; ui.editToday = true; } // today's log lives on Today
   if (ui.tab === 'today' && tab !== 'today') ui.editToday = false;
   ui.exNote = null; ui.noteEdit = null; ui.exHist = null;
-  if (tab !== ui.tab) ui.exQ = ''; // exercise search lasts while you stay on Plan
+  if (tab !== ui.tab) ui.exQ = ''; ui.restPick = null; // exercise search lasts while you stay on Plan
   if (tab === 'body' && ui.tab !== 'body') { ui.metric = 'rec'; ui.per = 'M'; ui.off = 0; }
   if (tab === 'data' && ui.tab === 'data') tab = ui.prevTab || 'today'; else if (tab === 'data') ui.prevTab = ui.tab;
   if (tab === 'today') ui.logDate = null;
@@ -2046,13 +2076,18 @@ const ACT = {
     if (STATE.w[date] && !STATE.w[date].rest) { open(); return; }
     if (!sessDef(sid) || isRestSlot(sid)) return;
     const w = newWorkoutAuto(date, sid);
-    STATE.w[date] = w; if (S().rotOverride) { S().rotOverride = null; saveSettings(); }
+    STATE.w[date] = w; const rp = (S().restPlan || []).filter(d => d !== date && d >= today());
+    if (S().rotOverride || rp.length !== (S().restPlan || []).length) { S().rotOverride = null; S().restPlan = rp; saveSettings(); } // training on a planned rest day drops the plan
     saveW(date); open();
   },
   restday: () => { const date = ui.tab === 'log' ? (ui.logDate || today()) : today(); if (STATE.w[date]) return; STATE.w[date] = restRecord(date); if (ui.tab === 'today') STATE.w[date].fin = true; saveW(date); toast('Rest day logged'); render(true); },
   unrest: () => { const date = ui.tab === 'log' ? (ui.logDate || today()) : today(); if (STATE.w[date]?.rest) { delete STATE.w[date]; saveW(date); } render(true); },
   addrest: () => { const id = 'r' + Date.now().toString(36); S().prog.sessions[id] = { name: 'Rest', focus: 'Recovery', items: [], rest: true }; S().prog.order.push(id); saveSettings(); toast('Rest day added to the end of the rotation'); render(true); },
   togglesess: el => { const id = el.dataset.id; ui.openSess.has(id) ? ui.openSess.delete(id) : ui.openSess.add(id); ui.confirm = null; render(true); },
+  strippick: el => { ui.restPick = ui.restPick === el.dataset.date ? null : el.dataset.date; render(true); },
+  reston: el => setRest(el.dataset.date, true),
+  restoff: el => setRest(el.dataset.date, false),
+  restplan: () => { ui.restPlanOpen = !ui.restPlanOpen; ui.restPick = null; render(true); },
   picktoday: () => { ui.pickSess = 'today'; render(true); },
   setnext: el => { S().rotOverride = { id: el.dataset.id, from: today() }; ui.pickSess = null; saveSettings(); render(true); },
   picksess: el => { ui.pickSess = el.dataset.id; render(true); },
@@ -2143,7 +2178,14 @@ document.addEventListener('click', ev => {
   const f = ACT[el.dataset.act]; if (f) { ev.preventDefault(); f(el); }
 });
 
+function setRest(date, on) { // plan or unplan a one-off rest day; past dates drop off the list
+  const t = today(); if (!date || date < t) return;
+  const a = (S().restPlan || []).filter(d => d >= t && d !== date); if (on) a.push(date);
+  S().restPlan = a.sort(); ui.restPick = null; saveSettings();
+  toast(on ? `Rest planned for ${esc(fmtDow(date))} ${esc(fmtDate(date))}` : 'Planned rest removed'); render(true);
+}
 const INP = {
+  restadd: el => { if (el.value) setRest(el.value, true); },
   w: el => setInput(el, true),
   r: el => setInput(el, true),
   addex: el => { const id = el.value; if (!id) return; const w = logW(); w.ex.push({ id, sets: prefill(id, 3, w.date) }); saveW(w.date); render(true); setTimeout(() => $('#ex' + (w.ex.length - 1))?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50); },

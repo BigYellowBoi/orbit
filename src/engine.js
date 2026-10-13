@@ -21,12 +21,18 @@ function sessionFor(date) {
 function isRestSlot(id) { return !!sessDef(id)?.rest; }
 function trainIds() { return order().filter(id => !isRestSlot(id)); }
 function nextTraining(id) { const o = order(); if (!o.length) return null; let s = id; for (let i = 0; i <= o.length; i++) { if (s && !isRestSlot(s)) return s; s = nextAfter(s); } return trainIds()[0] || null; }
-function upcoming(n) { // [{date, s, done}] starting today; assumes you train every day from here
+/* Planned rest days (S().restPlan, dates from today on): a one-off day off ahead. Like any unlogged day, it uses up a
+   rotation rest slot if one is due; otherwise the rotation waits and the sessions after it move back a day. */
+function plannedRest(date) { return (S().restPlan || []).includes(date); }
+function upcoming(n) { // [{date, s, done, planned}] starting today; assumes you train every day from here except planned rest
   const out = [], t = today(), rec = STATE.w[t];
   let s = rec ? (sessDef(rec.s) ? rec.s : '_rest') : sessionFor(t);
-  out.push({ date: t, s, done: !!rec });
-  s = rec ? sessionFor(addDays(t, 1)) : nextAfter(s);
-  for (let i = 1, d = addDays(t, 1); i < n; i++, d = addDays(d, 1)) { out.push({ date: d, s, done: false }); s = nextAfter(s); }
+  if (!rec && plannedRest(t) && !isRestSlot(s)) out.push({ date: t, s: '_rest', done: false, planned: true });
+  else { out.push({ date: t, s, done: !!rec, planned: !rec && plannedRest(t) }); s = rec ? sessionFor(addDays(t, 1)) : nextAfter(s); }
+  for (let i = 1, d = addDays(t, 1); i < n; i++, d = addDays(d, 1)) {
+    if (plannedRest(d) && !isRestSlot(s)) { out.push({ date: d, s: '_rest', done: false, planned: true }); continue; }
+    out.push({ date: d, s, done: false, planned: plannedRest(d) }); s = nextAfter(s);
+  }
   return out;
 }
 function slotName(id) { return id === '_rest' ? 'Rest' : sessDef(id)?.name || ''; }

@@ -217,7 +217,7 @@ function go(tab) {
   if (tab === 'log' && (!ui.logDate || ui.logDate >= today())) { tab = 'today'; ui.editToday = true; } // today's log lives on Today
   if (ui.tab === 'today' && tab !== 'today') ui.editToday = false;
   ui.exNote = null; ui.noteEdit = null; ui.exHist = null;
-  if (tab !== ui.tab) ui.exQ = ''; // exercise search lasts while you stay on Plan
+  if (tab !== ui.tab) ui.exQ = ''; ui.restPick = null; // exercise search lasts while you stay on Plan
   if (tab === 'body' && ui.tab !== 'body') { ui.metric = 'rec'; ui.per = 'M'; ui.off = 0; }
   if (tab === 'data' && ui.tab === 'data') tab = ui.prevTab || 'today'; else if (tab === 'data') ui.prevTab = ui.tab;
   if (tab === 'today') ui.logDate = null;
@@ -241,13 +241,18 @@ const ACT = {
     if (STATE.w[date] && !STATE.w[date].rest) { open(); return; }
     if (!sessDef(sid) || isRestSlot(sid)) return;
     const w = newWorkoutAuto(date, sid);
-    STATE.w[date] = w; if (S().rotOverride) { S().rotOverride = null; saveSettings(); }
+    STATE.w[date] = w; const rp = (S().restPlan || []).filter(d => d !== date && d >= today());
+    if (S().rotOverride || rp.length !== (S().restPlan || []).length) { S().rotOverride = null; S().restPlan = rp; saveSettings(); } // training on a planned rest day drops the plan
     saveW(date); open();
   },
   restday: () => { const date = ui.tab === 'log' ? (ui.logDate || today()) : today(); if (STATE.w[date]) return; STATE.w[date] = restRecord(date); if (ui.tab === 'today') STATE.w[date].fin = true; saveW(date); toast('Rest day logged'); render(true); },
   unrest: () => { const date = ui.tab === 'log' ? (ui.logDate || today()) : today(); if (STATE.w[date]?.rest) { delete STATE.w[date]; saveW(date); } render(true); },
   addrest: () => { const id = 'r' + Date.now().toString(36); S().prog.sessions[id] = { name: 'Rest', focus: 'Recovery', items: [], rest: true }; S().prog.order.push(id); saveSettings(); toast('Rest day added to the end of the rotation'); render(true); },
   togglesess: el => { const id = el.dataset.id; ui.openSess.has(id) ? ui.openSess.delete(id) : ui.openSess.add(id); ui.confirm = null; render(true); },
+  strippick: el => { ui.restPick = ui.restPick === el.dataset.date ? null : el.dataset.date; render(true); },
+  reston: el => setRest(el.dataset.date, true),
+  restoff: el => setRest(el.dataset.date, false),
+  restplan: () => { ui.restPlanOpen = !ui.restPlanOpen; ui.restPick = null; render(true); },
   picktoday: () => { ui.pickSess = 'today'; render(true); },
   setnext: el => { S().rotOverride = { id: el.dataset.id, from: today() }; ui.pickSess = null; saveSettings(); render(true); },
   picksess: el => { ui.pickSess = el.dataset.id; render(true); },
@@ -338,7 +343,14 @@ document.addEventListener('click', ev => {
   const f = ACT[el.dataset.act]; if (f) { ev.preventDefault(); f(el); }
 });
 
+function setRest(date, on) { // plan or unplan a one-off rest day; past dates drop off the list
+  const t = today(); if (!date || date < t) return;
+  const a = (S().restPlan || []).filter(d => d >= t && d !== date); if (on) a.push(date);
+  S().restPlan = a.sort(); ui.restPick = null; saveSettings();
+  toast(on ? `Rest planned for ${esc(fmtDow(date))} ${esc(fmtDate(date))}` : 'Planned rest removed'); render(true);
+}
 const INP = {
+  restadd: el => { if (el.value) setRest(el.value, true); },
   w: el => setInput(el, true),
   r: el => setInput(el, true),
   addex: el => { const id = el.value; if (!id) return; const w = logW(); w.ex.push({ id, sets: prefill(id, 3, w.date) }); saveW(w.date); render(true); setTimeout(() => $('#ex' + (w.ex.length - 1))?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50); },
