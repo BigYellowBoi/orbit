@@ -332,7 +332,9 @@ function arrange(tab, cards) { // cards: [{ k, t, h }] in default order; h is ''
 /* ---------- Body: WHOOP and MacroFactor ---------- */
 function freshHTML() { // how current each source is, so lagging data is obvious
   const t = today(), wd = latestWith('rec') || latestWith('slp'), md = latestWith('kcal') || latestWith('tw') || latestWith('wt');
-  const one = (name, d) => { if (!d) return pill('plain', `${name}: none yet`); const age = diffDays(d, t); return pill('plain ' + (age <= 1 ? 'good' : age <= 3 ? '' : 'warn'), `${name} ${age <= 0 ? 'today' : age === 1 ? 'yesterday' : fmtDate(d)}`); }; // newest data from each source; colour shows freshness
+  // Colour alone shows freshness (green: today or yesterday, grey: 2-3 days, amber: older or none); the dates are on the Data screen.
+  // "MacroFactor" means intake and weight from any route: MacroFactor writes them to Apple Health, so Health Auto Export keeps it fresh without an upload.
+  const one = (name, d) => { const age = d ? diffDays(d, t) : null, tone = d == null ? 'warn' : age <= 1 ? 'good' : age <= 3 ? '' : 'warn'; return `<span class="pill plain ${tone}" title="${esc(d ? `${name}: latest ${fmtDate(d)}` : `${name}: nothing yet`)}" aria-label="${esc(d ? `${name}, latest ${fmtDate(d)}` : `${name}, nothing yet`)}">${esc(name)}</span>`; };
   const hd = latestWith('stpi') || latestWith('hp');
   return `<div class="chips one" aria-label="Latest data from each source">${one('WHOOP', wd)}${one('MacroFactor', md)}${hd ? one('Apple Health', hd) : ''}</div>`;
 }

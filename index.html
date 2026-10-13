@@ -140,8 +140,7 @@ button.pill { border: 0; font: inherit; font-size: 12.5px; font-weight: 500; cur
 .sd.now { border-color: var(--accent); background: var(--accent-soft); }
 .sd.now.done { opacity: 1; } .sd.now.done b::after { content: ' ✓'; color: var(--good-ink); font-weight: 600; } /* today stays highlighted once logged */
 .chips.one { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; } .chips.one::-webkit-scrollbar { display: none; }
-.chips.one { display: grid; grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr); gap: 6px; } /* WHOOP left, MacroFactor centred, Apple Health right */
-.chips.one > :nth-child(1) { justify-self: start; } .chips.one > :nth-child(2) { justify-self: center; } .chips.one > :nth-child(3) { justify-self: end; } .chips.one .pill { font-size: 12px; padding: 3px 8px; flex: none; }
+.chips.one { gap: 6px; justify-content: space-between; } /* WHOOP left, Apple Health right, MacroFactor the same distance from each */ .chips.one .pill { font-size: 12px; padding: 3px 8px; flex: none; }
 .sd.done { opacity: .6; }
 .sd.rest b { color: var(--ink-3); font-weight: 500; }
 button.sd { font: inherit; color: inherit; text-align: left; cursor: pointer; }
@@ -533,7 +532,7 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.26'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.27'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
@@ -1818,7 +1817,9 @@ function arrange(tab, cards) { // cards: [{ k, t, h }] in default order; h is ''
 /* ---------- Body: WHOOP and MacroFactor ---------- */
 function freshHTML() { // how current each source is, so lagging data is obvious
   const t = today(), wd = latestWith('rec') || latestWith('slp'), md = latestWith('kcal') || latestWith('tw') || latestWith('wt');
-  const one = (name, d) => { if (!d) return pill('plain', `${name}: none yet`); const age = diffDays(d, t); return pill('plain ' + (age <= 1 ? 'good' : age <= 3 ? '' : 'warn'), `${name} ${age <= 0 ? 'today' : age === 1 ? 'yesterday' : fmtDate(d)}`); }; // newest data from each source; colour shows freshness
+  // Colour alone shows freshness (green: today or yesterday, grey: 2-3 days, amber: older or none); the dates are on the Data screen.
+  // "MacroFactor" means intake and weight from any route: MacroFactor writes them to Apple Health, so Health Auto Export keeps it fresh without an upload.
+  const one = (name, d) => { const age = d ? diffDays(d, t) : null, tone = d == null ? 'warn' : age <= 1 ? 'good' : age <= 3 ? '' : 'warn'; return `<span class="pill plain ${tone}" title="${esc(d ? `${name}: latest ${fmtDate(d)}` : `${name}: nothing yet`)}" aria-label="${esc(d ? `${name}, latest ${fmtDate(d)}` : `${name}, nothing yet`)}">${esc(name)}</span>`; };
   const hd = latestWith('stpi') || latestWith('hp');
   return `<div class="chips one" aria-label="Latest data from each source">${one('WHOOP', wd)}${one('MacroFactor', md)}${hd ? one('Apple Health', hd) : ''}</div>`;
 }
