@@ -354,26 +354,89 @@ function liftIds() {
 }
 /* A short "About" toggle for explanations, so the copy stays out of the way (v1.36) */
 const infoHTML = txt => `<details class="info"><summary>About this</summary><p class="xs muted">${txt}</p></details>`;
-/* Lift chart metrics (v1.36): estimated 1RM (the default), heaviest set, and session volume (load × reps over working sets) */
-const LIFT_M = { e1rm: 'e1RM', top: 'Heaviest', vol: 'Volume' };
+/* Lift chart metrics: estimated 1RM (the default), heaviest set, reps at that heaviest load, session volume (load × reps over
+   working sets) and relative strength (e1RM ÷ trend body weight at the date, kg lifts only). v1.36–v1.37 */
+const LIFT_M = { e1rm: 'e1RM', top: 'Heaviest', reps: 'Reps', vol: 'Volume', rel: '×BW' };
+function liftMetricsFor(id) { const u = exDef(id).u, scored = !(u === 'bw' && !bwScored(id)); if (!scored) return []; return Object.keys(LIFT_M).filter(k => k !== 'rel' || ((u === 'kg' || u === 'bw') && bwAt(null) != null)); }
 function liftMetric(id, m) {
-  const u = exDef(id).u, scored = !(u === 'bw' && !bwScored(id));
-  return lixEx(id).list.map(x => ({ date: x.date, top: x.top, sets: x.sets, y: m === 'top' && scored ? Math.max(...x.sets.map(s => s.w || 0)) : m === 'vol' ? sum(x.sets.map(s => (s.w || 0) * s.r)) || sum(x.sets.map(s => s.r)) : x.sc }));
+  return lixEx(id).list.map(x => {
+    const mw = Math.max(...x.sets.map(s => s.w || 0)), atTop = x.sets.filter(s => (s.w || 0) === mw);
+    const y = m === 'top' ? mw : m === 'reps' ? Math.max(...atTop.map(s => s.r)) : m === 'vol' ? (sum(x.sets.map(s => (s.w || 0) * s.r)) || sum(x.sets.map(s => s.r))) : m === 'rel' ? (bwAt(x.date) ? x.sc / bwAt(x.date) : null) : x.sc;
+    return { date: x.date, top: x.top, sets: x.sets, y, mw };
+  }).filter(p => p.y != null);
+}
+/* Rep maxes (v1.37): the heaviest load you've lifted for at least each rep count, with the date, beside what your best
+   e1RM predicts for that count (Epley, the same formula as everywhere else), rounded down to the lift's step. */
+function repMaxHTML(id) {
+  const d = exDef(id), list = lixEx(id).list; if (!list.length || (d.u === 'bw' && !bwScored(id))) return '';
+  const all = list.flatMap(x => x.sets.map(s => ({ ...s, date: x.date }))), maxR = Math.min(15, Math.max(d.hi + 2, ...all.map(s => s.r)));
+  const best = list.reduce((a, x) => !a || x.sc > a.sc ? x : a, null), st = exStep(id), bwk = d.u === 'bw' ? (bwAt(null) || 0) * bwShare(id) : 0;
+  const est = r => { const w = best.sc / (1 + r / 30) - bwk; return w > 0 ? Math.floor(w / st + 1e-6) * st : 0; };
+  const rows = []; for (let r = 1; r <= maxR; r++) { const c = all.filter(s => s.r >= r).sort((a, b) => (b.w || 0) - (a.w || 0) || (a.date < b.date ? -1 : 1))[0]; rows.push({ r, c }); }
+  const ld = w => `${fmtLoad(id, w)}${d.u === 'kg' ? ' kg' : ''}`, inRange = r => r >= d.lo && r <= d.hi;
+  return `<section class="card"><div class="card-h"><h2>Rep maxes</h2><span class="eyebrow">${esc(d.name)}</span></div><div class="tblwrap"><table class="tbl repmax"><thead><tr><th>Reps</th><th class="n">Best logged</th><th class="n">Date</th><th class="n">Predicted</th></tr></thead><tbody>
+    ${rows.map(({ r, c }) => `<tr class="${inRange(r) ? 'rng' : ''}"><td>${r}</td><td class="n">${c ? esc(ld(c.w || 0)) + (c.r > r ? ` <span class="xs muted">(${c.r})</span>` : '') : '<span class="muted">–</span>'}</td><td class="n xs muted">${c ? esc(fmtD(c.date)) : ''}</td><td class="n dim">${esc(ld(est(r)))}</td></tr>`).join('')}
+    </tbody></table></div>${infoHTML(`Best logged: the heaviest load you've done for at least that many reps (the reps actually done in brackets). Predicted: from your best estimated 1RM. Your ${d.lo}–${d.hi} rep range is highlighted.`)}</section>`;
+}
+/* Weekly sets per muscle (v1.37): a heatmap of the last 12 weeks, same counting as Volume, coloured by the research bands */
+function heatHTML() {
+  const t = today(), n = 12, wks = []; for (let k = n - 1; k >= 0; k--) { const ws = addDays(weekStart(t), -7 * k); wks.push({ ws, cur: k === 0, v: doneByGroup(ws, addDays(ws, 6)) }); }
+  const gs = GROUP_ORDER.filter(g => wks.some(w => w.v[g])); if (!gs.length) return '';
+  const tone = v => !v ? 'h0' : v < 3 ? 'h1' : v < 10 ? 'h2' : v <= 20 ? 'h3' : 'h4';
+  return `<section class="card"><div class="card-h"><h2>Weekly sets by muscle</h2><span class="eyebrow">by week</span></div>
+    <div class="tblwrap"><table class="heat"><thead><tr><th></th>${wks.map((w, i) => `<th class="${i < 4 ? 'old' : ''}" title="Week of ${esc(fmtDate(w.ws))}">${esc(fmtDate(w.ws).split(' ')[0])}<br><span>${esc(fmtDate(w.ws).split(' ')[1] || '')}</span></th>`).join('')}</tr></thead><tbody>
+    ${gs.map(g => `<tr><th>${esc(GROUPS[g])}</th>${wks.map((w, i) => { const v = w.v[g] || 0; return `<td class="${tone(v)}${w.cur ? ' cur' : ''}${i < 4 ? ' old' : ''}" title="${esc(GROUPS[g])}, week of ${esc(fmtDate(w.ws))}: ${fmt(v, 1)} sets">${v ? fmt(v, v % 1 ? 1 : 0) : ''}</td>`; }).join('')}</tr>`).join('')}
+    </tbody></table></div><div class="legend heatk"><span><i class="h1"></i>under 3</span><span><i class="h2"></i>3–10</span><span><i class="h3"></i>10–20</span><span><i class="h4"></i>over 20</span></div>
+    ${infoHTML('Hard sets per muscle each week (Monday start), compounds counting half for the muscles they also work, warm-ups left out. The colours follow the Volume bands: about 3 a week holds, 10–20 grows. This week so far is outlined.')}</section>`;
+}
+/* Recovery vs performance (v1.37): each session's lifts against the median of that lift's previous 3 sessions (top e1RM),
+   averaged, plotted against that morning's WHOOP recovery. Bucket means by recovery colour sit underneath. */
+function recPerfData() {
+  const out = [];
+  for (const w of workoutsSorted()) { if (w.rest) continue; const rec = dayVal(w.date, 'rec'); if (rec == null) continue;
+    const rs = []; for (const e of w.ex || []) { const list = lixEx(e.id).list, i = list.findIndex(x => x.date === w.date); if (i < 3) continue; const ref = median(list.slice(i - 3, i).map(x => x.sc)); if (ref > 0) rs.push(list[i].sc / ref - 1); }
+    if (rs.length) out.push({ date: w.date, rec, p: mean(rs) * 100, n: rs.length, s: sessName(w) }); }
+  return out;
+}
+function recPerfHTML() {
+  const pts = recPerfData(); if (pts.length < 3) return `<section class="card"><div class="card-h"><h2>Recovery and performance</h2></div><p class="small dim">Needs a few sessions on days with a WHOOP recovery, and lifts with 3 sessions behind them.</p></section>`;
+  const bk = [['good', 'Green', p => p.rec >= 67], ['warn', 'Yellow', p => p.rec >= 34 && p.rec < 67], ['bad', 'Red', p => p.rec < 34]].map(([tone, l, f]) => { const v = pts.filter(f); return { tone, l, n: v.length, m: v.length ? mean(v.map(p => p.p)) : null }; });
+  const n = pts.length, mx = mean(pts.map(p => p.rec)), my = mean(pts.map(p => p.p)), sxx = sum(pts.map(p => (p.rec - mx) ** 2)), b = sxx ? sum(pts.map(p => (p.rec - mx) * (p.p - my))) / sxx : 0, a = my - b * mx;
+  const r = sxx && pts.some(p => p.p !== my) ? sum(pts.map(p => (p.rec - mx) * (p.p - my))) / Math.sqrt(sxx * sum(pts.map(p => (p.p - my) ** 2))) : 0;
+  const series = [{ color: 'var(--ink-3)', pts: [{ x: 0, y: a }, { x: 100, y: a + b * 100 }], w: 1.5, faint: true }];
+  for (const [tone, f] of [['good', p => p.rec >= 67], ['warn', p => p.rec >= 34 && p.rec < 67], ['bad', p => p.rec < 34]]) series.push({ color: `var(--${tone})`, pts: pts.filter(f).map(p => ({ x: p.rec, y: p.p })), line: false, dots: true, r: 4 });
+  const byX = {}; for (const p of pts) (byX[Math.round(p.rec)] = byX[Math.round(p.rec)] || []).push(p);
+  return `<section class="card"><div class="card-h"><h2>Recovery and performance</h2><span class="eyebrow">${n} sessions</span></div>
+    <span class="small dim">Lifts against their last 3 sessions (%), by that morning's recovery</span>
+    ${chartHTML({ h: 180, x0: 0, x1: 100, xTicks: [0, 33, 67, 100], xFmt: x => x + '%', yFmt: v => (v > 0 ? '+' : '') + fmt(v, 0) + '%', yPad: 1, refY: { v: 0 }, series, hoverXs: Object.keys(byX).map(Number), tip: x => (byX[x] || []).map(p => `<b>${esc(fmtDate(p.date))}</b> ${esc(p.s)}<br>${fmt(p.rec, 0)}% recovery · ${p.p >= 0 ? '+' : '−'}${fmt(Math.abs(p.p), 1)}%`).join('<br>'), label: 'Recovery against performance' })}
+    <div class="rtiles">${bk.map(x => `<div class="rt"><span><i class="dot" style="background:var(--${x.tone})"></i>${x.l} days</span>${x.m == null ? '<b class="nil">–</b>' : `<b>${x.m >= 0 ? '+' : '−'}${fmt(Math.abs(x.m), 1)}<small>%</small></b>`}<em>${x.n} session${x.n === 1 ? '' : 's'}</em></div>`).join('')}</div>
+    ${infoHTML(`Each dot is a session: the average of its lifts' best estimated 1RM against the median of that lift's previous 3 sessions, so 0% is a typical day for you. Line: the straight-line fit (r = ${fmt(r, 2)}${n < 15 ? '; with under 15 sessions treat it as a hint' : ''}).`)}</section>`;
+}
+/* New bests over time (v1.37): count per week for 12 weeks, then the latest ones with how far each beat the old best */
+function prTimelineHTML() {
+  const t = today(), from = addDays(weekStart(t), -7 * 11), prs = [];
+  for (const w of workoutsSorted()) { if (w.date < addDays(from, -200)) continue; const seen = {}; for (const p of prsIn(w)) { const prev = seen[p.id] ?? bestBefore(p.id, w.date), sc = setScore(p.id, p.s, w.date); prs.push({ date: w.date, id: p.id, s: p.s, up: prev > 0 ? sc / prev - 1 : null }); seen[p.id] = sc; } }
+  if (!prs.length) return '';
+  const bars = []; for (let k = 0; k < 12; k++) { const ws = addDays(from, 7 * k), we = addDays(ws, 6); bars.push({ x: k, v: prs.filter(p => p.date >= ws && p.date <= we).length, ws }); }
+  const last = prs.slice(-10).reverse();
+  return `<section class="card"><div class="card-h"><h2>New bests</h2><span class="eyebrow">${prs.filter(p => p.date >= from).length} in 12 weeks</span></div>
+    ${chartHTML({ h: 120, x0: 0, x1: 11, xTicks: [0, 4, 8, 11], xFmt: k => fmtDate(bars[k].ws), bars: bars.map(b => ({ x: b.x, v: b.v, color: 'var(--accent)' })), barMax: 16, yMin: 0, yTicks: 2, yFmt: v => fmt(v, 0), hoverXs: bars.map(b => b.x), tip: k => `<b>Week of ${esc(fmtDate(bars[k].ws))}</b><br>${bars[k].v} new best${bars[k].v === 1 ? '' : 's'}`, label: 'New bests per week' })}
+    <ul class="exlist recent">${last.map(p => `<li><span>${esc(exDef(p.id).name)}<small class="xs muted"> · ${esc(fmtD(p.date))}</small></span><span class="rx">${esc(fmtSet(p.id, p.s))}${p.up != null ? ` <span class="tn-good">+${fmt(p.up * 100, 1)}%</span>` : ''}</span></li>`).join('')}</ul></section>`;
 }
 function vStrength() {
   const t = today(), ids = liftIds();
   let h = `<div class="page-h"><div><div class="eyebrow">From your logbook</div><h1>Strength</h1></div></div>`;
   if (!ids.length) return h + `<section class="card"><p class="dim small">Log a session, or add your maxes under Plan → Exercises, and your lifts show up here.</p></section>`;
   const pick = ui.lift && ids.includes(ui.lift) ? ui.lift : (ids.find(id => liftSeries(id).length) || ids[0]);
-  const u = exDef(pick).u, scored = !(u === 'bw' && !bwScored(pick)), m = scored && LIFT_M[ui.liftM] ? ui.liftM : 'e1rm';
+  const u = exDef(pick).u, mets = liftMetricsFor(pick), scored = mets.length > 0, m = mets.includes(ui.liftM) ? ui.liftM : 'e1rm';
   const ser = liftMetric(pick, m), from = ser.length && diffDays(ser[0].date, t) > 27 ? ser[0].date : addDays(t, -27), ax = dateAxis(from, t), xi = d => diffDays(from, d);
-  const unit = u === 'plates' ? 'pl' : 'kg', ys = ser.map(p => p.y), lo = Math.min(...ys), hi = Math.max(...ys), span = hi - lo, padY = Math.max(u === 'plates' ? .1 : 1, ys.length ? (span < Math.abs(hi) * .04 ? Math.abs(hi) * .04 : span * .15) : 1); // one point or a flat run still gets a sensible axis
-  const yLab = !scored ? 'Best reps per session' : m === 'top' ? `Heaviest set per session (${u === 'plates' ? 'plates / side' : u === 'bw' ? 'kg added' : 'kg'})` : m === 'vol' ? `Session volume (${unit} × reps, working sets)` : `Estimated 1RM per session (${u === 'plates' ? 'plates / side' : u === 'bw' ? 'kg, body weight included' : 'kg'})`;
+  const unit = u === 'plates' ? 'pl' : 'kg', ys = ser.map(p => p.y), lo = Math.min(...ys), hi = Math.max(...ys), span = hi - lo, padY = Math.max(m === 'rel' ? .02 : m === 'reps' ? 1 : u === 'plates' ? .1 : 1, ys.length ? (span < Math.abs(hi) * .04 ? Math.abs(hi) * .04 : span * .15) : 1); // one point or a flat run still gets a sensible axis
+  const yLab = !scored ? 'Best reps per session' : m === 'reps' ? 'Reps at the heaviest load of each session' : m === 'rel' ? 'Estimated 1RM ÷ trend body weight' : m === 'top' ? `Heaviest set per session (${u === 'plates' ? 'plates / side' : u === 'bw' ? 'kg added' : 'kg'})` : m === 'vol' ? `Session volume (${unit} × reps, working sets)` : `Estimated 1RM per session (${u === 'plates' ? 'plates / side' : u === 'bw' ? 'kg, body weight included' : 'kg'})`;
   const recent = lixEx(pick).list.slice(-6).reverse();
   const cards = [];
   cards.push({ k: 'chart', t: 'Lift chart', h: `<section class="card" id="liftchart"><label class="fl">Lift<select class="in" id="liftpick" data-in="lift">${ids.map(id => `<option value="${id}" ${id === pick ? 'selected' : ''}>${esc(exDef(id).name)}</option>`).join('')}</select></label>
-    <div class="card-h"><span class="small dim">${esc(yLab)}</span>${scored ? `<div class="seg" role="group" aria-label="Measure">${Object.entries(LIFT_M).map(([k, l]) => `<button class="${k === m ? 'on' : ''}" data-act="liftm" data-v="${k}">${l}</button>`).join('')}</div>` : ''}</div>
-    ${chartHTML({ h: 170, ...ax, refY: null, yPad: padY, yFmt: v => fmt(v, u === 'plates' && m !== 'vol' ? 2 : 0), series: [{ color: 'var(--s1)', pts: ser.map(p => ({ x: xi(p.date), y: p.y })), dots: true, r: 3.5, end: true }], hoverXs: ser.map(p => xi(p.date)), tip: x => { const p = ser.find(q => xi(q.date) === x); return p ? `<b>${esc(fmtDate(p.date))}</b><br>${esc(fmtSet(pick, p.top))} · ${esc(m === 'e1rm' ? scoreTxt(pick, p.y) : m === 'vol' ? fmt(p.y, 0) + ' ' + unit + ' × reps' : fmtLoad(pick, p.y) + (u === 'kg' ? ' kg' : ''))}` : ''; }, empty: 'No sets logged for this lift yet', label: 'Lift trend' })}
+    ${scored ? `<div class="seg full" role="group" aria-label="Measure">${mets.map(k => `<button class="${k === m ? 'on' : ''}" data-act="liftm" data-v="${k}">${LIFT_M[k]}</button>`).join('')}</div>` : ''}<span class="small dim">${esc(yLab)}</span>
+    ${chartHTML({ h: 170, ...ax, refY: null, yPad: padY, yFmt: v => m === 'rel' ? fmt(v, 2) + '×' : fmt(v, u === 'plates' && m !== 'vol' && m !== 'reps' ? 2 : 0), series: [{ color: 'var(--s1)', pts: ser.map(p => ({ x: xi(p.date), y: p.y })), dots: true, r: 3.5, end: true }], hoverXs: ser.map(p => xi(p.date)), tip: x => { const p = ser.find(q => xi(q.date) === x); return p ? `<b>${esc(fmtDate(p.date))}</b><br>${esc(fmtSet(pick, p.top))} · ${esc(m === 'e1rm' ? scoreTxt(pick, p.y) : m === 'vol' ? fmt(p.y, 0) + ' ' + unit + ' × reps' : m === 'reps' ? p.y + ' reps at ' + fmtLoad(pick, p.mw) + (u === 'kg' ? ' kg' : '') : m === 'rel' ? fmt(p.y, 2) + '× body weight' : fmtLoad(pick, p.y) + (u === 'kg' ? ' kg' : ''))}` : ''; }, empty: 'No sets logged for this lift yet', label: 'Lift trend' })}
     ${recent.length ? `<div class="sec"><span class="eyebrow">Recent sessions</span><ul class="exlist recent">${recent.map(x => `<li><span class="mono xs">${esc(fmtD(x.date))}</span><span class="rx">${esc(setsTxt(pick, x.sets))}</span></li>`).join('')}</ul></div>` : ''}</section>` });
   const bestLogged = id => lixEx(id).list.reduce((a, x) => !a || x.sc > a.sc ? x : a, null); // stated maxes are only a starting point for the Aim, so Best waits for real sets
   const row = id => { const mm = maintenance(id), [tone, word] = MSTATE[mm.state]; return `<tr class="${id === pick && ui.lift ? 'sel' : ''}" data-act="liftsel" data-id="${id}"><td>${esc(exDef(id).name)}</td>
@@ -401,6 +464,10 @@ function vStrength() {
   cards.push({ k: 'volume', t: 'Volume, last 7 days', h: `<section class="sec" data-card="volume"><div class="sec-h"><span class="eyebrow">Volume · last 7 days</span></div><section class="card"><div class="legend"><span><i class="ln" style="background:var(--s1);height:8px;width:12px"></i>Sets done</span><span><i class="tk"></i>Hold, ~${HOLD}</span><span><i class="bandk"></i>Grow, ${GLO}–${GHI}</span></div>
     <ul class="hbars">${gs.map(g => { const n = done[g] || 0, tn = tone(n, g); return `<li><span class="lab">${esc(GROUPS[g])}</span><span class="trk"><span class="band" style="left:${pc(GLO)}%;width:${pc(GHI) - pc(GLO)}%"></span><span class="fill" style="width:${pc(Math.min(n, mx))}%"></span><span class="tgt" style="left:calc(${pc(HOLD)}% - 1px)"></span></span><span class="v ${tn ? 'tn-' + tn : ''}"${tn === 'due' ? ' title="Its session is coming up"' : ''}>${fmt(n, 1)}</span></li>`; }).join('')}</ul>
     ${infoHTML('Hard sets per muscle over the last 7 days; compounds count half for the muscles they also work, and warm-ups don\'t count. About 3 a week holds (Bickel et al., 2011); 10–20 grows (Schoenfeld et al., 2017; Pelland et al., 2024). Grey: that muscle\'s session is due in the next 2 days.')}</section></section>` });
+  cards.push({ k: 'repmax', t: 'Rep maxes', h: repMaxHTML(pick) });
+  cards.push({ k: 'heat', t: 'Weekly sets by muscle', h: heatHTML() });
+  cards.push({ k: 'prs', t: 'New bests', h: prTimelineHTML() });
+  cards.push({ k: 'recperf', t: 'Recovery and performance', h: recPerfHTML() });
   const det = doneByGroupDetail(addDays(t, -6), t), dg = GROUP_ORDER.filter(g => det[g]);
   if (dg.length) cards.push({ k: 'volsrc', t: 'Volume breakdown', h: `<section class="sec" data-card="volsrc"><div class="sec-h"><span class="eyebrow">Volume breakdown · last 7 days</span></div><section class="card"><div class="tblwrap"><table class="tbl volsrc"><thead><tr><th>Exercise</th><th class="n">Sets</th><th class="n">Counts</th></tr></thead>
     ${dg.map(g => `<tbody><tr class="grp"><th scope="rowgroup">${esc(GROUPS[g])}</th><td></td><td class="n">${fmt(sum(det[g].map(r => r.credit)), 1)}</td></tr>

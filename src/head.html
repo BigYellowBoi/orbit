@@ -59,9 +59,9 @@ button { cursor: pointer; }
 @media (min-width: 1100px) {
   :root { --maxw: 1120px; }
   #view:not(.cols) { max-width: 720px; margin-inline: auto; width: 100%; }
-  #view.cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
-  #view.cols > :is(.page-h, .chips, .seg, p, .btnrow, .srch) { grid-column: 1 / -1; }
-  #view.cols > * { width: 100%; } /* without an explicit width Chromium skipped laying out flex children of some cards here */
+  #view.cols { display: block; columns: 2; column-gap: 16px; } /* balanced columns, so a long card doesn't leave a hole beside it (a grid did) */
+  #view.cols > * { break-inside: avoid; margin-bottom: 16px; width: 100%; }
+  #view.cols > :is(.page-h, .chips, .seg, p, .btnrow, .srch) { column-span: all; }
 }
 /* set fields stay a sensible width on wide screens */
 @media (min-width: 700px) { .set { grid-template-columns: 26px minmax(0, 170px) minmax(0, 170px) 22px; justify-content: start; } .set .lastset { text-align: center; } }
@@ -197,6 +197,19 @@ button.sd { font: inherit; color: inherit; text-align: left; cursor: pointer; }
 .seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line); }
 .seg button { border: 0; background: transparent; min-height: 30px; padding: 4px 10px; border-radius: 7px; font-size: 12.5px; font-weight: 500; color: var(--ink-3); font-family: var(--f-mono); }
 .seg button.on { background: var(--surface-3); color: var(--ink); }
+.seg.full { display: flex; width: 100%; } .seg.full button { flex: 1; padding-inline: 4px; }
+/* v1.37 charts */
+.tbl.repmax tr.rng td { background: var(--accent-soft); } .tbl.repmax tr.rng td:first-child { box-shadow: inset 2px 0 0 var(--accent); padding-left: 8px; }
+table.heat { border-collapse: separate; border-spacing: 3px; font-size: 11.5px; font-variant-numeric: tabular-nums; }
+table.heat thead th { font-family: var(--f-mono); font-weight: 500; color: var(--ink-3); line-height: 1.15; padding-bottom: 2px; min-width: 30px; } table.heat thead th span { font-weight: 400; }
+table.heat tbody th { text-align: left; font-weight: 500; color: var(--ink-2); padding-right: 8px; white-space: nowrap; position: sticky; left: 0; background: var(--surface); z-index: 1; }
+@container (max-width: 520px) { table.heat .old { display: none; } } /* 8 weeks on a phone, 12 on wide screens */
+table.heat td { width: 30px; height: 26px; text-align: center; border-radius: 6px; color: var(--ink); }
+table.heat .h0 { background: var(--surface-2); } table.heat .h1 { background: var(--warn-soft); color: var(--warn-ink); } table.heat .h2 { background: var(--accent-soft); }
+table.heat .h3 { background: var(--good-soft); color: var(--good-ink); } table.heat .h4 { background: rgba(22, 236, 6, .3); color: var(--good-ink); } table.heat td.cur { outline: 1px dashed var(--line-2); outline-offset: -1px; }
+.heatk i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; } .heatk .h1 { background: var(--warn-soft); } .heatk .h2 { background: var(--accent-soft); } .heatk .h3 { background: var(--good-soft); } .heatk .h4 { background: rgba(22, 236, 6, .3); }
+.rt > span .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; } .rt b.tn-good { color: var(--good-ink); } .rt b.tn-warn { color: var(--warn-ink); } .rt b.tn-bad { color: var(--bad-ink); }
+.exlist .tn-good { color: var(--good-ink); }
 .seg.plantabs { display: flex; width: 100%; } .seg.plantabs button { flex: 1; min-height: 36px; font-size: 13px; }
 
 /* inputs */

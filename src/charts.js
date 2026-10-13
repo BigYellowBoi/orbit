@@ -88,7 +88,7 @@ function hideChartTips(except) { document.querySelectorAll('.chart').forEach(c =
 document.addEventListener('scroll', () => hideChartTips(), true);
 document.addEventListener('pointerdown', e => hideChartTips(e.target.closest?.('.chart')), true);
 let resizeT; window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(() => drawCharts(), 150); });
-function monYr(s) { return `${new Date(toUTC(s)).toLocaleDateString('en-AU', { timeZone: 'UTC', month: 'short' }).replace('Sept', 'Sep')} ’${s.slice(2, 4)}`; } // Oct ’25
+function monYr(s) { return `${new Date(toUTC(s)).toLocaleDateString('en-AU', { timeZone: 'UTC', month: 'short' }).replace(/\b(Sept|June|July)\b/, m => m.slice(0, 3))} ’${s.slice(2, 4)}`; } // Oct ’25
 function dateAxis(from, to) { // x = day index from `from`
   const n = diffDays(from, to); const k = n <= 14 ? 3 : n <= 45 ? 7 : n <= 120 ? 21 : n <= 200 ? 60 : n <= 400 ? 91 : 120; const ticks = [];
   for (let i = n; i >= 0; i -= k) ticks.unshift(i);
