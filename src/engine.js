@@ -339,32 +339,74 @@ function latestWith(k, onOrBefore = today()) {
 }
 const stepsOf = d => dayVal(d, 'stp') ?? dayVal(d, 'stpi'); // WHOOP's count first, the iPhone's when WHOOP has none
 /* Trend weight and expenditure for days MacroFactor's export doesn't cover (Apple Health only carries intake and scale
-   weight). Trend: scale weight smoothed 10% per weigh-in, carrying on from MacroFactor's trend wherever one exists, shown
-   up to 7 days past the last weigh-in. Expenditure: average intake over the 28 days before, minus the change in trend
-   weight over them (7700 kcal per kg); needs at least 21 logged days. MacroFactor's own numbers always win. */
+   weight), modelled on MacroFactor and tuned against Louis's MacroFactor export (Feb to Oct 2026, run on intake and
+   scale weight alone: expenditure off by 31 kcal/day on average, about 40 on a held-out half; trend weight exact to
+   0.01 kg). Only r and qE were fitted; the rest are fixed. MacroFactor's own numbers always win and reseed the model.
+   - Trend weight: MacroFactor's own method, reproduced from its export: scale weights linearly interpolated across the
+     days between weigh-ins, then a 10%/day moving average. Shown up to 7 days past the last weigh-in.
+   - Expenditure: a Kalman filter tracking weight and expenditure together, stepped daily. Weight moves by (intake -
+     expenditure) / energy density and is corrected by the trend weight; expenditure is a slow random walk.
+   - Energy density: Hall (2008), with Forbes' partition: p = 10.4 / (10.4 + fat kg) of a change is lean (1,816 kcal/kg),
+     the rest fat (9,441 kcal/kg). Fat mass starts at XP.bf of body weight and moves with the partition.
+   - Missing data (MacroFactor V3): updates pause while more than 3 of the last 7 days have no intake. A day under half
+     the mean of the other logged days in its 7 counts as partly logged: its intake is ignored like a blank day's.
+     A blank or partly logged day's intake is assumed equal to expenditure, with a wide error.
+   Steps were tried as a slow nudge (shifting expenditure, or speeding updates while the step trend moves); neither
+   brought the error down against MacroFactor, so they stay out. */
+const XP = { a: 0.1, gap: 30, r: 0.03, qE: 56, qW: 1e-4, sLog: 0.1, sMiss: 0.35, part: 0.5, pause: 3, e0: 32, pE0: 3500, bf: 0.16 };
+const HALL = { C: 10.4, lean: 1816, fat: 9441 };
+function xpRun(D, t0, P = XP) {
+  const tw = {}, exp = {}, kc = d => D[d]?.kcal > 0 ? D[d].kcal : null;
+  const ds = Object.keys(D).filter(d => d <= t0 && (D[d].wt != null || D[d].tw != null || D[d].kcal != null)).sort();
+  if (!ds.length) return { tw, exp };
+  const wts = ds.filter(d => D[d].wt != null);
+  // trend weight, with the filter's observation for each day (weigh-in days, and days inside gaps of up to P.gap days)
+  const T = {}, obs = {}; let t = null, wi = 0, lastW = null;
+  for (let d = ds[0]; d <= t0; d = addDays(d, 1)) {
+    while (wi < wts.length && wts[wi] < d) wi++;
+    const nx = wts[wi], pv = wi > 0 ? wts[wi - 1] : null, x = D[d] || {};
+    let iw = null, g = 0;
+    if (nx === d) iw = x.wt; else if (pv && nx) { g = diffDays(pv, nx); iw = D[pv].wt + (D[nx].wt - D[pv].wt) * diffDays(pv, d) / g; }
+    if (x.tw != null) t = x.tw; else if (iw != null) t = t == null ? iw : t + P.a * (iw - t);
+    if (x.wt != null || x.tw != null) lastW = d;
+    if (t == null) continue;
+    T[d] = t; if (x.tw != null || nx === d || (iw != null && g <= P.gap)) obs[d] = t;
+    if (x.tw == null && diffDays(lastW, d) <= 7) tw[d] = Math.round(t * 100) / 100;
+  }
+  // the filter: state [W kg, E kcal/day], covariance [[pw, pc], [pc, pe]]
+  const use = {}, usable = d => { // logged and not partly logged
+    if (d in use) return use[d];
+    const v = kc(d); if (v == null) return use[d] = null;
+    const o = []; for (let i = 1; i < 7; i++) { const x = kc(addDays(d, -i)); if (x != null) o.push(x); }
+    return use[d] = o.length && v < P.part * mean(o) ? null : v;
+  };
+  let W = null, E = null, F = null, pw = 0, pc = 0, pe = 0, lastD = null;
+  for (let d = ds[0]; d <= t0; d = addDays(d, 1)) {
+    const x = D[d] || {};
+    let miss = 0; for (let i = 0; i < 7; i++) if (kc(addDays(d, -i)) == null) miss++;
+    const paused = miss > P.pause;
+    if (W == null) { if (T[d] == null) continue; W = T[d]; E = x.exp ?? P.e0 * W; F = P.bf * W; pw = P.r; pe = P.pE0; }
+    if (obs[d] != null) { // correct with the trend weight; a paused filter corrects weight only
+      const s = pw + P.r, kw = pw / s, ke = paused ? 0 : pc / s, y = obs[d] - W;
+      W += kw * y; E += ke * y;
+      pe = pe - 2 * ke * pc + ke * ke * s; pc = paused ? 0 : (1 - kw) * pc; pw = (1 - kw) * pw; // Joseph form, so a zeroed gain stays valid
+    }
+    if (x.exp != null) { E = x.exp; if (T[d] != null) W = T[d]; } // MacroFactor's numbers reseed the state
+    if (x.wt != null || x.tw != null || kc(d) != null) lastD = d;
+    if (x.exp == null && diffDays(lastD, d) <= 7) exp[d] = Math.round(E);
+    // step to tomorrow on today's intake
+    const I = usable(d), vI = I != null ? (P.sLog * I) ** 2 : (P.sMiss * E) ** 2;
+    const p = HALL.C / (HALL.C + Math.max(F, 1)), rho = p * HALL.lean + (1 - p) * HALL.fat, dW = ((I ?? E) - E) / rho, a = -1 / rho;
+    W += dW; F += (1 - p) * dW;
+    const npw = pw + 2 * a * pc + a * a * pe + vI / rho / rho + P.qW, npc = pc + a * pe;
+    pw = npw; pc = paused ? 0 : npc; pe += paused ? 0 : P.qE;
+  }
+  return { tw, exp };
+}
 let DER = { key: null };
 function derived() {
   const key = STATE.v + ':' + Object.keys(STATE.d).length + ':' + today(); if (DER.key === key) return DER; // today: a new day extends the trend
-  const tw = {}, exp = {}, t0 = today(), D = STATE.d;
-  const ds = Object.keys(D).filter(d => d <= t0 && (D[d].wt != null || D[d].tw != null || D[d].kcal != null)).sort();
-  if (ds.length) {
-    let t = null, lastW = null;
-    for (let d = ds[0]; d <= t0; d = addDays(d, 1)) {
-      const x = D[d] || {};
-      if (x.tw != null) t = x.tw; else if (x.wt != null) t = t == null ? x.wt : t + 0.1 * (x.wt - t);
-      if (x.wt != null || x.tw != null) lastW = d;
-      if (x.tw == null && t != null && diffDays(lastW, d) <= 7) tw[d] = Math.round(t * 100) / 100;
-    }
-    const twv = d => D[d]?.tw ?? tw[d];
-    for (let d = addDays(ds[0], 28); d <= t0; d = addDays(d, 1)) {
-      if (D[d]?.exp != null) continue;
-      const a = addDays(d, -28), b = addDays(d, -1), wa = twv(a), wb = twv(b); if (wa == null || wb == null) continue;
-      const k = []; for (let i = 1; i <= 28; i++) { const v = D[addDays(d, -i)]?.kcal; if (v != null) k.push(v); }
-      if (k.length < 21) continue;
-      exp[d] = Math.round((mean(k) - (wb - wa) * 7700 / 27) / 10) * 10;
-    }
-  }
-  return DER = { key, tw, exp };
+  return DER = { key, ...xpRun(STATE.d, today()) };
 }
 function avgOver(k, end, days, excludeEnd) {
   const v = []; for (let i = excludeEnd ? 1 : 0; i < days + (excludeEnd ? 1 : 0); i++) { const x = dayVal(addDays(end, -i), k); if (x != null) v.push(x); }

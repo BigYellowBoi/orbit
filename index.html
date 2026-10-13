@@ -105,7 +105,34 @@ button { cursor: pointer; }
 .card-h h2 { font-size: 17px; }
 .grid2 { display: grid; grid-template-columns: 1fr; gap: 14px; }
 @media (min-width: 640px) { .grid2 { grid-template-columns: 1fr 1fr; } }
-.recov { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 18px; align-items: center; }
+/* Recovery card: ring + key rows, then equal tiles. Every cell is label, value, one sub line, so rows line up. */
+.rcard { gap: 14px; }
+.rtop { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 18px; align-items: center; }
+.rkeys { display: flex; flex-direction: column; min-width: 0; }
+.rk { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'l v' 's v'; column-gap: 10px; align-items: center; padding: 7px 0; border-top: 1px solid var(--line); min-width: 0; }
+.rk:first-child { border-top: 0; padding-top: 0; } .rk:last-child { padding-bottom: 0; }
+.rk > span { grid-area: l; font-size: 13px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rk > b { grid-area: v; font-size: 22px; }
+.rk > em { grid-area: s; }
+.rtiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.rt { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line); min-width: 0; }
+.rt > span { font-family: var(--f-mono); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rt > b { font-size: 20px; }
+.rk > b, .rt > b { font-weight: 600; letter-spacing: -.02em; line-height: 1.15; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rk > b small, .rt > b small { font-size: 12px; font-weight: 500; color: var(--ink-3); margin-left: 3px; letter-spacing: 0; }
+.rk > b.nil, .rt > b.nil { color: var(--ink-3); }
+.rt > b.strain { color: var(--strain); }
+.rk > em, .rt > em { font-style: normal; font-size: 11.5px; color: var(--ink-3); line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rcard em.tn-good { color: var(--good-ink); } .rcard em.tn-warn { color: var(--warn-ink); }
+.rsrc { font-family: var(--f-mono); font-size: 11px; letter-spacing: .04em; color: var(--ink-3); }
+@container (max-width: 340px) { .rtiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } .rtop { grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 14px; } .rkeys { width: 100%; } }
+@container (min-width: 600px) { /* wide screens: ring, then the three key numbers side by side; tiles in one row */
+  .rtop { gap: 28px; }
+  .rkeys { flex-direction: row; }
+  .rk { flex: 1; grid-template-columns: minmax(0, 1fr); grid-template-areas: 'l' 'v' 's'; row-gap: 4px; padding: 2px 0 2px 20px; border-top: 0; border-left: 1px solid var(--line); }
+  .rk:first-child { border-left: 0; padding-left: 0; } .rk > b { font-size: 28px; }
+  .rtiles { gap: 10px; } .rt { padding: 12px 14px; } .rt > b { font-size: 22px; }
+}
 .ring { width: 112px; height: 112px; position: relative; display: grid; place-items: center; flex: none; }
 .ring svg { position: absolute; inset: 0; transform: rotate(-90deg); }
 .ring b { font-size: 26px; font-weight: 600; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
@@ -396,9 +423,11 @@ details.more > summary::-webkit-details-marker { display: none; }
 .fab.on { opacity: 1; transform: none; pointer-events: auto; }
 .fab i { position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--accent); color: #0b0b10; font: 600 11px/18px var(--f-mono); font-style: normal; text-align: center; }
 body:has(#updp) .fab { bottom: calc(var(--tabh) + max(8px, calc(env(safe-area-inset-bottom, 0px) - 8px)) + 84px); }
-.set.seek { animation: seek 1.5s ease-out; border-radius: 10px; }
+/* the seek ring wraps only the weight and reps boxes (columns 2-3), not the set number or tick */
+.set { position: relative; }
+.set.seek::after { content: ''; position: absolute; grid-column: 2 / 4; grid-row: 1; inset: -3px; border-radius: 12px; pointer-events: none; animation: seek 1.5s ease-out forwards; }
 @keyframes seek { 0%, 30% { box-shadow: 0 0 0 2px var(--accent), 0 0 14px var(--glow); } 100% { box-shadow: 0 0 0 2px transparent; } }
-.stat.flash b, .ring.flash { animation: liveflash 1.6s ease-out; }
+.stat.flash b, .rk.flash b, .rt.flash b, .ring.flash { animation: liveflash 1.6s ease-out; }
 @keyframes liveflash { 0% { color: var(--accent); text-shadow: 0 0 12px var(--glow); transform: scale(1.04); } 100% { text-shadow: none; transform: none; } }
 #mark { position: relative; }
 #mark.pulse::after { content: ''; position: absolute; inset: -8px; border-radius: 50%; background: radial-gradient(circle, var(--glow) 0%, transparent 68%); pointer-events: none; animation: markpulse 1.4s ease-out forwards; } /* round glow behind the logo when new data lands */
@@ -409,7 +438,7 @@ body:has(#updp) .fab { bottom: calc(var(--tabh) + max(8px, calc(env(safe-area-in
 @keyframes donein { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: none; } }
 @keyframes donepop { from { opacity: 0; transform: scale(.5); } to { opacity: 1; transform: none; } }
 @keyframes donefill { from { transform: scaleX(0); } to { transform: none; } }
-@media (prefers-reduced-motion: reduce) { .hero.just, .hero.just .pill.good, .hero.just .rot i.on, .stat.flash b, .ring.flash, #mark.pulse::after, .set.seek { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .hero.just, .hero.just .pill.good, .hero.just .rot i.on, .stat.flash b, .rk.flash b, .rt.flash b, .ring.flash, #mark.pulse::after, .set.seek { animation: none; } }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 .toast.pr { border-color: var(--accent); } .toast.bad { border-color: var(--bad); }
 @media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
@@ -534,7 +563,7 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.31'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.32'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
@@ -887,32 +916,74 @@ function latestWith(k, onOrBefore = today()) {
 }
 const stepsOf = d => dayVal(d, 'stp') ?? dayVal(d, 'stpi'); // WHOOP's count first, the iPhone's when WHOOP has none
 /* Trend weight and expenditure for days MacroFactor's export doesn't cover (Apple Health only carries intake and scale
-   weight). Trend: scale weight smoothed 10% per weigh-in, carrying on from MacroFactor's trend wherever one exists, shown
-   up to 7 days past the last weigh-in. Expenditure: average intake over the 28 days before, minus the change in trend
-   weight over them (7700 kcal per kg); needs at least 21 logged days. MacroFactor's own numbers always win. */
+   weight), modelled on MacroFactor and tuned against Louis's MacroFactor export (Feb to Oct 2026, run on intake and
+   scale weight alone: expenditure off by 31 kcal/day on average, about 40 on a held-out half; trend weight exact to
+   0.01 kg). Only r and qE were fitted; the rest are fixed. MacroFactor's own numbers always win and reseed the model.
+   - Trend weight: MacroFactor's own method, reproduced from its export: scale weights linearly interpolated across the
+     days between weigh-ins, then a 10%/day moving average. Shown up to 7 days past the last weigh-in.
+   - Expenditure: a Kalman filter tracking weight and expenditure together, stepped daily. Weight moves by (intake -
+     expenditure) / energy density and is corrected by the trend weight; expenditure is a slow random walk.
+   - Energy density: Hall (2008), with Forbes' partition: p = 10.4 / (10.4 + fat kg) of a change is lean (1,816 kcal/kg),
+     the rest fat (9,441 kcal/kg). Fat mass starts at XP.bf of body weight and moves with the partition.
+   - Missing data (MacroFactor V3): updates pause while more than 3 of the last 7 days have no intake. A day under half
+     the mean of the other logged days in its 7 counts as partly logged: its intake is ignored like a blank day's.
+     A blank or partly logged day's intake is assumed equal to expenditure, with a wide error.
+   Steps were tried as a slow nudge (shifting expenditure, or speeding updates while the step trend moves); neither
+   brought the error down against MacroFactor, so they stay out. */
+const XP = { a: 0.1, gap: 30, r: 0.03, qE: 56, qW: 1e-4, sLog: 0.1, sMiss: 0.35, part: 0.5, pause: 3, e0: 32, pE0: 3500, bf: 0.16 };
+const HALL = { C: 10.4, lean: 1816, fat: 9441 };
+function xpRun(D, t0, P = XP) {
+  const tw = {}, exp = {}, kc = d => D[d]?.kcal > 0 ? D[d].kcal : null;
+  const ds = Object.keys(D).filter(d => d <= t0 && (D[d].wt != null || D[d].tw != null || D[d].kcal != null)).sort();
+  if (!ds.length) return { tw, exp };
+  const wts = ds.filter(d => D[d].wt != null);
+  // trend weight, with the filter's observation for each day (weigh-in days, and days inside gaps of up to P.gap days)
+  const T = {}, obs = {}; let t = null, wi = 0, lastW = null;
+  for (let d = ds[0]; d <= t0; d = addDays(d, 1)) {
+    while (wi < wts.length && wts[wi] < d) wi++;
+    const nx = wts[wi], pv = wi > 0 ? wts[wi - 1] : null, x = D[d] || {};
+    let iw = null, g = 0;
+    if (nx === d) iw = x.wt; else if (pv && nx) { g = diffDays(pv, nx); iw = D[pv].wt + (D[nx].wt - D[pv].wt) * diffDays(pv, d) / g; }
+    if (x.tw != null) t = x.tw; else if (iw != null) t = t == null ? iw : t + P.a * (iw - t);
+    if (x.wt != null || x.tw != null) lastW = d;
+    if (t == null) continue;
+    T[d] = t; if (x.tw != null || nx === d || (iw != null && g <= P.gap)) obs[d] = t;
+    if (x.tw == null && diffDays(lastW, d) <= 7) tw[d] = Math.round(t * 100) / 100;
+  }
+  // the filter: state [W kg, E kcal/day], covariance [[pw, pc], [pc, pe]]
+  const use = {}, usable = d => { // logged and not partly logged
+    if (d in use) return use[d];
+    const v = kc(d); if (v == null) return use[d] = null;
+    const o = []; for (let i = 1; i < 7; i++) { const x = kc(addDays(d, -i)); if (x != null) o.push(x); }
+    return use[d] = o.length && v < P.part * mean(o) ? null : v;
+  };
+  let W = null, E = null, F = null, pw = 0, pc = 0, pe = 0, lastD = null;
+  for (let d = ds[0]; d <= t0; d = addDays(d, 1)) {
+    const x = D[d] || {};
+    let miss = 0; for (let i = 0; i < 7; i++) if (kc(addDays(d, -i)) == null) miss++;
+    const paused = miss > P.pause;
+    if (W == null) { if (T[d] == null) continue; W = T[d]; E = x.exp ?? P.e0 * W; F = P.bf * W; pw = P.r; pe = P.pE0; }
+    if (obs[d] != null) { // correct with the trend weight; a paused filter corrects weight only
+      const s = pw + P.r, kw = pw / s, ke = paused ? 0 : pc / s, y = obs[d] - W;
+      W += kw * y; E += ke * y;
+      pe = pe - 2 * ke * pc + ke * ke * s; pc = paused ? 0 : (1 - kw) * pc; pw = (1 - kw) * pw; // Joseph form, so a zeroed gain stays valid
+    }
+    if (x.exp != null) { E = x.exp; if (T[d] != null) W = T[d]; } // MacroFactor's numbers reseed the state
+    if (x.wt != null || x.tw != null || kc(d) != null) lastD = d;
+    if (x.exp == null && diffDays(lastD, d) <= 7) exp[d] = Math.round(E);
+    // step to tomorrow on today's intake
+    const I = usable(d), vI = I != null ? (P.sLog * I) ** 2 : (P.sMiss * E) ** 2;
+    const p = HALL.C / (HALL.C + Math.max(F, 1)), rho = p * HALL.lean + (1 - p) * HALL.fat, dW = ((I ?? E) - E) / rho, a = -1 / rho;
+    W += dW; F += (1 - p) * dW;
+    const npw = pw + 2 * a * pc + a * a * pe + vI / rho / rho + P.qW, npc = pc + a * pe;
+    pw = npw; pc = paused ? 0 : npc; pe += paused ? 0 : P.qE;
+  }
+  return { tw, exp };
+}
 let DER = { key: null };
 function derived() {
   const key = STATE.v + ':' + Object.keys(STATE.d).length + ':' + today(); if (DER.key === key) return DER; // today: a new day extends the trend
-  const tw = {}, exp = {}, t0 = today(), D = STATE.d;
-  const ds = Object.keys(D).filter(d => d <= t0 && (D[d].wt != null || D[d].tw != null || D[d].kcal != null)).sort();
-  if (ds.length) {
-    let t = null, lastW = null;
-    for (let d = ds[0]; d <= t0; d = addDays(d, 1)) {
-      const x = D[d] || {};
-      if (x.tw != null) t = x.tw; else if (x.wt != null) t = t == null ? x.wt : t + 0.1 * (x.wt - t);
-      if (x.wt != null || x.tw != null) lastW = d;
-      if (x.tw == null && t != null && diffDays(lastW, d) <= 7) tw[d] = Math.round(t * 100) / 100;
-    }
-    const twv = d => D[d]?.tw ?? tw[d];
-    for (let d = addDays(ds[0], 28); d <= t0; d = addDays(d, 1)) {
-      if (D[d]?.exp != null) continue;
-      const a = addDays(d, -28), b = addDays(d, -1), wa = twv(a), wb = twv(b); if (wa == null || wb == null) continue;
-      const k = []; for (let i = 1; i <= 28; i++) { const v = D[addDays(d, -i)]?.kcal; if (v != null) k.push(v); }
-      if (k.length < 21) continue;
-      exp[d] = Math.round((mean(k) - (wb - wa) * 7700 / 27) / 10) * 10;
-    }
-  }
-  return DER = { key, tw, exp };
+  return DER = { key, ...xpRun(STATE.d, today()) };
 }
 function avgOver(k, end, days, excludeEnd) {
   const v = []; for (let i = excludeEnd ? 1 : 0; i < days + (excludeEnd ? 1 : 0); i++) { const x = dayVal(addDays(end, -i), k); if (x != null) v.push(x); }
@@ -1634,22 +1705,33 @@ function whoopCard(day) {
   let note = '';
   if (hb && hb.state === 'below' && tone !== 'bad') note = `<p class="note">Your 7-day HRV is below your normal range (${fmt(hb.lo, 0)}–${fmt(hb.hi, 0)} ms). A sustained drop often reflects accumulated fatigue, poor sleep or illness, so it's worth watching over the next few days.</p>`;
   if (tone === 'bad') note = `<p class="note">Red recovery. The rotation stays the same; a lighter day is reasonable, such as stopping sets 2–3 reps short and keeping the ${esc(S().cardio.name.toLowerCase())} easy. Treat the score as a guide, not a rule.</p>`;
-  const extra = [];
-  if (x.rr != null) extra.push(stat(fmt(x.rr, 1), 'rpm', 'Respiratory rate', deltaTxt(x.rr, base('rr'), 1, '', true)));
-  if (x.spo2 != null) extra.push(stat(fmt(x.spo2, 0), '%', 'Blood oxygen'));
-  if (x.skt != null) extra.push(stat(fmt(x.skt, 1), '°C', 'Skin temp', deltaTxt(x.skt, base('skt'), 1, '°')));
-  const stT = stepsOf(t); if (stT != null) extra.push(stat(fmt(stT, 0), '', isT ? 'Steps, today' : 'Steps'));
-  return `<section class="card"><div class="card-h"><h2>Recovery</h2>${x.rec != null ? pill(tone, recWord(x.rec)) : ''}</div>
-    <div class="recov">${ring(x.rec, tone, str)}<div class="stats" style="grid-template-columns:repeat(2,minmax(0,1fr))">
-      ${stat(x.hrv != null ? fmt(x.hrv, 0) : '–', 'ms', 'HRV', hb ? `<span class="delta" style="color:var(${hb.state === 'below' ? '--warn-ink' : hb.state === 'within' ? '--good-ink' : '--ink-2'})">7-day ${HRV_STATE[hb.state][1].toLowerCase()}</span>` : '')}
-      ${stat(x.rhr != null ? fmt(x.rhr, 0) : '–', 'bpm', 'Resting HR', deltaTxt(x.rhr, base('rhr'), 0, '', true))}
-    </div></div>
-    <div class="stats">
-      ${stat(x.slp != null ? fmt(x.slp / 60, 1) : '–', 'h', 'Asleep', x.sp != null ? `<span class="delta">${fmt(x.sp, 0)}% of need${x.sd ? ` · debt ${fmt(x.sd, 0)} min` : ''}</span>` : '')}
-      ${stat(str != null ? `<span style="color:var(--strain)">${fmt(str, 1)}</span>` : '–', '', isT ? 'Strain, today' : 'Strain')}
-      ${extra.join('')}
-    </div>${note}
-    <span class="xs muted">WHOOP · ${isT ? 'today' : esc(fmtDate(t))}</span></section>`;
+  // key rows beside the ring, then a tile per secondary number; every cell has label, value and one sub line
+  const val = (v, unit) => v == null ? '<b class="nil">–</b>' : `<b>${v}${unit ? `<small>${esc(unit)}</small>` : ''}</b>`;
+  const sub = (txt, tone) => txt ? `<em${tone ? ` class="tn-${tone}"` : ''}>${txt}</em>` : '<em>&nbsp;</em>'; // key rows keep the line, so they stay evenly spaced
+  const vs = (v, b, d, unit, lowerBetter, neutral) => { // change from the 30-day average, one line
+    if (v == null || b == null) return sub(''); const diff = v - b;
+    if (Math.abs(diff) < 10 ** -d / 2) return sub('Same as 30-day');
+    const better = lowerBetter ? diff < 0 : diff > 0;
+    return sub(`${diff > 0 ? '+' : '−'}${fmt(Math.abs(diff), d)}${unit} vs 30-day`, neutral ? '' : better ? 'good' : 'warn');
+  };
+  const key = (label, v, s) => `<div class="rk" data-live="${esc(label)}"><span>${esc(label)}</span>${v}${s}</div>`;
+  const tile = (label, v, s = '') => `<div class="rt" data-live="${esc(label)}"><span>${esc(label)}</span>${v}${s.includes('&nbsp;') ? '' : s}</div>`;
+  const hbTone = hb ? { below: 'warn', within: 'good', above: '' }[hb.state] : '';
+  const keys = [
+    key('HRV', val(x.hrv != null ? fmt(x.hrv, 0) : null, 'ms'), hb ? sub(`7-day ${HRV_STATE[hb.state][1].toLowerCase()}`, hbTone) : sub('')),
+    key('Resting HR', val(x.rhr != null ? fmt(x.rhr, 0) : null, 'bpm'), vs(x.rhr, base('rhr'), 0, '', true)),
+    key('Sleep', val(x.slp != null ? fmt(x.slp / 60, 1) : null, 'h'), sub(x.sp != null ? `${fmt(x.sp, 0)}% of need` : '')),
+  ];
+  const tiles = [tile(isT ? 'Strain today' : 'Strain', str != null ? `<b class="strain">${fmt(str, 1)}</b>` : val(null))];
+  if (x.sd) tiles.push(tile('Sleep debt', val(fmt(x.sd, 0), 'min')));
+  const stT = stepsOf(t); if (stT != null) tiles.push(tile(isT ? 'Steps today' : 'Steps', val(fmt(stT, 0))));
+  if (x.rr != null) tiles.push(tile('Respiratory', val(fmt(x.rr, 1), 'rpm'), vs(x.rr, base('rr'), 1, '', true)));
+  if (x.spo2 != null) tiles.push(tile('Blood oxygen', val(fmt(x.spo2, 0), '%')));
+  if (x.skt != null) tiles.push(tile('Skin temp', val(fmt(x.skt, 1), '°C'), vs(x.skt, base('skt'), 1, '°', false, true)));
+  return `<section class="card rcard"><div class="card-h"><h2>Recovery</h2>${x.rec != null ? pill(tone, recWord(x.rec)) : ''}</div>
+    <div class="rtop">${ring(x.rec, tone, str)}<div class="rkeys">${keys.join('')}</div></div>
+    <div class="rtiles">${tiles.join('')}</div>${note}
+    <span class="rsrc">WHOOP · ${isT ? 'today' : esc(fmtDate(t))}</span></section>`;
 }
 
 /* ---------- Log: one day's session. Today's renders inside Today; past days open from History ---------- */

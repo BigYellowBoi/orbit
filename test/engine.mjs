@@ -11,7 +11,7 @@ const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const core = fs.readFileSync(path.join(root, 'src/core.js'), 'utf8');
 const engineSrc = fs.readFileSync(path.join(root, 'src/engine.js'), 'utf8');
 const EXPOSE = `globalThis.E = { STATE, S, today, addDays, diffDays, sessionFor, upcoming, lastFor, bestBefore, bestSet, records, hasHistory, hasRef,
-  liftSeries, maintenance, strengthRef, suggest, setAim, cutCheck, progression, prsIn, setScore, e1rm, exRir, exStep, derived, dayVal, scoreTxt, newWorkout, restRecord,
+  liftSeries, maintenance, strengthRef, suggest, setAim, cutCheck, progression, prsIn, setScore, e1rm, exRir, exStep, derived, xpRun: typeof xpRun !== "undefined" ? xpRun : null, dayVal, scoreTxt, newWorkout, restRecord,
   bump: () => { STATE.v++; } };`;
 
 function load(engine = engineSrc) {
@@ -147,6 +147,45 @@ function follow(goal, rate, weeks = 26, exId = 'shoulder_press') {
   ok(t2 !== t && E.dayVal(t2, 'tw') === 80, 'after midnight, with no data change, the trend still reaches the new day');
   const id = 'rdl', d = E.addDays(t, -1); E.STATE.w[d] = { date: d, s: 'legs', ex: [{ id, sets: [{ w: 100, r: 5, done: true }] }] }; E.bump();
   ok(E.maintenance(id).state === 'new', 'lift index sees new data after a save');
+}
+
+/* ---------- trend weight and expenditure (xpRun) ---------- */
+{
+  const E = load(), t = E.today(), A = n => E.addDays(t, n);
+  // trend: MacroFactor's interpolate-then-10% average, reseeded by MacroFactor's own trend
+  let D = { [A(-20)]: { wt: 100 }, [A(-10)]: { wt: 98 } }, o = E.xpRun(D, t);
+  let m = 100; for (let i = 1; i <= 10; i++) m += 0.1 * (100 - 0.2 * i - m);
+  near(o.tw[A(-10)], Math.round(m * 100) / 100, 1e-9, 'trend interpolates between weigh-ins, then averages 10%/day');
+  ok(o.tw[A(-3)] === o.tw[A(-10)] && o.tw[A(-2)] == null, 'trend holds after the last weigh-in, for 7 days');
+  D = { [A(-20)]: { wt: 100 }, [A(-15)]: { tw: 99 }, [A(-10)]: { wt: 98 } }; o = E.xpRun(D, t);
+  ok(o.tw[A(-15)] == null && o.tw[A(-14)] === 98.98, 'MacroFactor trend wins and reseeds'); // 99 + 10% of (98.8 - 99)
+  // expenditure: simulated person, true 3000 kcal/day, eating 2500, noisy scale; the estimate settles near the truth
+  const sim = (days, eat, burn, opts = {}) => {
+    const D = {}; let W = 90, F = 0.16 * 90;
+    for (let i = -days; i <= 0; i++) {
+      const d = A(i), noise = Math.sin(i * 1.7) * 0.6;
+      D[d] = { wt: Math.round((W + noise) * 10) / 10 };
+      if (!(opts.blank || []).includes(i)) D[d].kcal = (opts.kcal || {})[i] ?? eat;
+      const p = 10.4 / (10.4 + F), rho = p * 1816 + (1 - p) * 9441, dW = (eat - burn) / rho; W += dW; F += (1 - p) * dW;
+    }
+    return D;
+  };
+  o = E.xpRun(sim(180, 2500, 3000), t);
+  near(o.exp[t], 3000, 80, 'expenditure settles near the truth (500 kcal/day deficit, noisy weigh-ins)');
+  o = E.xpRun(sim(180, 3300, 3000), t);
+  near(o.exp[t], 3000, 80, 'and in a surplus');
+  // missing-data rules
+  const blank = [-10, -9, -8, -7, -6];
+  o = E.xpRun(sim(120, 2500, 3000, { blank }), t);
+  ok(o.exp[A(-6)] === o.exp[A(-4)] && o.exp[A(-9)] !== o.exp[A(-11)], 'more than 3 blank days in 7 pause expenditure updates');
+  const a = E.xpRun(sim(120, 2500, 3000, { kcal: { [-20]: 900 } }), t), b = E.xpRun(sim(120, 2500, 3000, { blank: [-20] }), t);
+  ok(a.exp[t] === b.exp[t], 'a day under half the week\'s other days counts as partly logged (ignored like a blank day)');
+  const c = E.xpRun(sim(120, 2500, 3000, { kcal: { [-20]: 1400 } }), t);
+  ok(c.exp[t] !== b.exp[t], 'a low day above half the others still counts');
+  // MacroFactor's numbers win and the model carries on from them
+  D = sim(120, 2500, 3000); for (let i = -120; i <= -30; i++) D[A(i)].exp = 2900;
+  E.STATE.d = D; E.bump();
+  ok(E.dayVal(A(-30), 'exp') === 2900 && Math.abs(E.dayVal(A(-29), 'exp') - 2900) < 30, 'MacroFactor expenditure wins, and the model carries on from it');
 }
 
 /* ---------- parity with an older engine (everything but the maintenance badge) ---------- */

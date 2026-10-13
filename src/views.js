@@ -141,22 +141,33 @@ function whoopCard(day) {
   let note = '';
   if (hb && hb.state === 'below' && tone !== 'bad') note = `<p class="note">Your 7-day HRV is below your normal range (${fmt(hb.lo, 0)}–${fmt(hb.hi, 0)} ms). A sustained drop often reflects accumulated fatigue, poor sleep or illness, so it's worth watching over the next few days.</p>`;
   if (tone === 'bad') note = `<p class="note">Red recovery. The rotation stays the same; a lighter day is reasonable, such as stopping sets 2–3 reps short and keeping the ${esc(S().cardio.name.toLowerCase())} easy. Treat the score as a guide, not a rule.</p>`;
-  const extra = [];
-  if (x.rr != null) extra.push(stat(fmt(x.rr, 1), 'rpm', 'Respiratory rate', deltaTxt(x.rr, base('rr'), 1, '', true)));
-  if (x.spo2 != null) extra.push(stat(fmt(x.spo2, 0), '%', 'Blood oxygen'));
-  if (x.skt != null) extra.push(stat(fmt(x.skt, 1), '°C', 'Skin temp', deltaTxt(x.skt, base('skt'), 1, '°')));
-  const stT = stepsOf(t); if (stT != null) extra.push(stat(fmt(stT, 0), '', isT ? 'Steps, today' : 'Steps'));
-  return `<section class="card"><div class="card-h"><h2>Recovery</h2>${x.rec != null ? pill(tone, recWord(x.rec)) : ''}</div>
-    <div class="recov">${ring(x.rec, tone, str)}<div class="stats" style="grid-template-columns:repeat(2,minmax(0,1fr))">
-      ${stat(x.hrv != null ? fmt(x.hrv, 0) : '–', 'ms', 'HRV', hb ? `<span class="delta" style="color:var(${hb.state === 'below' ? '--warn-ink' : hb.state === 'within' ? '--good-ink' : '--ink-2'})">7-day ${HRV_STATE[hb.state][1].toLowerCase()}</span>` : '')}
-      ${stat(x.rhr != null ? fmt(x.rhr, 0) : '–', 'bpm', 'Resting HR', deltaTxt(x.rhr, base('rhr'), 0, '', true))}
-    </div></div>
-    <div class="stats">
-      ${stat(x.slp != null ? fmt(x.slp / 60, 1) : '–', 'h', 'Asleep', x.sp != null ? `<span class="delta">${fmt(x.sp, 0)}% of need${x.sd ? ` · debt ${fmt(x.sd, 0)} min` : ''}</span>` : '')}
-      ${stat(str != null ? `<span style="color:var(--strain)">${fmt(str, 1)}</span>` : '–', '', isT ? 'Strain, today' : 'Strain')}
-      ${extra.join('')}
-    </div>${note}
-    <span class="xs muted">WHOOP · ${isT ? 'today' : esc(fmtDate(t))}</span></section>`;
+  // key rows beside the ring, then a tile per secondary number; every cell has label, value and one sub line
+  const val = (v, unit) => v == null ? '<b class="nil">–</b>' : `<b>${v}${unit ? `<small>${esc(unit)}</small>` : ''}</b>`;
+  const sub = (txt, tone) => txt ? `<em${tone ? ` class="tn-${tone}"` : ''}>${txt}</em>` : '<em>&nbsp;</em>'; // key rows keep the line, so they stay evenly spaced
+  const vs = (v, b, d, unit, lowerBetter, neutral) => { // change from the 30-day average, one line
+    if (v == null || b == null) return sub(''); const diff = v - b;
+    if (Math.abs(diff) < 10 ** -d / 2) return sub('Same as 30-day');
+    const better = lowerBetter ? diff < 0 : diff > 0;
+    return sub(`${diff > 0 ? '+' : '−'}${fmt(Math.abs(diff), d)}${unit} vs 30-day`, neutral ? '' : better ? 'good' : 'warn');
+  };
+  const key = (label, v, s) => `<div class="rk" data-live="${esc(label)}"><span>${esc(label)}</span>${v}${s}</div>`;
+  const tile = (label, v, s = '') => `<div class="rt" data-live="${esc(label)}"><span>${esc(label)}</span>${v}${s.includes('&nbsp;') ? '' : s}</div>`;
+  const hbTone = hb ? { below: 'warn', within: 'good', above: '' }[hb.state] : '';
+  const keys = [
+    key('HRV', val(x.hrv != null ? fmt(x.hrv, 0) : null, 'ms'), hb ? sub(`7-day ${HRV_STATE[hb.state][1].toLowerCase()}`, hbTone) : sub('')),
+    key('Resting HR', val(x.rhr != null ? fmt(x.rhr, 0) : null, 'bpm'), vs(x.rhr, base('rhr'), 0, '', true)),
+    key('Sleep', val(x.slp != null ? fmt(x.slp / 60, 1) : null, 'h'), sub(x.sp != null ? `${fmt(x.sp, 0)}% of need` : '')),
+  ];
+  const tiles = [tile(isT ? 'Strain today' : 'Strain', str != null ? `<b class="strain">${fmt(str, 1)}</b>` : val(null))];
+  if (x.sd) tiles.push(tile('Sleep debt', val(fmt(x.sd, 0), 'min')));
+  const stT = stepsOf(t); if (stT != null) tiles.push(tile(isT ? 'Steps today' : 'Steps', val(fmt(stT, 0))));
+  if (x.rr != null) tiles.push(tile('Respiratory', val(fmt(x.rr, 1), 'rpm'), vs(x.rr, base('rr'), 1, '', true)));
+  if (x.spo2 != null) tiles.push(tile('Blood oxygen', val(fmt(x.spo2, 0), '%')));
+  if (x.skt != null) tiles.push(tile('Skin temp', val(fmt(x.skt, 1), '°C'), vs(x.skt, base('skt'), 1, '°', false, true)));
+  return `<section class="card rcard"><div class="card-h"><h2>Recovery</h2>${x.rec != null ? pill(tone, recWord(x.rec)) : ''}</div>
+    <div class="rtop">${ring(x.rec, tone, str)}<div class="rkeys">${keys.join('')}</div></div>
+    <div class="rtiles">${tiles.join('')}</div>${note}
+    <span class="rsrc">WHOOP · ${isT ? 'today' : esc(fmtDate(t))}</span></section>`;
 }
 
 /* ---------- Log: one day's session. Today's renders inside Today; past days open from History ---------- */
