@@ -11,7 +11,7 @@
      POST /webhook          WHOOP event (signature checked); marks data as changed for the next run
      GET  /sync?key=…       run a sync now
      GET  /backfill?key=…&from=YYYY-MM   redo the history backfill from a month
-     POST /health?key=…     Apple Health numbers from the Shortcut (see worker/README.md)
+     POST /health?key=…     Apple Health numbers from the Shortcut or Health Auto Export (see worker/README.md)
    Cron (every 10 min): sync the last 3 days when WHOOP reported a change or 3 h have passed; in between, refresh
    today's steps and strain every 30 min (WHOOP has no webhook for those); otherwise fill in history a month or two at a time.
 
@@ -27,7 +27,7 @@ const BUDGET = 45;
 
 export default {
   async fetch(req, env, ctx) {
-    const url = new URL(req.url), key = url.searchParams.get('key'), authed = env.SYNC_KEY && key === env.SYNC_KEY;
+    const url = new URL(req.url), key = url.searchParams.get('key') || req.headers.get('x-sync-key'), authed = env.SYNC_KEY && key === env.SYNC_KEY; // the key can also come as a header (Health Auto Export)
     try {
       if (url.pathname === '/' && req.method === 'GET') return statusPage(env);
       if (url.pathname === '/status.json' && req.method === 'GET') return statusJson(env);
@@ -271,6 +271,29 @@ function headphones(raw) { // "level,start,end" per sample (ISO dates) → time-
   for (const [v, a, b] of rows) { const L = Number(v), d = (Date.parse(b) - Date.parse(a)) / 1000; if (!Number.isFinite(L) || !(d > 0) || d > 86400) continue; e += d * 10 ** (L / 10); sec += d; }
   return sec >= 60 ? { hp: 10 * Math.log10(e / sec), hpm: sec / 60 } : {};
 }
+/* Health Auto Export (REST API automation, JSON): data.metrics[] = { name, units, data: [{ qty, date: 'yyyy-MM-dd HH:mm:ss Z' }] }.
+   Meant for Summarize Data on with Time Grouping Day (one total per day); unsummarised samples also add up right.
+   Names are matched loosely ("weight_&_body_mass", "Dietary Energy"). Headphones: the day's level as given (or the energy
+   average of the samples); minutes listened aren't in this format, so hpm only comes from the Shortcut or an export. */
+const HAE = { stepcount: 'stpi', dietaryenergy: 'kcal', protein: 'p', carbohydrates: 'c', totalfat: 'f', weightbodymass: 'wt', bodymass: 'wt', weight: 'wt', headphoneaudioexposure: 'hp' };
+function fromHae(metrics) {
+  const days = {}, wtAt = {}, hp = {};
+  for (const m of metrics) {
+    const k = HAE[String(m?.name || '').toLowerCase().replace(/[^a-z]/g, '')], u = String(m?.units || '').toLowerCase();
+    if (!k || !Array.isArray(m.data)) continue;
+    for (const pt of m.data) {
+      const at = String(pt?.date || pt?.startDate || ''), date = at.slice(0, 10), q = Number(pt?.qty ?? pt?.Avg);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(q)) continue;
+      const o = days[date] = days[date] || {};
+      if (k === 'hp') (hp[date] = hp[date] || []).push(q);
+      else if (k === 'wt') { if (!(wtAt[date] >= at)) { wtAt[date] = at; o.wt = /^lb/.test(u) ? q * 0.45359237 : q; } } // the day's last reading
+      else if (k === 'kcal') o.kcal = (o.kcal || 0) + (u === 'kj' ? q / 4.184 : u === 'j' ? q / 4184 : q);
+      else o[k] = (o[k] || 0) + (u === 'mg' ? q / 1000 : q);
+    }
+  }
+  for (const d in hp) days[d].hp = 10 * Math.log10(hp[d].reduce((a, v) => a + 10 ** (v / 10), 0) / hp[d].length);
+  return days;
+}
 const HEALTH_KEYS = { kcal: 0, p: 0, c: 0, f: 0, wt: 2, stpi: 0, hp: 1, hpm: 0 }; // key → decimals kept
 async function health(env, req) {
   let body; try { body = await req.json(); } catch (e) { return text('Send JSON', 400); }
@@ -281,8 +304,11 @@ async function health(env, req) {
     if (o.hp == null && o.hpraw) o = { ...o, ...headphones(o.hpraw) };
     for (const k in HEALTH_KEYS) { const v = typeof o[k] === 'string' ? num(o[k]) : o[k]; if (typeof v === 'number' && Number.isFinite(v) && v > 0) { const p = 10 ** HEALTH_KEYS[k]; (days[date] = days[date] || {})[k] = Math.round(v * p) / p; } }
   };
-  if (body && body.days && typeof body.days === 'object') for (const d in body.days) put(d, body.days[d] || {});
+  const hae = Array.isArray(body?.data?.metrics);
+  if (hae) { const dd = fromHae(body.data.metrics); for (const d in dd) put(d, dd[d]); }
+  else if (body && body.days && typeof body.days === 'object') for (const d in body.days) put(d, body.days[d] || {});
   else put(String(body.date || todayLocal(env)).slice(0, 10), body || {});
+  if (!Object.keys(days).length && hae) return json({ ok: true, days: 0 }); // nothing new since the last run is fine
   if (!Object.keys(days).length) return text('No recognised values. Keys: ' + Object.keys(HEALTH_KEYS).join(', ') + ', kj, hpraw', 400);
   const b = budget(); await saveDays(env, b, days, {}, [], 'Apple Health ' + Object.keys(days).sort().pop());
   await env.ORBIT_KV.put('healthAt', String(Date.now())); // own key, so it can't race the cron's status write

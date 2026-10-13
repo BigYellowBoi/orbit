@@ -185,6 +185,33 @@ ok(r.status === 200 && day('2026-07-04').hp === 77.4 && day('2026-07-04').hpm ==
 ok((await req('/health?key=k3y', { method: 'POST', body: '{"x":1}' })).status === 400, 'nothing recognised → 400');
 ok((await req('/health?key=bad', { method: 'POST', body: '{"kcal":1}' })).status === 403, '/health needs the key');
 r = await req('/health?key=k3y', { method: 'POST', body: JSON.stringify({ kcal: 1999 }) }); ok(r.status === 200 && day(today).kcal === 1999, 'no date → today');
+// Health Auto Export (REST API automation, Summarize Data on, Time Grouping Day)
+const hae = { data: { metrics: [
+  { name: 'step_count', units: 'count', data: [{ qty: 9421, date: '2026-07-05 00:00:00 +1000', source: 'iPhone' }, { qty: 812, date: '2026-07-06 00:00:00 +1000' }] },
+  { name: 'dietary_energy', units: 'kJ', data: [{ qty: 11566, date: '2026-07-05 00:00:00 +1000' }] },
+  { name: 'protein', units: 'g', data: [{ qty: 196.8, date: '2026-07-05 00:00:00 +1000' }] },
+  { name: 'carbohydrates', units: 'g', data: [{ qty: 250.2, date: '2026-07-05 00:00:00 +1000' }] },
+  { name: 'total_fat', units: 'g', data: [{ qty: 110.4, date: '2026-07-05 00:00:00 +1000' }] },
+  { name: 'weight_&_body_mass', units: 'kg', data: [{ qty: 95.6, date: '2026-07-05 00:00:00 +1000' }] },
+  { name: 'headphone_audio_exposure', units: 'dBASPL', data: [{ qty: 81.94, date: '2026-07-05 00:00:00 +1000' }] },
+  { name: 'heart_rate', units: 'count/min', data: [{ Min: 50, Avg: 60, Max: 120, date: '2026-07-05 00:00:00 +1000' }] },
+] } };
+r = await req('/health', { method: 'POST', headers: { 'x-sync-key': 'k3y' }, body: JSON.stringify(hae) });
+const ha = day('2026-07-05');
+ok(r.status === 200 && ha.stpi === 9421 && ha.kcal === 2764 && ha.p === 197 && ha.c === 250 && ha.f === 110 && ha.wt === 95.6 && ha.hp === 81.9 && ha.hpm == null && ha.hr == null && day('2026-07-06').stpi === 812, 'Health Auto Export daily summary: kJ → kcal, weight by its odd name, other metrics ignored');
+// unsummarised samples: sums add up, last weight of the day wins, lb converted, headphone energy average
+const raw = { data: { metrics: [
+  { name: 'Step Count', units: 'count', data: [{ qty: 1200, date: '2026-07-07 08:00:00 +1000' }, { qty: 800, date: '2026-07-07 17:00:00 +1000' }] },
+  { name: 'dietary_energy', units: 'kcal', data: [{ qty: 1000, date: '2026-07-07 12:00:00 +1000' }, { qty: 1500, date: '2026-07-07 19:00:00 +1000' }] },
+  { name: 'weight_&_body_mass', units: 'lb', data: [{ qty: 210, date: '2026-07-07 07:30:00 +1000' }, { qty: 209, date: '2026-07-07 06:30:00 +1000' }] },
+  { name: 'headphone_audio_exposure', units: 'dBASPL', data: [{ qty: 70, date: '2026-07-07 10:00:00 +1000' }, { qty: 80, date: '2026-07-07 11:00:00 +1000' }] },
+] } };
+r = await req('/health?key=k3y', { method: 'POST', body: JSON.stringify(raw) });
+const hr = day('2026-07-07');
+ok(r.status === 200 && hr.stpi === 2000 && hr.kcal === 2500 && hr.wt === 95.25 && hr.hp === 77.4, 'Health Auto Export samples: summed, last weigh-in in lb converted, 77.4 dB');
+r = await req('/health?key=k3y', { method: 'POST', body: JSON.stringify({ data: { metrics: [] } }) });
+ok(r.status === 200 && (await r.json()).days === 0, 'Health Auto Export run with nothing new → 200, no commit');
+ok((await req('/health', { method: 'POST', headers: { 'x-sync-key': 'nope' }, body: JSON.stringify(hae) })).status === 403, 'wrong header key → 403');
 const before = repo['orbit/dy/' + y.slice(0, 7) + '.json'].sha;
 await req('/health?key=k3y', { method: 'POST', body: JSON.stringify({ date: y, stpi: 9100 }) });
 ok(repo['orbit/dy/' + y.slice(0, 7) + '.json'].sha === before, 'unchanged values make no commit');

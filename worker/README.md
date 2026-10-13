@@ -85,6 +85,23 @@ Then in **Automation**, add two personal automations, each set to **Run Immediat
 
 Run the shortcut once by hand; the response should be `{"ok": true, "days": 1}`.
 
+## 5b. Or: Health Auto Export (instead of the Shortcut)
+
+In Health Auto Export, open **Automations**, add a **REST API** automation and set:
+
+- **URL**: `https://orbit-sync.yourname.workers.dev/health`
+- **Headers**: add `x-sync-key` with your SYNC_KEY as the value (or put `?key=YOUR_SYNC_KEY` on the end of the URL instead).
+- **Data Type**: Health Metrics. **Metrics**: Step Count, Dietary Energy, Protein, Carbohydrates, Total Fat, Weight & Body Mass, Headphone Audio Exposure.
+- **Export Format**: JSON, **Export Version** 2.
+- **Summarize Data**: on, **Time Grouping**: Day.
+- **Date Range**: Default (yesterday and today, so each day gets finished off the next morning).
+- **Batch Requests**: off.
+- **Sync Cadence**: every 1 hour.
+
+Add the Automations widget to your home screen so runs aren't skipped in the background. iOS only lets apps read Health while the phone is unlocked, so a run waits until you next use it. The Data screen's Automatic sync card shows when Apple Health last came in.
+
+Headphone minutes listened aren't part of this format, so only the level updates automatically; a full Health export (see `tools/health-to-orbit.py`) fills the minutes in.
+
 ## Addresses
 
 | Address | What it does |
