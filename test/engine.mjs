@@ -11,7 +11,7 @@ const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const core = fs.readFileSync(path.join(root, 'src/core.js'), 'utf8');
 const engineSrc = fs.readFileSync(path.join(root, 'src/engine.js'), 'utf8');
 const EXPOSE = `globalThis.E = { STATE, S, today, addDays, diffDays, sessionFor, upcoming, lastFor, bestBefore, bestSet, records, hasHistory, hasRef,
-  liftSeries, maintenance, strengthRef, suggest, setAim, cutCheck, progression, prsIn, setScore, e1rm, exRir, exStep, derived, xpRun: typeof xpRun !== "undefined" ? xpRun : null, XP: typeof XP !== "undefined" ? XP : null, partialFlags: typeof partialFlags !== "undefined" ? partialFlags : null, warmup: typeof warmup !== "undefined" ? warmup : null, rowAim: typeof rowAim !== "undefined" ? rowAim : null, doneSets, planWeekly, wStats, fmtSet, dayVal, scoreTxt, newWorkout, restRecord, sessDef, exDef, ordModel: typeof ordModel !== "undefined" ? ordModel : null, ordFactor: typeof ordFactor !== "undefined" ? ordFactor : null, overlap: typeof overlap !== "undefined" ? overlap : null, ctxLog: typeof ctxLog !== "undefined" ? ctxLog : null, usualCtx: typeof usualCtx !== "undefined" ? usualCtx : null, aimIn: typeof aimIn !== "undefined" ? aimIn : null, refScore, exRir, moveEx: typeof moveEx !== "undefined" ? moveEx : null, movedIdx: typeof movedIdx !== "undefined" ? movedIdx : null,
+  liftSeries, maintenance, strengthRef, suggest, setAim, cutCheck, progression, prsIn, setScore, e1rm, exRir, exStep, derived, xpRun: typeof xpRun !== "undefined" ? xpRun : null, XP: typeof XP !== "undefined" ? XP : null, partialFlags: typeof partialFlags !== "undefined" ? partialFlags : null, warmup: typeof warmup !== "undefined" ? warmup : null, rowAim: typeof rowAim !== "undefined" ? rowAim : null, doneSets, planWeekly, wStats, fmtSet, dayVal, scoreTxt, newWorkout, restRecord, sessDef, exDef, ordModel: typeof ordModel !== "undefined" ? ordModel : null, ordFactor: typeof ordFactor !== "undefined" ? ordFactor : null, overlap: typeof overlap !== "undefined" ? overlap : null, ctxLog: typeof ctxLog !== "undefined" ? ctxLog : null, usualCtx: typeof usualCtx !== "undefined" ? usualCtx : null, aimIn: typeof aimIn !== "undefined" ? aimIn : null, refScore, exRir, snapBase: typeof snapBase !== "undefined" ? snapBase : null, baseCtx: typeof baseCtx !== "undefined" ? baseCtx : null, moveEx: typeof moveEx !== "undefined" ? moveEx : null, movedIdx: typeof movedIdx !== "undefined" ? movedIdx : null,
   bump: () => { STATE.v++; } };`;
 
 function load(engine = engineSrc) {
@@ -324,6 +324,40 @@ if (process.env.OLD_ENGINE) {
   x.bpos = 1; E.bump(); const sFresh = E.suggest('spider', t);
   ok(sc(sFresh) < sc(sUsual), `max marked as set first: the Aim in the 2nd slot is lighter (${sFresh.w} × ${sFresh.r} vs ${sUsual.w} × ${sUsual.r})`);
   x.bpos = 2; E.bump(); ok(JSON.stringify(E.suggest('spider', t)) === JSON.stringify(sUsual), 'max set in the slot it is done in now: no change');
+}
+
+/* ---------- the Plan order is not absolute: reordering it, and lifts shared across splits (v1.44) ---------- */
+{
+  const E = load(), t = E.today(), ws = E.addDays, pull = E.sessDef('pull');
+  pull.items = [{ ex: 'preacher', sets: 2 }, { ex: 'spider', sets: 2 }, { ex: 'pulldown', sets: 2 }, { ex: 'seated_row', sets: 2 }];
+  const top = (w, r) => [{ w, r, done: true }, { w: w - 2, r, done: true }], W = { preacher: 30, pulldown: 60, seated_row: 60, tbar: 50, rear_fly: 10, hammer: 14 };
+  const log = (d, s, ids, sp) => { E.STATE.w[d] = { date: d, s, ex: ids.map(id => ({ id, sets: top(id === 'spider' ? sp : W[id], 10) })) }; };
+  for (let i = 14; i >= 6; i--) log(ws(t, -7 * i), 'pull', ['spider', 'preacher', 'pulldown', 'seated_row'], 20);
+  for (let i = 5; i >= 1; i--) log(ws(t, -7 * i), 'pull', ['preacher', 'spider', 'pulldown', 'seated_row'], 18.4);
+  const x = E.exDef('spider'); x.base = { w: 21, r: 8 }; x.bpos = 1; E.snapBase('spider'); E.bump();
+  const at = c => JSON.stringify(E.suggest('spider', t, c)), c2 = { L: 2, G: 2 }, c0 = { L: 0, G: 0 };
+  const before = { sr: E.strengthRef('spider', t, c2).fresh, a2: at(c2), a0: at(c0), M: E.ordModel().by.spider.k, base: JSON.stringify(E.baseCtx('spider')) };
+  // reorder the Plan: spider curls go last
+  pull.items = [{ ex: 'pulldown', sets: 2 }, { ex: 'seated_row', sets: 2 }, { ex: 'preacher', sets: 2 }, { ex: 'spider', sets: 2 }]; E.bump();
+  ok(E.strengthRef('spider', t, c2).fresh === before.sr, 'Plan reorder: fresh strength unchanged (history keeps its own order)');
+  ok(at(c2) === before.a2 && at(c0) === before.a0, 'Plan reorder: the Aim at any given slot is unchanged');
+  ok(E.ordModel().by.spider.k === before.M, 'Plan reorder: nothing learned is lost');
+  ok(JSON.stringify(E.baseCtx('spider')) === before.base, 'Plan reorder: a stated max keeps the slot it was set in');
+  const u = E.usualCtx('spider', 'pull'); ok(u.G === 6 && u.L === 2 + 0.5 * 2 + 0.5 * 2, 'the new Plan slot becomes the usual one (6 sets before, preacher full, pulldown and rows half)');
+  ok(JSON.parse(at(u)).w < JSON.parse(at(c2)).w || JSON.parse(at(u)).r < JSON.parse(at(c2)).r, 'and its preview Aim is lighter, since it now comes later');
+  // a max with no slot given takes the Plan slot it has when entered, then keeps it
+  const y = E.exDef('preacher'); y.base = { w: 32, r: 8 }; delete y.bpos; E.snapBase('preacher'); const yb = JSON.stringify(E.baseCtx('preacher'));
+  pull.items.reverse(); E.bump(); ok(JSON.stringify(E.baseCtx('preacher')) === yb, 'a max entered without a slot is fixed to the Plan slot it had then');
+
+  // across splits: spider curls also sit in Upper, 5th there; both feed one strength estimate
+  E.S().prog.sessions.upper = { name: 'Upper', focus: '', items: ['tbar', 'pulldown', 'rear_fly', 'hammer', 'spider'].map(ex => ({ ex, sets: 2 })) }; E.S().prog.order.push('upper');
+  for (let i = 4; i >= 1; i--) log(ws(t, -7 * i + 3), 'upper', ['tbar', 'pulldown', 'rear_fly', 'hammer', 'spider'], 16.4);
+  E.bump(); const cu = E.usualCtx('spider', 'upper'), cp = E.usualCtx('spider', 'pull');
+  ok(cu.G === 8 && cu.L === 0.5 * 2 + 0.5 * 2 + 1 * 2, `Upper slot: 8 sets before, hammer curls full, pulldown and rows half (L ${cu.L})`);
+  const sc = s => E.refScore('spider', s, E.exRir('spider'), null);
+  ok(Math.abs(E.strengthRef('spider', t, cu).fresh - E.strengthRef('spider', t, cp).fresh) < 1e-12, 'one fresh strength whichever session asks');
+  ok(sc(E.suggest('spider', t, cu)) < sc(E.suggest('spider', t, cp)), 'its Aim in Upper (later, after hammer curls) is lighter than in Pull');
+  const M = E.ordModel().by.spider; ok(M.n >= 18, `both splits' sessions teach it (${M.n} sessions)`);
 }
 
 console.log(`${passes} passed, ${fails} failed`);

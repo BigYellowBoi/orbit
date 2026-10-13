@@ -192,7 +192,10 @@ function ctxPlan(sid, exId, slot) { // the usual position: the Plan order of tha
 }
 function usualSid(exId, sid) { if (sid && sessDef(sid)?.items?.some(it => it.ex === exId)) return sid; return order().find(id => sessDef(id)?.items?.some(it => it.ex === exId)) || null; }
 function usualCtx(exId, sid) { const s = usualSid(exId, sid); return (s && ctxPlan(s, exId)) || ZERO_CTX; }
-function baseCtx(exId) { const d = exDef(exId); if (!(d.bpos > 0)) return usualCtx(exId); if (d.bpos === 1) return ZERO_CTX; const s = usualSid(exId); return (s && ctxPlan(s, exId, d.bpos)) || ZERO_CTX; } // where the stated max was set
+function baseCtx(exId) { const d = exDef(exId); return d.bctx || baseCtxNow(exId); } // fixed when the max was entered (v1.44), so a later Plan reorder can't change what it means
+const defSets = id => exDef(id).sets || 2; // an exercise's default set count (v1.44)
+function snapBase(exId) { const d = S().ex[exId]; if (!d) return false; if (!(d.base && d.base.r > 0)) { const had = !!d.bctx; delete d.bctx; return had; } const c = baseCtxNow(exId); d.bctx = { L: +c.L.toFixed(3), G: +c.G.toFixed(3) }; return true; }
+function baseCtxNow(exId) { const d = exDef(exId); if (!(d.bpos > 0)) return usualCtx(exId); if (d.bpos === 1) return ZERO_CTX; const s = usualSid(exId); return (s && ctxPlan(s, exId, d.bpos)) || ZERO_CTX; } // where the stated max was set
 function inv2(M) { const d = M[0][0] * M[1][1] - M[0][1] * M[1][0]; return Math.abs(d) < 1e-15 ? null : [[M[1][1] / d, -M[0][1] / d], [-M[1][0] / d, M[0][0] / d]]; }
 function ordSig(by) { // session-to-session noise: spread of changes between consecutive sessions in the same slot
   const d = [], t = today(); for (const id in by) { const { list } = lixEx(id), rir = exRir(id); for (let i = 1; i < list.length; i++) { const a = list[i - 1], b = list[i];

@@ -315,6 +315,7 @@ function blankEx(id) { // a "New exercise" made by + Exercise and never filled i
 function sweepSettings() { // one-off settings migrations to save, and blank exercises left behind (v1.24)
   let ch = !!ui.migSave; ui.migSave = false;
   for (const id of Object.keys(S().ex)) if (id !== ui.editEx && blankEx(id)) { delete S().ex[id]; ch = true; }
+  for (const [id, x] of Object.entries(S().ex)) if (x.base && x.base.r > 0 && !x.bctx && snapBase(id)) ch = true; // v1.44: fix each stated max to the slot it has now, once
   if (ch) saveSettings();
 }
 function sweepCardio() { // WHOOP's cardio often lands after a session is done (the sync helper brings it in later), so check recent days whenever data arrives
@@ -370,7 +371,7 @@ const ACT = {
     if (k === 'w' && $(`#r${i}_${j}`)?.value === '') { saveW(w.date); const s = e.sets[j]; s.w = v; return; } // weight alone doesn't tick the set
     setInput(inp, true); },
   remwarm: el => { const w = logW(), e = w?.ex[+el.dataset.e], j = +el.dataset.s; if (e?.sets[j]?.t !== 'w') return; e.sets.splice(j, 1); saveW(w.date); render(true); }, // a warm-up added by mistake (v1.40)
-  remset: el => { const w = logW(), e = w.ex[+el.dataset.e]; if (e.sets.length > 1) e.sets.pop(); saveW(w.date); render(true); },
+  remset: el => { const w = logW(), e = w.ex[+el.dataset.e]; if (e.sets.length > 1) e.sets.pop(); ui.exMore = null; saveW(w.date); render(true); }, // More closes after it (v1.44)
   remex: el => { const w = logW(), i = +el.dataset.e, e = w.ex[i]; if (doneSets(e).length && ui.confirm !== 'remex' + i) { ui.confirm = 'remex' + i; toast('Tap Remove again to drop logged sets'); return; } w.ex.splice(i, 1); ui.confirm = null; ui.exMore = null; saveW(w.date); render(true); },
   cardiotype: el => { const w = logW(), name = el.dataset.v, wm = Math.round(sum(whoopCardio(w.date, name).map(a => a.min || 0)));
     w.cardioOff = false; w.cardio = { ...(w.cardio || { min: S().cardio.min, lvl: null, done: false }), name, manual: true }; if (wm) { w.cardio.min = wm; w.cardio.done = true; w.cardio.src = 'whoop'; }
@@ -386,7 +387,7 @@ const ACT = {
     if (ui.delArm && Date.now() - ui.delArm < 3000) { ACT.delw(); return; }
     ui.delArm = Date.now(); el.textContent = 'Tap again to delete'; el.classList.add('armed');
     setTimeout(() => { if (Date.now() - ui.delArm >= 2900) { ui.delArm = 0; el.textContent = 'Delete this session'; el.classList.remove('armed'); } }, 3000); },
-  addexid: el => { const id = el.dataset.id, w = logW(); if (!id || !w) return; w.ex.push({ id, sets: prefill(id, 2, w.date) }); ui.pick = null; saveW(w.date); render(true); reveal('#ex' + (w.ex.length - 1)); },
+  addexid: el => { const id = el.dataset.id, w = logW(); if (!id || !w) return; w.ex.push({ id, sets: prefill(id, defSets(id), w.date) }); ui.pick = null; saveW(w.date); render(true); reveal('#ex' + (w.ex.length - 1)); },
   pickopen: () => { ui.pick = ui.pick ? null : { q: '' }; render(true); if (ui.pick) setTimeout(() => $('#pickq')?.focus(), 30); },
   per: el => { ui.per = el.dataset.v; ui.off = 0; render(true); },
   poff: el => { ui.off = Math.max(0, (ui.off || 0) + +el.dataset.n); render(true); },
@@ -440,15 +441,18 @@ const ACT = {
     if (!id) { id = 'x' + Date.now().toString(36); S().ex[id] = { ...X('New exercise', 'other', 'kg', 90, 8, 12, null, null), fresh: 1 }; saveSettings(); }
     ui.editEx = id; render(true); reveal('#exlist [data-edit]');
   },
-  exqclear: () => { ui.exQ = ''; const i = $('#exq'); if (i) { i.value = ''; i.focus(); } filterEx(); },
+  exqclear: () => { ui.exQ = ''; const i = $('#exq'); if (i) { i.value = ''; i.blur(); } filterEx(); }, // clearing never brings the keyboard up (v1.44)
   editex: el => { const prev = ui.editEx; ui.editEx = el.dataset.id || null; if (prev && prev !== ui.editEx && (blankEx(prev) || S().ex[prev]?.fresh)) { delete S().ex[prev]; saveSettings(); } render(true); }, // leaving a new exercise unsaved (Discard, or opening another) drops it
   saveex: el => {
-    const x = S().ex[el.dataset.id]; if (!x) return; delete x.fresh;
+    const x = S().ex[el.dataset.id]; if (!x) return; const x0 = clone(x); delete x.fresh;
     x.name = ($('#xe_n').value || '').trim() || x.name; x.g = $('#xe_g').value; x.u = $('#xe_u').value;
     const lo = parseInt($('#xe_lo').value, 10), hi = parseInt($('#xe_hi').value, 10), bw = num($('#xe_bw').value), br = parseInt($('#xe_br').value, 10);
     if (lo > 0) x.lo = lo; if (hi >= x.lo) x.hi = hi; else x.hi = x.lo; x.note = ($('#xe_note').value || '').trim();
     x.base = br > 0 ? { w: bw ?? (x.u === 'bw' ? 0 : null), r: br } : null;
-    const bpos = parseInt($('#xe_bpos')?.value, 10); if (x.base && bpos > 0 && bpos <= 20) x.bpos = bpos; else delete x.bpos; // where in the session the max was set (v1.43)
+    const bpos = parseInt($('#xe_bpos')?.value, 10), b0 = JSON.stringify([x0.base, x0.bpos]); if (x.base && bpos > 0 && bpos <= 20) x.bpos = bpos; else delete x.bpos; // where in the session the max was set (v1.43)
+    if (b0 !== JSON.stringify([x.base, x.bpos]) || (x.base && !x.bctx)) snapBase(el.dataset.id); // its context is fixed now, so reordering the Plan later can't change it (v1.44)
+    const ns = parseInt($('#xe_sets')?.value, 10), oldN = x.sets || 2; if (ns >= 1 && ns <= 12 && ns !== 2) x.sets = ns; else delete x.sets;
+    const newN = x.sets || 2; if (newN !== oldN) for (const sd of Object.values(S().prog.sessions)) for (const it of sd.items) if (it.ex === el.dataset.id && it.sets === oldN) it.sets = newN; // sessions still on the old default follow it
     const inc = num($('#xe_inc').value), rir = parseInt($('#xe_rir').value, 10);
     if (inc > 0) x.inc = inc; else delete x.inc;
     if (rir >= 0 && rir <= 5) x.rir = rir; else delete x.rir;
@@ -486,7 +490,7 @@ const INP = {
   r: el => setInput(el, true),
   swapex: el => { const id = el.value, w = logW(), e = w?.ex[+el.dataset.e]; if (!id || !e) return; const from = exDef(e.id).name;
     w.ex[+el.dataset.e] = { id, sets: prefill(id, e.sets.length, w.date) }; ui.exMore = null; ui.exHist = null; saveW(w.date); toast(`Swapped ${esc(from)} for ${esc(exDef(id).name)}`); render(true); },
-  addex: el => { const id = el.value; if (!id) return; const w = logW(); w.ex.push({ id, sets: prefill(id, 2, w.date) }); saveW(w.date); render(true); reveal('#ex' + (w.ex.length - 1)); },
+  addex: el => { const id = el.value; if (!id) return; const w = logW(); w.ex.push({ id, sets: prefill(id, defSets(id), w.date) }); saveW(w.date); render(true); reveal('#ex' + (w.ex.length - 1)); },
   note: el => { const w = logW(); w.note = el.value; saveW(w.date); },
   exnote: el => { const w = logW(), e = w.ex[+el.dataset.e]; const v = el.value.trim(); if (v) e.note = el.value; else delete e.note; ui.exNote = null; saveW(w.date); },
   durmin: el => { const w = logW(), n = parseInt(el.value, 10); if (n > 0) w.durMin = n; else delete w.durMin; saveW(w.date); render(); },
@@ -498,7 +502,7 @@ const INP = {
   sname: el => { const sd = sessDef(el.dataset.id); sd.name = el.value.trim() || sd.name; saveSettings(); },
   sfocus: el => { sessDef(el.dataset.id).focus = el.value.trim(); saveSettings(); },
   isets: el => { const n = parseInt(el.value, 10); if (n >= 1 && n <= 12) { sessDef(el.dataset.id).items[+el.dataset.j].sets = n; saveSettings(); render(); } },
-  additem: el => { if (!el.value) return; const sid = el.dataset.id; sessDef(sid).items.push({ ex: el.value, sets: 2 }); saveSettings(); render(true); reveal(`#sa_${sid}`, 0); },
+  additem: el => { if (!el.value) return; const sid = el.dataset.id; sessDef(sid).items.push({ ex: el.value, sets: defSets(el.value) }); saveSettings(); render(true); reveal(`#sa_${sid}`, 0); },
   cname: el => { S().cardio.name = el.value; saveSettings(); },
   cmindef: el => { const n = parseInt(el.value, 10); if (n > 0) { S().cardio.min = n; saveSettings(); } },
   platekg: el => { const n = num(el.value); if (n > 0) { S().plateKg = n; saveSettings(); } },
@@ -661,7 +665,7 @@ function filterPick() { // in place, so the keyboard stays up; a group label hid
 }
 document.addEventListener('input', ev => { if (ev.target.id === 'pickq' && ui.pick) { ui.pick.q = ev.target.value; filterPick(); } });
 document.addEventListener('keydown', ev => { if (ev.key === 'Enter' && ev.target.id === 'exq') { ev.preventDefault(); ev.target.blur(); } });
-['pointerdown', 'mousedown'].forEach(t => document.addEventListener(t, ev => { if (ev.target.closest('#exqx')) ev.preventDefault(); })); // keep the keyboard up while clearing
+document.addEventListener('input', ev => { const el = ev.target; if (el.matches?.('select[data-in="swapex"]')) INP.swapex(el); }); // iOS: act on the pick itself; the re-render detaches the select, so its later change event goes nowhere
 document.addEventListener('change', ev => { const el = ev.target.closest('[data-in]'); if (!el) return; if (el === flushedEl) { flushedEl = null; return; } const f = INP[el.dataset.in]; if (f) f(el); });
 document.addEventListener('keydown', ev => {
   if (ev.key !== 'Enter' || !ev.target.matches('.set .in')) return;

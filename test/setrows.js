@@ -59,6 +59,46 @@ const active = p => p.evaluate(() => document.activeElement?.id || null);
     await p.close();
   }
 
+  /* ---------- v1.44: More closes after Remove last set and Swap; default sets; search clear keeps the keyboard down ---------- */
+  {
+    const { p, errs } = await open(b, { ...devices['iPhone 13 Pro Max'] });
+    await p.tap('[data-act="start"]');
+    await p.evaluate(() => { const e = STATE.w[today()].ex[0]; e.sets.push({ w: null, r: null, done: false }); render(true); });
+    const n0 = (await sets(p, 0)).length;
+    await p.tap('#ex0 [data-act="exmore"]'); await p.tap('#ex0 [data-act="remset"]');
+    ok((await sets(p, 0)).length === n0 - 1 && !(await p.$('.ex-more')), 'Remove last set removes it and closes More');
+    await p.tap('#ex1 [data-act="exmore"]');
+    const opt = await p.$$eval('#swap1 option', o => o.map(x => x.value).filter(Boolean)[0]);
+    await p.evaluate(() => { const f = INP.swapex; window._sw = 0; INP.swapex = el => { window._sw++; f(el); }; });
+    await p.evaluate(v => { const s = document.querySelector('#swap1'); s.value = v; s.dispatchEvent(new Event('input', { bubbles: true })); s.dispatchEvent(new Event('change', { bubbles: true })); }, opt); // iOS fires input on the pick, change later
+    ok(await p.evaluate(() => STATE.w[today()].ex[1].id) === opt && !(await p.$('.ex-more')), 'Swap acts on the pick and closes More');
+    ok(await p.evaluate(() => window._sw) === 1, 'swapped once, not twice');
+
+    // default sets in the exercise editor: sessions on the old default follow it, + Exercise uses it
+    const id = 'spider';
+    await p.evaluate(() => { delete STATE.w[today()]; bump(); go('plan'); });
+    await p.evaluate(id => { ui.planTab = 'exercises'; ui.editEx = id; render(true); }, id);
+    ok(!!(await p.$('#xe_sets')), 'editor has Default sets');
+    await p.fill('#xe_sets', '3'); await p.tap('[data-act="saveex"]');
+    ok(await p.evaluate(id => S().ex[id].sets, id) === 3, 'default sets saved');
+    ok(await p.evaluate(id => Object.values(S().prog.sessions).flatMap(s => s.items).filter(it => it.ex === id).every(it => it.sets === 3), id), 'sessions using it now plan 3 sets');
+    await p.evaluate(() => { S().rotOverride = { id: 'push1', from: today() }; go('today'); });
+    await p.tap('[data-act="start"]'); await p.tap('[data-act="pickopen"]');
+    await p.evaluate(id => ACT.addexid({ dataset: { id } }), id);
+    ok(await p.evaluate(id => STATE.w[today()].ex.find(e => e.id === id)?.sets.length, id) === 3, '+ Exercise adds it with 3 sets');
+
+    // Plan's exercise search: × clears without bringing the keyboard up
+    await p.evaluate(() => { go('plan'); ui.planTab = 'exercises'; render(true); });
+    await p.tap('#exq'); await p.keyboard.type('curl'); await p.evaluate(() => document.activeElement.blur());
+    await p.tap('#exqx');
+    ok(await p.inputValue('#exq') === '' && await p.evaluate(() => document.activeElement?.id !== 'exq'), '× clears the search and leaves the keyboard down');
+    await p.tap('#exq'); await p.keyboard.type('row'); await p.tap('#exqx');
+    ok(await p.inputValue('#exq') === '' && await p.evaluate(() => document.activeElement?.id !== 'exq'), '× while typing also puts the keyboard away');
+    await p.tap('#exq'); ok(await p.evaluate(() => document.activeElement?.id === 'exq'), 'tapping the box still brings it up');
+    ok(!errs.length, 'no page errors: ' + errs.join(' | '));
+    await p.close();
+  }
+
   await b.close();
   console.log(`${passes} passed, ${fails} failed`);
   process.exit(fails ? 1 : 0);

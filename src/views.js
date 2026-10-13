@@ -260,8 +260,8 @@ function exMoreHTML(w, e, i) { // swap keeps the slot and set count; same muscle
 }
 function orderLine(w, i) { // v1.43: the lift is in another slot than usual, and the Aim allows for it
   const id = w.ex[i].id, f = ordNote(id, ctxLog(w, i), w.s); if (!f) return '';
-  const us = usualSid(id, w.s), slot = us ? sessDef(us).items.filter(it => S().ex[it.ex]).findIndex(it => it.ex === id) + 1 : 0;
-  return `<p class="ex-order">${ordinal(i + 1)} today${slot ? `, usually ${ordinal(slot)}` : ''} · Aim ${f > 0 ? '+' : '−'}${fmt(Math.abs(f) * 100, 0)}% for that</p>`;
+  const us = usualSid(id, w.s), slot = us ? sessDef(us).items.filter(it => S().ex[it.ex]).findIndex(it => it.ex === id) + 1 : 0, other = us && us !== w.s ? ` in ${esc(sessDef(us).name)}` : ''; // another split's slot when it isn't in this one's Plan
+  return `<p class="ex-order">${ordinal(i + 1)} today${slot ? `, usually ${ordinal(slot)}${other}` : ''} · Aim ${f > 0 ? '+' : '−'}${fmt(Math.abs(f) * 100, 0)}% for that</p>`;
 }
 function exCard(w, e, i, prSet) {
   const def = exDef(e.id), u = UNITS[def.u] || UNITS.kg, open = ui.exHist === i;
@@ -669,6 +669,7 @@ function exEditor(id, x) {
     <label class="fl">Max ${x.u === 'bw' ? 'added kg' : x.u === 'plates' ? 'plates / side' : 'kg'}<input class="in" id="xe_bw" inputmode="decimal" value="${x.base?.w ?? ''}" placeholder="optional"></label>
     <label class="fl">Max reps<input class="in" id="xe_br" inputmode="numeric" value="${x.base?.r ?? ''}" placeholder="optional"></label>
     <label class="fl full">Max set as exercise no.<input class="in" id="xe_bpos" inputmode="numeric" value="${x.bpos ?? ''}" placeholder="blank = in your usual order"></label>
+    <label class="fl">Default sets<input class="in" id="xe_sets" inputmode="numeric" value="${x.sets ?? ''}" placeholder="2"></label>
     <label class="fl">Weight step<input class="in" id="xe_inc" inputmode="decimal" value="${x.inc ?? ''}" placeholder="${fmt(exStep(id), 3)}"></label>
     <label class="fl">Reps in reserve<input class="in" id="xe_rir" inputmode="numeric" value="${x.rir ?? ''}" placeholder="${exRir(id)}"></label>
     ${x.u === 'bw' ? `<label class="fl">Body weight counted %<input class="in" id="xe_bwf" inputmode="numeric" value="${x.bwf ? Math.round(x.bwf * 100) : ''}" placeholder="0 = reps only"></label>` : ''}
