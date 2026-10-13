@@ -117,7 +117,7 @@ function maintenance(exId) { // recent 28 days vs days 29–90: is strength hold
   const p = median(pri.map(x => x.y)); const ch = p > 0 ? (r / p - 1) * 100 : 0;
   return { state: ch > 2.5 ? 'up' : ch >= -2.5 ? 'hold' : ch >= -5 ? 'dip' : 'down', ch, r, p, last: ser[ser.length - 1] };
 }
-const MSTATE = { up: ['good', 'Up'], hold: ['good', 'Holding'], dip: ['warn', 'Dip'], down: ['bad', 'Down'], new: ['', 'New'], none: ['', 'No recent sets'] };
+const MSTATE = { up: ['good', 'Up'], hold: ['good', 'Holding'], dip: ['warn', 'Dip'], down: ['bad', 'Down'], new: ['', 'Too new'], none: ['', 'No recent sets'] };
 function fmtLoad(exId, w) {
   const u = exDef(exId).u;
   if (u === 'bw') return w ? `BW+${fmt(w, 2)}` : 'BW';
@@ -309,9 +309,16 @@ function planWeekly(prog) { // sets per week if one session is trained every day
   for (const g in out) out[g] = out[g] * 7 / o.length;
   return out;
 }
-function doneByGroup(from, to) {
+/* Muscles a compound also trains hard, counted at half a set each: the "fractional" count that predicted growth best in
+   Pelland et al. (2024). Library lifts only; an exercise can carry its own list as exDef().g2. */
+const SECONDARY = { incline_db: ['triceps', 'delt_f'], chest_press: ['triceps', 'delt_f'], cable_fly: ['delt_f'], tbar: ['biceps', 'delt_r'], pulldown: ['biceps'], seated_row: ['biceps', 'delt_r'], shoulder_press: ['triceps'] };
+function doneByGroup(from, to, frac = true) {
   const out = {};
-  for (const w of Object.values(STATE.w)) if (w.date >= from && w.date <= to) for (const e of w.ex || []) { const n = doneSets(e).length; if (n) { const g = exDef(e.id).g; out[g] = (out[g] || 0) + n; } }
+  for (const w of Object.values(STATE.w)) if (w.date >= from && w.date <= to) for (const e of w.ex || []) {
+    const n = doneSets(e).length; if (!n) continue; const d = exDef(e.id);
+    out[d.g] = (out[d.g] || 0) + n;
+    if (frac) for (const g of d.g2 || SECONDARY[e.id] || []) if (g !== d.g) out[g] = (out[g] || 0) + n / 2;
+  }
   return out;
 }
 

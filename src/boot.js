@@ -216,7 +216,7 @@ function flashChanged(before) {
 function pulseMark() { const m = $('#mark'); if (!m) return; m.classList.remove('pulse'); void m.offsetWidth; m.classList.add('pulse'); m.addEventListener('animationend', () => m.classList.remove('pulse'), { once: true }); } // new data arrived
 /* Next empty set: a round button above the tab bar while a log is open; it scrolls to the first set without reps,
    hides once tapped, and comes back when you scroll. */
-const logOpen = () => { if (ui.tab === 'log') return true; const w = ui.tab === 'today' && STATE.w[today()]; return !!w && !w.rest && (!w.fin || !!ui.editToday); };
+const logOpen = () => { if (ui.tab === 'log') return true; const w = ui.tab === 'today' && !ui.dayOff && STATE.w[today()]; return !!w && !w.rest && (!w.fin || !!ui.editToday); };
 const firstEmptySet = () => $('#view .set:not(.hdr):not(.done)');
 let fabHid = false, fabQuiet = 0;
 function renderFab() {
@@ -224,7 +224,7 @@ function renderFab() {
   if (!left || fabHid) { if (b) b.classList.remove('on'); return; }
   if (!b) {
     b = document.createElement('button'); b.id = 'nextset'; b.className = 'fab'; b.dataset.act = 'nextset';
-    b.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v12M6 12l6 6 6-6"/></svg><i></i>';
+    b.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/></svg><i></i>'; // a locate mark: the next empty set can be above or below
     document.body.appendChild(b);
   }
   b.setAttribute('aria-label', `Go to the next empty set, ${left} left`);
@@ -261,7 +261,8 @@ function go(tab) {
   if (ui.tab === 'strength' && tab !== 'strength') ui.lift = null; // a picked lift lasts while you stay on Strength
   if (ui.tab === 'log' && ui.logDate && tab !== 'log') dropEmpty(ui.logDate); // an empty past-day log isn't kept
   ui.exNote = null; ui.noteEdit = null; ui.exHist = null; ui.exMore = null;
-  if (tab !== ui.tab) { ui.exQ = ''; ui.reo = null; } // leaving a tab drops its search and an unfinished reorder ui.restPick = null; // exercise search lasts while you stay on Plan
+  if (tab !== ui.tab) { ui.exQ = ''; ui.reo = null; }
+  if (tab === 'today') ui.dayOff = 0; // the Today tab always brings you back to today // leaving a tab drops its search and an unfinished reorder ui.restPick = null; // exercise search lasts while you stay on Plan
   if (tab === 'body' && ui.tab !== 'body') { ui.metric = 'rec'; ui.per = 'M'; ui.off = 0; }
   if (tab === 'data' && ui.tab === 'data') tab = ui.prevTab || 'today'; else if (tab === 'data') ui.prevTab = ui.tab;
   if (tab === 'today') ui.logDate = null;
@@ -345,6 +346,7 @@ const ACT = {
   reorder: () => { if (ui.reo) return ACT.reodone(); ui.reo = { tab: ui.tab, cards: cardOrder(ui.tab, CARD_KEYS[ui.tab] || []), cols: wkCols() }; resetScroll(); render(true); },
   reodone: () => { const r = ui.reo; if (!r) return; S().layout = { ...(S().layout || {}), [r.tab]: r.cards, ...(r.tab === 'body' ? { wkcols: r.cols } : {}) }; ui.reo = null; saveSettings(); resetScroll(); render(true); toast('Order saved'); },
   reoreset: () => { if (!ui.reo) return; ui.reo.cards = (CARD_KEYS[ui.reo.tab] || []).slice(); ui.reo.cols = Object.keys(WKCOLS); render(true); },
+  dayoff: el => { const n = +el.dataset.n; ui.dayOff = n === 0 ? 0 : Math.max(-365, Math.min(28, (ui.dayOff || 0) + n)); ui.restPick = null; resetScroll(); render(true); },
   nextset: () => {
     const r = firstEmptySet(); if (!r) return;
     fabHid = true; fabQuiet = Date.now() + 900; renderFab(); // our own scroll doesn't bring it back
@@ -383,13 +385,13 @@ const ACT = {
   remitem: el => { sessDef(el.dataset.id).items.splice(+el.dataset.j, 1); saveSettings(); render(true); },
   newex: () => { // one blank at a time: a second tap goes back to the one already made
     let id = Object.keys(S().ex).find(blankEx);
-    if (!id) { id = 'x' + Date.now().toString(36); S().ex[id] = X('New exercise', 'other', 'kg', 90, 8, 12, null, null); saveSettings(); }
+    if (!id) { id = 'x' + Date.now().toString(36); S().ex[id] = { ...X('New exercise', 'other', 'kg', 90, 8, 12, null, null), fresh: 1 }; saveSettings(); }
     ui.editEx = id; render(true); reveal('#exlist [data-edit]');
   },
   exqclear: () => { ui.exQ = ''; const i = $('#exq'); if (i) { i.value = ''; i.focus(); } filterEx(); },
-  editex: el => { const prev = ui.editEx; ui.editEx = el.dataset.id || null; if (prev && prev !== ui.editEx && blankEx(prev)) { delete S().ex[prev]; saveSettings(); } render(true); }, // Cancel on an untouched new exercise deletes it
+  editex: el => { const prev = ui.editEx; ui.editEx = el.dataset.id || null; if (prev && prev !== ui.editEx && (blankEx(prev) || S().ex[prev]?.fresh)) { delete S().ex[prev]; saveSettings(); } render(true); }, // leaving a new exercise unsaved (Discard, or opening another) drops it
   saveex: el => {
-    const x = S().ex[el.dataset.id]; if (!x) return;
+    const x = S().ex[el.dataset.id]; if (!x) return; delete x.fresh;
     x.name = ($('#xe_n').value || '').trim() || x.name; x.g = $('#xe_g').value; x.u = $('#xe_u').value;
     const lo = parseInt($('#xe_lo').value, 10), hi = parseInt($('#xe_hi').value, 10), bw = num($('#xe_bw').value), br = parseInt($('#xe_br').value, 10);
     if (lo > 0) x.lo = lo; if (hi >= x.lo) x.hi = hi; else x.hi = x.lo; x.note = ($('#xe_note').value || '').trim();

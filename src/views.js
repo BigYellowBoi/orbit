@@ -12,15 +12,55 @@ function deltaTxt(v, base, d = 0, unit = '', invert = false) {
 function rxTxt(it) { const d = exDef(it.ex); return `${it.sets} × ${d.lo}${d.hi > d.lo ? '–' + d.hi : ''}`; }
 function prevLine(exId, before) { const sg = suggest(exId, before); return (sg ? `<b class="aimtxt">Aim ${esc(suggestTxt(exId, sg))}</b> · ` : '') + esc(lastLine(exId, before)); }
 function lastLine(exId, before) {
-  const l = lastFor(exId, before), b = bestSet(exId, before), best = b ? `Best ${fmtSet(exId, b)}` : '';
+  const ix = lixEx(exId), n = nBefore(ix.list, before); // Best counts logged sets only; stated maxes just seed the Aim
+  let b = null; for (let i = 0; i < n; i++) if (!b || ix.list[i].sc > b.sc) b = ix.list[i];
+  const l = lastFor(exId, before), best = b ? `Best ${fmtSet(exId, b.top)}` : '';
   if (l) return `Last ${fmtDate(l.date)} · ${setsTxt(exId, l.sets)}${best ? ' · ' + best : ''}`;
-  return best ? `${best} · not logged yet` : 'Not logged yet';
+  return 'Not logged yet';
 }
 
 /* ---------- Today: the next session, then today's log once it's started ---------- */
+/* Day navigation on Today: ‹ › step through past days (what was logged, with that day's WHOOP numbers) and coming days
+   (the planned session with its Aims, or rest, with a toggle to plan rest). Tapping the Today tab comes back. */
+const CHEV = d => `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg>`;
+function dayNav(off) {
+  return `<div class="daynav">${off ? '<button class="link" data-act="dayoff" data-n="0">Today</button>' : ''}<button class="iconbtn sm" data-act="dayoff" data-n="-1" aria-label="Previous day">${CHEV('M15 5l-7 7 7 7')}</button><button class="iconbtn sm" data-act="dayoff" data-n="1" aria-label="Next day">${CHEV('M9 5l7 7-7 7')}</button></div>`;
+}
+function vDay(off) {
+  const d = addDays(today(), off), long = new Date(toUTC(d)).toLocaleDateString('en-AU', { timeZone: 'UTC', weekday: 'long' });
+  let h = `<div class="page-h"><div><div class="eyebrow">${esc(fmtDow(d))} ${esc(fmtDate(d, { year: 'numeric' }))}</div><h1>${off === -1 ? 'Yesterday' : off === 1 ? 'Tomorrow' : esc(long)}</h1></div>${dayNav(off)}</div>`;
+  if (off < 0) return h + pastDayHTML(d) + whoopCard(d);
+  return h + futureDayHTML(d, off) + stripHTML();
+}
+function pastDayHTML(d) {
+  const w = STATE.w[d] && !emptyW(STATE.w[d]) ? STATE.w[d] : null;
+  if (!w) return `<section class="card hero"><div class="card-h"><span class="eyebrow">Nothing logged</span></div><p class="dim small">No session or rest day was logged on this day.</p><button class="btn sm ghost" data-act="openlog" data-d="${d}">Log this day</button></section>`;
+  if (w.rest) return `<section class="card hero"><div class="card-h"><span class="eyebrow">Rest day</span>${pill('', 'Logged')}</div><div><h1>Rest</h1></div>${w.cardio?.done ? `<p class="small dim">${esc(w.cardio.name)} · ${w.cardio.min || 0} min</p>` : ''}<button class="btn sm ghost" data-act="openlog" data-d="${d}">Open log</button></section>`;
+  const st = wStats(w), dur = sessDur(w), prs = prsIn(w), ex = (w.ex || []).filter(e => doneSets(e).length);
+  return `<section class="card hero"><div class="card-h"><span class="eyebrow">Logged</span>${pill('good', 'Done')}</div>
+    <div><h1>${esc(sessName(w))}</h1><p class="focus">${esc(sessDef(w.s)?.focus || '')}</p></div>
+    <div class="stats">${stat(st.sets, '', 'sets')}${stat(dur ? fmtDur(dur) : '–', '', 'duration')}${stat(st.cardio || '–', st.cardio ? 'min' : '', w.cardio?.name || 'Cardio')}</div>
+    ${ex.length ? `<ul class="exlist">${ex.map(e => `<li><span>${esc(exDef(e.id).name)}</span><span class="rx">${esc(setsTxt(e.id, doneSets(e)))}</span></li>`).join('')}</ul>` : ''}
+    ${prs.length ? `<div class="chips">${prs.slice(0, 6).map(p => `<span class="pill acc">${esc(exDef(p.id).name)} ${esc(fmtSet(p.id, p.s))}</span>`).join('')}</div>` : ''}
+    <button class="btn wide ghost" data-act="openlog" data-d="${d}">Open log</button></section>`;
+}
+function futureDayHTML(d, off) {
+  const u = upcoming(off + 1)[off], sid = u.s, sd = sessDef(sid), o = order(), idx = o.indexOf(sid);
+  if (sid === '_rest' || isRestSlot(sid)) return `<section class="card hero"><div class="card-h"><span class="eyebrow">${u.planned ? 'Planned rest' : 'Rest from your rotation'}</span></div>
+    <div><h1>Rest</h1><p class="focus">${u.planned ? 'You planned this day off. The rotation waits, so the sessions after it move back a day.' : 'A rest slot in your rotation.'}</p></div>
+    ${u.planned ? `<button class="btn sm ghost" data-act="restoff" data-date="${d}">Train this day instead</button>` : ''}</section>`;
+  if (!sd) return '';
+  return `<section class="card hero"><div class="card-h"><span class="eyebrow">Planned · ${idx + 1} of ${o.length}</span></div>
+    <div class="rot">${o.map((id, i) => `<i class="${i === idx ? 'on' : ''}"></i>`).join('')}</div>
+    <div><h1>${esc(sd.name)}</h1><p class="focus">${esc(sd.focus || '')}</p></div>
+    <ul class="exlist">${sd.items.filter(it => S().ex[it.ex]).map(it => `<li><span>${esc(exDef(it.ex).name)}</span><span class="rx">${rxTxt(it)}</span><span class="lt">${prevLine(it.ex, d)}</span></li>`).join('')}
+      <li><span>${esc(S().cardio.name)}</span><span class="rx">${S().cardio.min} min</span></li></ul>
+    <div class="btnrow" style="justify-content:space-between"><span class="xs muted">Assumes you train each day until then.</span><button class="link dim" data-act="reston" data-date="${d}">Rest this day</button></div></section>`;
+}
 function vToday() {
+  if (ui.dayOff) return vDay(ui.dayOff);
   const t = today(), w = STATE.w[t], sid = w ? w.s : sessionFor(t), sd = sessDef(sid), o = order(), idx = o.indexOf(sid);
-  let h = `<div class="page-h"><div><div class="eyebrow">${esc(fmtDow(t))} ${esc(fmtDate(t, { year: 'numeric' }))}</div><h1>Today</h1></div>${o.length ? `<span class="pill plain">Rotation ${rotationCount() + 1}</span>` : ''}</div>`;
+  let h = `<div class="page-h"><div><div class="eyebrow">${esc(fmtDow(t))} ${esc(fmtDate(t, { year: 'numeric' }))}</div><h1>Today</h1></div><div class="hdr-r">${o.length ? `<span class="pill plain">Rotation ${rotationCount() + 1}</span>` : ''}${dayNav(0)}</div></div>`;
   const tail = () => whoopCard() + stripHTML() + weekCard();
   if (w && (!w.fin || ui.editToday)) return h + logBody(t) + tail(); // the log, until you press Done
   if (w) return h + doneHero(w, idx, o) + tail();
@@ -94,8 +134,8 @@ function ring(v, tone, strain) { // inner ring: recovery (0–100%); outer ring:
   const col = { good: 'var(--good)', warn: 'var(--warn)', bad: 'var(--bad)' }[tone] || 'var(--ink-3)';
   return `<div class="ring" data-live="ring" role="img" aria-label="Recovery ${v == null ? 'unknown' : Math.round(v) + '%'}${strain != null ? `, strain ${fmt(strain, 1)}` : ''}"><svg viewBox="0 0 112 112">${arc(51, strain != null ? strain / 21 : 0, 'var(--strain)', 6)}${arc(40, Math.max(0, Math.min(100, v || 0)) / 100, col, 6)}</svg><b style="color:${col}">${v == null ? '–' : Math.round(v)}<small style="color:inherit;opacity:.75">%</small></b></div>`;
 }
-function whoopCard() {
-  const t = today(), x = STATE.d[t];
+function whoopCard(day) {
+  const t = day || today(), isT = t === today(), x = STATE.d[t];
   if (!x || (x.rec == null && x.slp == null)) return ''; // older numbers live in Body
   const tone = recTone(x.rec), hb = hrvBand(t), base = k => avgOver(k, t, 30, true)?.avg, str = x.str;
   let note = '';
@@ -105,7 +145,7 @@ function whoopCard() {
   if (x.rr != null) extra.push(stat(fmt(x.rr, 1), 'rpm', 'Respiratory rate', deltaTxt(x.rr, base('rr'), 1, '', true)));
   if (x.spo2 != null) extra.push(stat(fmt(x.spo2, 0), '%', 'Blood oxygen'));
   if (x.skt != null) extra.push(stat(fmt(x.skt, 1), '°C', 'Skin temp', deltaTxt(x.skt, base('skt'), 1, '°')));
-  const stT = stepsOf(t); if (stT != null) extra.push(stat(fmt(stT, 0), '', 'Steps, today'));
+  const stT = stepsOf(t); if (stT != null) extra.push(stat(fmt(stT, 0), '', isT ? 'Steps, today' : 'Steps'));
   return `<section class="card"><div class="card-h"><h2>Recovery</h2>${x.rec != null ? pill(tone, recWord(x.rec)) : ''}</div>
     <div class="recov">${ring(x.rec, tone, str)}<div class="stats" style="grid-template-columns:repeat(2,minmax(0,1fr))">
       ${stat(x.hrv != null ? fmt(x.hrv, 0) : '–', 'ms', 'HRV', hb ? `<span class="delta" style="color:var(${hb.state === 'below' ? '--warn-ink' : hb.state === 'within' ? '--good-ink' : '--ink-2'})">7-day ${HRV_STATE[hb.state][1].toLowerCase()}</span>` : '')}
@@ -113,10 +153,10 @@ function whoopCard() {
     </div></div>
     <div class="stats">
       ${stat(x.slp != null ? fmt(x.slp / 60, 1) : '–', 'h', 'Asleep', x.sp != null ? `<span class="delta">${fmt(x.sp, 0)}% of need${x.sd ? ` · debt ${fmt(x.sd, 0)} min` : ''}</span>` : '')}
-      ${stat(str != null ? `<span style="color:var(--strain)">${fmt(str, 1)}</span>` : '–', '', 'Strain, today')}
+      ${stat(str != null ? `<span style="color:var(--strain)">${fmt(str, 1)}</span>` : '–', '', isT ? 'Strain, today' : 'Strain')}
       ${extra.join('')}
     </div>${note}
-    <span class="xs muted">WHOOP · today</span></section>`;
+    <span class="xs muted">WHOOP · ${isT ? 'today' : esc(fmtDate(t))}</span></section>`;
 }
 
 /* ---------- Log: one day's session. Today's renders inside Today; past days open from History ---------- */
@@ -260,9 +300,9 @@ function vStrength() {
     ${ids.map(id => { const r = records(id), m = maintenance(id), [tone, word] = MSTATE[m.state]; return `<tr class="${id === pick && ui.lift ? 'sel' : ''}" data-act="liftsel" data-id="${id}"><td>${esc(exDef(id).name)}</td>
       <td class="n">${(b => b ? `${esc(fmtSet(id, b.top))}<br><span class="xs muted">${esc(fmtDMY(b.date))}</span>` : '<span class="muted">–</span>')(bestLogged(id))}</td>
       <td class="n">${m.last ? `${esc(fmtSet(id, m.last.top))}<br><span class="xs muted">${esc(fmtDate(m.last.date))}</span>` : '<span class="muted">–</span>'}</td>
-      <td class="n">${tone ? `<span class="pill plain ${tone}" title="${word}">${(m.ch >= 0 ? '+' : '−') + fmt(Math.abs(m.ch), 1)}%</span>` : `<span class="xs muted">${m.state === 'new' ? 'New' : '–'}</span>`}</td></tr>`; }).join('')}
+      <td class="n">${tone ? `<span class="pill plain ${tone}" title="${word}">${(m.ch >= 0 ? '+' : '−') + fmt(Math.abs(m.ch), 1)}%</span>` : `<span class="xs muted">${m.state === 'new' ? 'Too new' : '–'}</span>`}</td></tr>`; }).join('')}
     </tbody></table></div>
-    <p class="xs muted">Tap a lift to chart it; tap it again or anywhere else to go back. Best is your strongest logged set; the maxes entered in Plan only seed the first Aims, so they aren't shown. Sets with different reps are compared by estimated 1RM (Epley), which gets less reliable above about 10 reps. 4 wk compares your typical session (the median of each session's best set) in the last 4 weeks with the 2 months before, so one standout day doesn't swing it: green is holding (within ±2.5%, about the size of day-to-day variation) or up, amber a dip of up to 5%, red a bigger drop.</p></section>` });
+    <p class="xs muted">Tap a lift to chart it; tap it again or anywhere else to go back. Best is your strongest logged set; the maxes entered in Plan only seed the first Aims, so they aren't shown. Sets with different reps are compared by estimated 1RM (Epley), which gets less reliable above about 10 reps. Too new means you've logged it in the last 4 weeks but not in the 2 months before, so there's nothing to compare yet. 4 wk compares your typical session (the median of each session's best set) in the last 4 weeks with the 2 months before, so one standout day doesn't swing it: green is holding (within ±2.5%, about the size of day-to-day variation) or up, amber a dip of up to 5%, red a bigger drop.</p></section>` });
   // Bands from research, not from the plan: ~3 hard sets a week held size and strength in younger adults (Bickel et al., 2011:
   // a ninth of the training dose, one set of each of three exercises once a week); 10-20 a week is the usual growth range,
   // with diminishing returns above it (Schoenfeld et al., 2017; Pelland et al., 2024).
@@ -270,8 +310,8 @@ function vStrength() {
   const mx = Math.max(GHI + 2, ...gs.map(g => done[g] || 0)), pc = v => v / mx * 100;
   const tone = n => n < HOLD ? 'warn' : n >= GLO ? 'good' : '';
   cards.push({ k: 'volume', t: 'Volume, last 7 days', h: `<section class="sec" data-card="volume"><div class="sec-h"><span class="eyebrow">Volume · last 7 days</span></div><section class="card"><div class="legend"><span><i class="ln" style="background:var(--s1);height:8px;width:12px"></i>Sets done</span><span><i class="tk"></i>Hold, ~${HOLD}</span><span><i class="bandk"></i>Grow, ${GLO}–${GHI}</span></div>
-    <ul class="hbars">${gs.map(g => { const n = done[g] || 0; return `<li><span class="lab">${esc(GROUPS[g])}</span><span class="trk"><span class="band" style="left:${pc(GLO)}%;width:${pc(GHI) - pc(GLO)}%"></span><span class="fill" style="width:${pc(Math.min(n, mx))}%"></span><span class="tgt" style="left:calc(${pc(HOLD)}% - 1px)"></span></span><span class="v ${tone(n) ? 'tn-' + tone(n) : ''}">${n}</span></li>`; }).join('')}</ul>
-    <p class="xs muted">Hard working sets per muscle in the last 7 days, against research rather than your plan. Holding: younger adults kept size and strength on about ${HOLD} hard sets a week per muscle, a ninth of what built it (Bickel et al., 2011), and one heavy set per exercise once a week kept strength (Spiering et al., 2021). Growing: most studies support ${GLO}–${GHI} sets a week, with smaller returns above that (Schoenfeld et al., 2017; Pelland et al., 2024). Direct sets only: rows also train rear delts and presses triceps, so real totals run higher.</p></section></section>` });
+    <ul class="hbars">${gs.map(g => { const n = done[g] || 0; return `<li><span class="lab">${esc(GROUPS[g])}</span><span class="trk"><span class="band" style="left:${pc(GLO)}%;width:${pc(GHI) - pc(GLO)}%"></span><span class="fill" style="width:${pc(Math.min(n, mx))}%"></span><span class="tgt" style="left:calc(${pc(HOLD)}% - 1px)"></span></span><span class="v ${tone(n) ? 'tn-' + tone(n) : ''}">${fmt(n, 1)}</span></li>`; }).join('')}</ul>
+    <p class="xs muted">Hard working sets per muscle in the last 7 days, against research rather than your plan. Holding: younger adults kept size and strength on about ${HOLD} hard sets a week per muscle, a ninth of what built it (Bickel et al., 2011), and one heavy set per exercise once a week kept strength (Spiering et al., 2021). Growing: most studies support ${GLO}–${GHI} sets a week, with smaller returns above that (Schoenfeld et al., 2017; Pelland et al., 2024). Compounds count half a set for the muscles they also work (presses: triceps and front delts; rows: biceps and rear delts), the count that predicted growth best (Pelland et al., 2024). Research gives one range for all muscles rather than one each; most studies are on quads, biceps and triceps, so the bands are a guide, not a rule.</p></section></section>` });
   return h + arrange('strength', cards);
 }
 
@@ -292,9 +332,9 @@ function arrange(tab, cards) { // cards: [{ k, t, h }] in default order; h is ''
 /* ---------- Body: WHOOP and MacroFactor ---------- */
 function freshHTML() { // how current each source is, so lagging data is obvious
   const t = today(), wd = latestWith('rec') || latestWith('slp'), md = latestWith('kcal') || latestWith('tw') || latestWith('wt');
-  const one = (name, d) => { if (!d) return pill('', `${name} none`); const age = diffDays(d, t); return pill(age <= 1 ? 'good' : age <= 3 ? '' : 'warn', `${name} ${age <= 0 ? 'today' : age === 1 ? 'yesterday' : fmtDate(d)}`); };
+  const one = (name, d) => { if (!d) return pill('plain', `${name}: none yet`); const age = diffDays(d, t); return pill('plain ' + (age <= 1 ? 'good' : age <= 3 ? '' : 'warn'), `${name} ${age <= 0 ? 'today' : age === 1 ? 'yesterday' : fmtDate(d)}`); }; // newest data from each source; colour shows freshness
   const hd = latestWith('stpi') || latestWith('hp');
-  return `<div class="chips one" aria-label="Latest data from each source">${one('WHOOP', wd)}${one('MacroFactor', md)}${hd ? one('iPhone', hd) : ''}</div>`;
+  return `<div class="chips one" aria-label="Latest data from each source">${one('WHOOP', wd)}${one('MacroFactor', md)}${hd ? one('Apple Health', hd) : ''}</div>`;
 }
 function vBody() {
   let h = `<div class="page-h"><div><div class="eyebrow">WHOOP · MacroFactor · Apple Health</div><h1>Body</h1></div></div>`;
@@ -325,9 +365,12 @@ function progSig(p) { return JSON.stringify({ o: p.order, s: Object.fromEntries(
 function vPlan() {
   const cur = S().prog, sig = progSig(cur), o = order();
   const match = Object.keys(PRESETS).find(k => progSig(PRESETS[k]) === sig);
-  let h = `<div class="page-h"><div><div class="eyebrow">${match ? esc(PRESETS[match].name) : 'Custom split'} · ${trainIds().length} sessions${o.length > trainIds().length ? ` + ${o.length - trainIds().length} rest` : ''}</div><h1>Plan</h1></div></div>`;
-  h += `<section class="sec"><div class="sec-h"><span class="eyebrow">Split</span></div><div class="grid2">${Object.entries(PRESETS).map(([k, p]) => `<button class="opt ${match === k ? 'on' : ''}" data-act="preset" data-id="${k}"><b>${esc(p.name)}</b><span class="seqs">${p.order.map(id => esc(p.sessions[id].name)).join(' → ')}</span><span>${esc(p.blurb)}</span></button>`).join('')}</div>
-    ${ui.confirm && ui.confirm.startsWith('preset:') ? `<div class="prev"><p>Switch to <b>${esc(PRESETS[ui.confirm.slice(7)].name)}</b>? Your session lists are replaced; logged sessions and history stay as they are.</p><div class="btnrow"><button class="btn sm" data-act="usepreset" data-id="${ui.confirm.slice(7)}">Switch</button><button class="link dim" data-act="confirm" data-v="">Cancel</button></div></div>` : ''}</section>`;
+  // Edited (sets, order, an exercise swapped): the closest preset stays selected, marked edited, rather than none
+  const pairs = p => new Set(Object.entries(p.sessions).flatMap(([sid, sd]) => sd.items.map(i => sid + ':' + i.ex)));
+  const mine = pairs(cur), near = match || Object.keys(PRESETS).map(k => { const ps = pairs(PRESETS[k]); return { k, sc: [...ps].filter(x => mine.has(x)).length / Math.max(ps.size, mine.size, 1) }; }).sort((a, b) => b.sc - a.sc).find(x => x.sc >= 0.5)?.k;
+  let h = `<div class="page-h"><div><div class="eyebrow">${match ? esc(PRESETS[match].name) : near ? esc(PRESETS[near].name) + ', edited' : 'Custom split'} · ${trainIds().length} sessions${o.length > trainIds().length ? ` + ${o.length - trainIds().length} rest` : ''}</div><h1>Plan</h1></div></div>`;
+  h += `<section class="sec"><div class="sec-h"><span class="eyebrow">Split</span></div><div class="grid2">${Object.entries(PRESETS).map(([k, p]) => `<button class="opt ${near === k ? 'on' : ''}" data-act="preset" data-id="${k}"><b>${esc(p.name)}${near === k && !match ? ' <span class="xs muted">· edited</span>' : ''}</b><span class="seqs">${p.order.map(id => esc(p.sessions[id].name)).join(' → ')}</span><span>${esc(p.blurb)}</span></button>`).join('')}</div>
+    ${ui.confirm && ui.confirm.startsWith('preset:') ? `<div class="prev"><p>${ui.confirm.slice(7) === near && !match ? `Reset to the original <b>${esc(PRESETS[near].name)}</b>? Your edits to the session lists are undone` : `Switch to <b>${esc(PRESETS[ui.confirm.slice(7)].name)}</b>? Your session lists are replaced`}; logged sessions and history stay as they are.</p><div class="btnrow"><button class="btn sm" data-act="usepreset" data-id="${ui.confirm.slice(7)}">${ui.confirm.slice(7) === near && !match ? 'Reset' : 'Switch'}</button><button class="link dim" data-act="confirm" data-v="">Cancel</button></div></div>` : ''}</section>`;
 
   h += progressionCard();
 
@@ -415,8 +458,9 @@ function exEditor(id, x) {
     <label class="fl">Reps in reserve<input class="in" id="xe_rir" inputmode="numeric" value="${x.rir ?? ''}" placeholder="${exRir(id)}"></label>
     ${x.u === 'bw' ? `<label class="fl">Body weight counted %<input class="in" id="xe_bwf" inputmode="numeric" value="${x.bwf ? Math.round(x.bwf * 100) : ''}" placeholder="0 = reps only"></label>` : ''}
     <label class="fl full">Note<input class="in left" id="xe_note" value="${esc(x.note || '')}" placeholder="optional"></label>
-  </div><div class="btnrow"><button class="btn sm" data-act="saveex" data-id="${id}">Save</button><button class="link dim" data-act="editex" data-id="">Cancel</button>
-  ${Object.values(S().prog.sessions).some(s => s.items.some(i => i.ex === id)) ? '' : `<button class="link danger" data-act="delex" data-id="${id}" style="margin-left:auto">Delete</button>`}</div></div>`;
+  </div>${x.fresh ? `<div class="btnrow"><button class="btn sm" data-act="saveex" data-id="${id}">Add exercise</button><button class="link dim" data-act="editex" data-id="">Discard</button></div></div>` // new and unsaved: one way in, one way out
+  : `<div class="btnrow"><button class="btn sm" data-act="saveex" data-id="${id}">Save</button><button class="link dim" data-act="editex" data-id="">Cancel</button>
+  ${Object.values(S().prog.sessions).some(s => s.items.some(i => i.ex === id)) ? '' : `<button class="link danger" data-act="delex" data-id="${id}" style="margin-left:auto">Delete exercise</button>`}</div></div>`}`;
 }
 
 /* ---------- Data ---------- */
