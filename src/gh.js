@@ -315,7 +315,9 @@ const Helper = {
       ${row('Helper → WHOOP', net.whoop, net.whoop?.at ? `last run ${esc(new Date(net.whoop.at).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }))}` : '')}
       ${row('Helper → GitHub', net.gh, net.gh?.at ? `last run ${esc(new Date(net.gh.at).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }))}` : '')}
     </tbody></table></div><p class="xs muted">Response is the average per request. Speed shows for downloads over 2 KB.</p>`;
-    const log = st?.log || [], lab = e => e.k === 'notify' ? `${e.w[0].toUpperCase() + e.w.slice(1)} (WHOOP notification)` : e.k === 'full' ? 'Full check' : e.k === 'steps' ? 'Steps and strain' : e.k === 'error' ? 'Problem' : e.w;
+    // newest first; an entry a newer one supersedes is dropped (same rule as the helper's logEv)
+    const lk = e => e.k === 'notify' ? 'notify:' + e.w : e.k === 'history' ? null : e.k, sup = (n, o) => { const k = lk(o); return k != null && (k === lk(n) || (n.k === 'full' && o.k === 'steps')); };
+    const log = (st?.log || []).reduce((a, e) => (a.some(n => sup(n, e)) ? a : [...a, e]), []), lab = e => e.k === 'notify' ? `${e.w[0].toUpperCase() + e.w.slice(1)} (WHOOP notification)` : e.k === 'full' ? 'Full check' : e.k === 'steps' ? 'Steps and strain' : e.k === 'error' ? 'Problem' : e.w;
     if (log.length) h += `<span class="xs muted">Recent syncs by the helper</span><ul class="rows synclog">${log.slice(0, 12).map(e => `<li><span>${esc(lab(e))}</span>${e.k === 'error' ? pill('bad', 'Error') : e.ch ? pill('good', 'New data') : pill('', 'No change')}<span class="sub">${esc(this.when(e.t))}${e.rq ? ` · ${e.rq} request${e.rq === 1 ? '' : 's'}` : ''}${e.k === 'error' ? ' · ' + esc(e.w) : ''}</span></li>`).join('')}</ul>`;
     else if (st && !u) h += `<p class="xs muted">Paste the latest orbit-sync.js into Cloudflare to see the helper's usage and sync log.</p>`;
     return h + `</section>`;

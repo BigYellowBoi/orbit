@@ -278,6 +278,10 @@ console.log('traffic');
   const s2 = await (await req('/status.json')).json();
   ok(s2.whoop.dataWhat === 'recovery' && Date.now() - s2.whoop.dataAt < 5e3 && s2.log[0].k === 'notify' && s2.log[0].w === 'recovery' && s2.log[0].ch, 'recovery notification: latest data says recovery, logged first');
   ok(s2.usage.hooks > u.hooks, 'notification counted');
+  // a newer entry takes the place of the one it supersedes: one per kind (notifications per thing), no polls older than a full check
+  const key = e => e.k === 'notify' ? 'notify:' + e.w : e.k === 'history' ? null : e.k, keys = s2.log.map(key).filter(Boolean);
+  const lastFull = s2.log.findIndex(e => e.k === 'full');
+  ok(new Set(keys).size === keys.length && (lastFull < 0 || !s2.log.slice(lastFull + 1).some(e => e.k === 'steps')), `sync log has no superseded entries (${s2.log.map(e => e.k + (e.k === 'notify' ? ':' + e.w : '')).join(', ')})`);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -85,7 +85,11 @@ async function mfetch(b, svc, url, opts = {}) {
   }
   return r;
 }
-const logEv = (doc, e, max = 25) => { doc.log = [{ t: Date.now(), ...e }, ...(doc.log || [])].slice(0, max); };
+/* Sync log: a newer entry takes the place of an older one it supersedes (the same kind; notifications only for the same
+   thing; a full check also replaces earlier steps-and-strain polls). History steps each stand. The app applies the same rule. */
+const logKey = e => e.k === 'notify' ? 'notify:' + e.w : e.k === 'history' ? null : e.k;
+const supersedes = (n, o) => { const k = logKey(o); return k != null && (k === logKey(n) || (n.k === 'full' && o.k === 'steps')); };
+const logEv = (doc, e, max = 25) => { const n = { t: Date.now(), ...e }; doc.log = [n, ...(doc.log || []).filter(o => !supersedes(n, o))].slice(0, max); };
 
 /* ---------- WHOOP sign-in ---------- */
 function redirectUri(url) { return `${url.origin}/callback`; }
