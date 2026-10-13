@@ -323,6 +323,11 @@ function vStrength() {
   cards.push({ k: 'volume', t: 'Volume, last 7 days', h: `<section class="sec" data-card="volume"><div class="sec-h"><span class="eyebrow">Volume · last 7 days</span></div><section class="card"><div class="legend"><span><i class="ln" style="background:var(--s1);height:8px;width:12px"></i>Sets done</span><span><i class="tk"></i>Hold, ~${HOLD}</span><span><i class="bandk"></i>Grow, ${GLO}–${GHI}</span></div>
     <ul class="hbars">${gs.map(g => { const n = done[g] || 0; return `<li><span class="lab">${esc(GROUPS[g])}</span><span class="trk"><span class="band" style="left:${pc(GLO)}%;width:${pc(GHI) - pc(GLO)}%"></span><span class="fill" style="width:${pc(Math.min(n, mx))}%"></span><span class="tgt" style="left:calc(${pc(HOLD)}% - 1px)"></span></span><span class="v ${tone(n) ? 'tn-' + tone(n) : ''}">${fmt(n, 1)}</span></li>`; }).join('')}</ul>
     <p class="xs muted">Hard sets per muscle, last 7 days; compounds count half for the muscles they also work. About 3 a week holds (Bickel et al., 2011); 10–20 grows (Schoenfeld et al., 2017; Pelland et al., 2024).</p></section></section>` });
+  const det = doneByGroupDetail(addDays(t, -6), t), dg = GROUP_ORDER.filter(g => det[g]);
+  if (dg.length) cards.push({ k: 'volsrc', t: 'Volume breakdown', h: `<section class="sec" data-card="volsrc"><div class="sec-h"><span class="eyebrow">Volume breakdown · last 7 days</span></div><section class="card"><div class="tblwrap"><table class="tbl volsrc"><thead><tr><th>Exercise</th><th class="n">Sets</th><th class="n">Counts</th></tr></thead>
+    ${dg.map(g => `<tbody><tr class="grp"><th scope="rowgroup">${esc(GROUPS[g])}</th><td></td><td class="n">${fmt(sum(det[g].map(r => r.credit)), 1)}</td></tr>
+      ${det[g].map(r => `<tr${r.sec ? ' class="sec2"' : ''}><td>${esc(exDef(r.id).name)}${r.sec ? ' <span class="xs muted">· half</span>' : ''}</td><td class="n">${r.sets}</td><td class="n">${fmt(r.credit, 1)}</td></tr>`).join('')}</tbody>`).join('')}
+    </table></div></section></section>` });
   return h + arrange('strength', cards);
 }
 
@@ -349,9 +354,16 @@ function freshHTML() { // how current each source is, so lagging data is obvious
   const hd = latestWith('stpi') || latestWith('hp');
   return `<div class="chips one" aria-label="Latest data from each source">${one('WHOOP', wd)}${one('MacroFactor', md)}${hd ? one('Apple Health', hd) : ''}</div>`;
 }
+/* Partly logged days (v1.35): MacroFactor's prompt, here. Shown while any flagged day in the last 3 weeks is unanswered;
+   answered ones stay listed with their answer so a slip can be undone. */
+function partialCard() {
+  const f = partialFlags(); if (!f.some(x => x.ans == null)) return '';
+  return `<section class="card"><div class="card-h"><h2>Partly logged?</h2><span class="eyebrow">expenditure</span></div>
+    <ul class="rows partq">${f.map(x => `<li><span>${esc(fmtDow(x.d))} ${esc(fmtDate(x.d))}</span><div class="seg" role="group" aria-label="${esc(fmtDate(x.d))}">${[['1', 'Partly'], ['0', 'Complete']].map(([v, l]) => `<button class="${x.ans === (v === '1') ? 'on' : ''}" data-act="partial" data-date="${x.d}" data-v="${v}">${l}</button>`).join('')}</div><span class="sub">${fmt(x.kcal, 0)} kcal, ${fmt(x.pct * 100, 0)}% of the days before${x.ans == null ? ` · treated as ${x.part ? 'partly logged' : 'complete'}` : ''}</span></li>`).join('')}</ul></section>`;
+}
 function vBody() {
   let h = `<div class="page-h"><div><div class="eyebrow">WHOOP · MacroFactor · Apple Health</div><h1>Body</h1></div></div>`;
-  h += freshHTML();
+  h += freshHTML() + partialCard();
   const cards = [{ k: 'trends', t: 'Trends', h: explorerHTML() }, { k: 'alcohol', t: 'Alcohol and recovery', h: alcoholCard() }];
   const ra = recoveryAfter().filter(r => r.n >= 2).sort((a, b) => b.avg - a.avg);
   if (ra.length >= 2) cards.push({ k: 'recafter', t: 'Recovery the morning after', h: `<section class="card"><div class="card-h"><h2>Recovery the morning after</h2><span class="eyebrow">all time</span></div><p class="xs muted">Average next-day WHOOP recovery after each session type. Small samples move a lot; read it as a hint.</p>

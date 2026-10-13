@@ -274,6 +274,10 @@ textarea.in { text-align: left; font-size: 15px; min-height: 76px; padding: 10px
 
 /* tables */
 .tblwrap { overflow-x: auto; margin-inline: -2px; }
+.tbl.volsrc tr.grp th, .tbl.volsrc tr.grp td { font-family: var(--f-body); font-size: 13.5px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--ink); padding-top: 14px; }
+.tbl.volsrc tbody:first-of-type tr.grp th, .tbl.volsrc tbody:first-of-type tr.grp td { padding-top: 8px; }
+.tbl.volsrc tr:not(.grp) td:first-child { padding-left: 12px; color: var(--ink-2); }
+.tbl.volsrc tr.sec2 td, .tbl.volsrc tr.sec2 td:first-child { color: var(--ink-3); }
 .tbl { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .tbl th { text-align: left; font-family: var(--f-mono); font-weight: 500; font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); padding: 6px 8px 6px 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
 .tbl td { padding: 8px 8px 8px 0; border-bottom: 1px solid var(--line); vertical-align: middle; }

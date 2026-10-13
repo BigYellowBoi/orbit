@@ -339,6 +339,7 @@ const ACT = {
   strippick: el => { ui.restPick = ui.restPick === el.dataset.date ? null : el.dataset.date; render(true); },
   reston: el => setRest(el.dataset.date, true),
   restoff: el => setRest(el.dataset.date, false),
+  partial: el => { const d = el.dataset.date, v = el.dataset.v === '1', m = S().partial = S().partial || {}; if (m[d] === v) delete m[d]; else m[d] = v; saveSettings(); render(true); }, // tap the chosen answer again to clear it
   restplan: () => { ui.restPlanOpen = !ui.restPlanOpen; ui.restPick = null; render(true); },
   picktoday: () => { ui.pickSess = 'today'; render(true); },
   setnext: el => { S().rotOverride = { id: el.dataset.id, from: today() }; ui.pickSess = null; saveSettings(); render(true); },

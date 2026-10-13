@@ -11,7 +11,7 @@ const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const core = fs.readFileSync(path.join(root, 'src/core.js'), 'utf8');
 const engineSrc = fs.readFileSync(path.join(root, 'src/engine.js'), 'utf8');
 const EXPOSE = `globalThis.E = { STATE, S, today, addDays, diffDays, sessionFor, upcoming, lastFor, bestBefore, bestSet, records, hasHistory, hasRef,
-  liftSeries, maintenance, strengthRef, suggest, setAim, cutCheck, progression, prsIn, setScore, e1rm, exRir, exStep, derived, xpRun: typeof xpRun !== "undefined" ? xpRun : null, dayVal, scoreTxt, newWorkout, restRecord,
+  liftSeries, maintenance, strengthRef, suggest, setAim, cutCheck, progression, prsIn, setScore, e1rm, exRir, exStep, derived, xpRun: typeof xpRun !== "undefined" ? xpRun : null, XP: typeof XP !== "undefined" ? XP : null, partialFlags: typeof partialFlags !== "undefined" ? partialFlags : null, dayVal, scoreTxt, newWorkout, restRecord,
   bump: () => { STATE.v++; } };`;
 
 function load(engine = engineSrc) {
@@ -174,14 +174,21 @@ function follow(goal, rate, weeks = 26, exId = 'shoulder_press') {
   near(o.exp[t], 3000, 80, 'expenditure settles near the truth (500 kcal/day deficit, noisy weigh-ins)');
   o = E.xpRun(sim(180, 3300, 3000), t);
   near(o.exp[t], 3000, 80, 'and in a surplus');
-  // missing-data rules
+  // missing-data rules (MacroFactor's, read off its export): the update into day d pauses when more than 3 of d-6..d-2 are blank
   const blank = [-10, -9, -8, -7, -6];
-  o = E.xpRun(sim(120, 2500, 3000, { blank }), t);
-  ok(o.exp[A(-6)] === o.exp[A(-4)] && o.exp[A(-9)] !== o.exp[A(-11)], 'more than 3 blank days in 7 pause expenditure updates');
+  o = E.xpRun(sim(30, 2500, 3400, { blank }), t); // a short run, so the estimate is still moving
+  const ex = i => o.exp[A(i)];
+  ok(ex(-6) === ex(-5) && ex(-5) === ex(-4) && ex(-4) === ex(-3) && ex(-2) !== ex(-3) && ex(-9) !== ex(-10), `updates keep going for a gap's first 5 days, pause from the 6th, resume once d-6..d-2 is covered (${[-11, -10, -9, -8, -7, -6, -5, -4, -3, -2].map(ex).join(' ')})`);
   const a = E.xpRun(sim(120, 2500, 3000, { kcal: { [-20]: 900 } }), t), b = E.xpRun(sim(120, 2500, 3000, { blank: [-20] }), t);
-  ok(a.exp[t] === b.exp[t], 'a day under half the week\'s other days counts as partly logged (ignored like a blank day)');
+  ok(a.exp[t] === b.exp[t], 'an unanswered day under half the days before counts as partly logged (like a blank day)');
   const c = E.xpRun(sim(120, 2500, 3000, { kcal: { [-20]: 1400 } }), t);
-  ok(c.exp[t] !== b.exp[t], 'a low day above half the others still counts');
+  ok(c.exp[t] !== b.exp[t], 'a low day above half still counts');
+  ok(E.xpRun(sim(120, 2500, 3000, { kcal: { [-20]: 900 } }), t, E.XP, { [A(-20)]: false }).exp[t] !== b.exp[t], 'answered Complete: the low day counts');
+  ok(E.xpRun(sim(120, 2500, 3000, { kcal: { [-20]: 1400 } }), t, E.XP, { [A(-20)]: true }).exp[t] === b.exp[t], 'answered Partly: the day counts as blank');
+  E.STATE.d = sim(30, 2500, 3000, { kcal: { [-3]: 1500, [-5]: 1000 } }); E.S().partial = { [A(-5)]: false }; E.bump();
+  const pf = E.partialFlags();
+  ok(pf.length === 2 && pf[0].d === A(-3) && !pf[0].part && pf[0].ans == null && pf[1].ans === false && !pf[1].part, `flags days under 70%, newest first, with answers (${pf.map(x => x.d.slice(5) + ':' + Math.round(x.pct * 100)).join(', ')})`);
+  E.S().partial = {};
   // MacroFactor's numbers win and the model carries on from them
   D = sim(120, 2500, 3000); for (let i = -120; i <= -30; i++) D[A(i)].exp = 2900;
   E.STATE.d = D; E.bump();

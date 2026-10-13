@@ -312,6 +312,17 @@ function planWeekly(prog) { // sets per week if one session is trained every day
 /* Muscles a compound also trains hard, counted at half a set each: the "fractional" count that predicted growth best in
    Pelland et al. (2024). Library lifts only; an exercise can carry its own list as exDef().g2. */
 const SECONDARY = { incline_db: ['triceps', 'delt_f'], chest_press: ['triceps', 'delt_f'], cable_fly: ['delt_f'], tbar: ['biceps', 'delt_r'], pulldown: ['biceps'], seated_row: ['biceps', 'delt_r'], shoulder_press: ['triceps'] };
+function doneByGroupDetail(from, to) { // what makes up doneByGroup: per muscle, each exercise's sets and the credit they give
+  const out = {};
+  for (const w of Object.values(STATE.w)) if (w.date >= from && w.date <= to) for (const e of w.ex || []) {
+    const n = doneSets(e).length; if (!n) continue; const d = exDef(e.id);
+    const add = (g, k, sec) => { const a = out[g] = out[g] || {}, key = e.id + (sec ? ':2' : ''); const r = a[key] = a[key] || { id: e.id, sets: 0, credit: 0, sec }; r.sets += n; r.credit += n * k; };
+    add(d.g, 1, false);
+    for (const g of d.g2 || SECONDARY[e.id] || []) if (g !== d.g) add(g, 0.5, true);
+  }
+  for (const g in out) out[g] = Object.values(out[g]).sort((a, b) => b.credit - a.credit || a.sec - b.sec);
+  return out;
+}
 function doneByGroup(from, to, frac = true) {
   const out = {};
   for (const w of Object.values(STATE.w)) if (w.date >= from && w.date <= to) for (const e of w.ex || []) {
@@ -339,23 +350,33 @@ function latestWith(k, onOrBefore = today()) {
 }
 const stepsOf = d => dayVal(d, 'stp') ?? dayVal(d, 'stpi'); // WHOOP's count first, the iPhone's when WHOOP has none
 /* Trend weight and expenditure for days MacroFactor's export doesn't cover (Apple Health only carries intake and scale
-   weight), modelled on MacroFactor and tuned against Louis's MacroFactor export (Feb to Oct 2026, run on intake and
-   scale weight alone: expenditure off by 31 kcal/day on average, about 40 on a held-out half; trend weight exact to
-   0.01 kg). Only r and qE were fitted; the rest are fixed. MacroFactor's own numbers always win and reseed the model.
-   - Trend weight: MacroFactor's own method, reproduced from its export: scale weights linearly interpolated across the
-     days between weigh-ins, then a 10%/day moving average. Shown up to 7 days past the last weigh-in.
+   weight), modelled on MacroFactor and checked against Louis's MacroFactor export (Feb to Oct 2026, run on intake and
+   scale weight alone). MacroFactor's own numbers always win and reseed the model.
+   - Trend weight: MacroFactor's own method, reproduced from its export (exact to 0.01 kg): scale weights linearly
+     interpolated across the days between weigh-ins, then a 10%/day moving average. Shown up to 7 days past the last weigh-in.
    - Expenditure: a Kalman filter tracking weight and expenditure together, stepped daily. Weight moves by (intake -
      expenditure) / energy density and is corrected by the trend weight; expenditure is a slow random walk.
    - Energy density: Hall (2008), with Forbes' partition: p = 10.4 / (10.4 + fat kg) of a change is lean (1,816 kcal/kg),
      the rest fat (9,441 kcal/kg). Fat mass starts at XP.bf of body weight and moves with the partition.
-   - Missing data (MacroFactor V3): updates pause while more than 3 of the last 7 days have no intake. A day under half
-     the mean of the other logged days in its 7 counts as partly logged: its intake is ignored like a blank day's.
-     A blank or partly logged day's intake is assumed equal to expenditure, with a wide error.
-   Steps were tried as a slow nudge (shifting expenditure, or speeding updates while the step trend moves); neither
-   brought the error down against MacroFactor, so they stay out. */
-const XP = { a: 0.1, gap: 30, r: 0.03, qE: 56, qW: 1e-4, sLog: 0.1, sMiss: 0.35, part: 0.5, pause: 3, e0: 32, pE0: 3500, bf: 0.16 };
+   - Pausing (v1.35, read off the export: it matches every one of the 31 days MacroFactor's expenditure stood still):
+     the update into day d pauses when more than 3 of days d-6..d-2 have no usable intake. Yesterday and today never
+     count as missing, so a gap pauses updates from its 6th day and they resume as soon as logging covers that window.
+   - Partly logged days: MacroFactor counts a low day as complete unless you confirm its prompt, and the confirmed ones
+     count as missing. Orbit flags days under 70% of the mean of the 6 days before (`partialFlags`); S().partial[date]
+     holds his answer (true = partly logged), and an unanswered day under half counts as partly logged.
+   - A blank or partly logged day's intake is estimated as the mean of usable days in the 7 before (MacroFactor V3
+     estimates unlogged intake too), with a wide error.
+   Against the export with his MacroFactor answers: 19 kcal/day mean error (18 to 22 on a held-out half; only the
+   intake estimate's weighting was fitted). Unanswered, with the under-half rule: 33. Steps were tried as a slow nudge
+   (shifting expenditure, or speeding updates while the step trend moves); neither helped, so they stay out. */
+const XP = { a: 0.1, gap: 30, r: 0.03, qE: 56, qW: 1e-4, sLog: 0.1, sMiss: 0.35, part: 0.5, flag: 0.7, pause: 3, impN: 7, e0: 32, pE0: 3500, bf: 0.16 };
 const HALL = { C: 10.4, lean: 1816, fat: 9441 };
-function xpRun(D, t0, P = XP) {
+const weekPct = (D, d) => { // a day's intake as a share of the mean of the logged days in the 6 before
+  const v = D[d]?.kcal; if (!(v > 0)) return null;
+  const o = []; for (let i = 1; i < 7; i++) { const x = D[addDays(d, -i)]?.kcal; if (x > 0) o.push(x); }
+  return o.length ? v / mean(o) : null;
+};
+function xpRun(D, t0, P = XP, marks = {}) {
   const tw = {}, exp = {}, kc = d => D[d]?.kcal > 0 ? D[d].kcal : null;
   const ds = Object.keys(D).filter(d => d <= t0 && (D[d].wt != null || D[d].tw != null || D[d].kcal != null)).sort();
   if (!ds.length) return { tw, exp };
@@ -373,18 +394,22 @@ function xpRun(D, t0, P = XP) {
     T[d] = t; if (x.tw != null || nx === d || (iw != null && g <= P.gap)) obs[d] = t;
     if (x.tw == null && diffDays(lastW, d) <= 7) tw[d] = Math.round(t * 100) / 100;
   }
-  // the filter: state [W kg, E kcal/day], covariance [[pw, pc], [pc, pe]]
-  const use = {}, usable = d => { // logged and not partly logged
+  // usable intake: logged, and not partly logged (his answer, else under P.part of the days before)
+  const use = {}, usable = d => {
     if (d in use) return use[d];
     const v = kc(d); if (v == null) return use[d] = null;
-    const o = []; for (let i = 1; i < 7; i++) { const x = kc(addDays(d, -i)); if (x != null) o.push(x); }
-    return use[d] = o.length && v < P.part * mean(o) ? null : v;
+    if (marks[d] != null) return use[d] = marks[d] ? null : v;
+    const pct = weekPct(D, d); return use[d] = pct != null && pct < P.part ? null : v;
   };
+  const pz = {}, pausedAt = d => { // the update into day d pauses when more than P.pause of days d-6..d-2 have no usable intake
+    if (d in pz) return pz[d];
+    let miss = 0; for (let i = 2; i <= 6; i++) if (usable(addDays(d, -i)) == null) miss++;
+    return pz[d] = miss > P.pause;
+  };
+  // the filter: state [W kg, E kcal/day], covariance [[pw, pc], [pc, pe]]
   let W = null, E = null, F = null, pw = 0, pc = 0, pe = 0, lastD = null;
   for (let d = ds[0]; d <= t0; d = addDays(d, 1)) {
-    const x = D[d] || {};
-    let miss = 0; for (let i = 0; i < 7; i++) if (kc(addDays(d, -i)) == null) miss++;
-    const paused = miss > P.pause;
+    const x = D[d] || {}, paused = pausedAt(d), pausedN = pausedAt(addDays(d, 1));
     if (W == null) { if (T[d] == null) continue; W = T[d]; E = x.exp ?? P.e0 * W; F = P.bf * W; pw = P.r; pe = P.pE0; }
     if (obs[d] != null) { // correct with the trend weight; a paused filter corrects weight only
       const s = pw + P.r, kw = pw / s, ke = paused ? 0 : pc / s, y = obs[d] - W;
@@ -394,19 +419,30 @@ function xpRun(D, t0, P = XP) {
     if (x.exp != null) { E = x.exp; if (T[d] != null) W = T[d]; } // MacroFactor's numbers reseed the state
     if (x.wt != null || x.tw != null || kc(d) != null) lastD = d;
     if (x.exp == null && diffDays(lastD, d) <= 7) exp[d] = Math.round(E);
-    // step to tomorrow on today's intake
-    const I = usable(d), vI = I != null ? (P.sLog * I) ** 2 : (P.sMiss * E) ** 2;
-    const p = HALL.C / (HALL.C + Math.max(F, 1)), rho = p * HALL.lean + (1 - p) * HALL.fat, dW = ((I ?? E) - E) / rho, a = -1 / rho;
+    // step to tomorrow on today's intake; a blank or partly logged day is estimated from the usable days in the 7 before
+    let I = usable(d); const vI = I != null ? (P.sLog * I) ** 2 : (P.sMiss * E) ** 2;
+    if (I == null) { const h = []; for (let i = 1; i <= P.impN; i++) { const v = usable(addDays(d, -i)); if (v != null) h.push(v); } I = h.length ? mean(h) : E; }
+    const p = HALL.C / (HALL.C + Math.max(F, 1)), rho = p * HALL.lean + (1 - p) * HALL.fat, dW = (I - E) / rho, a = -1 / rho;
     W += dW; F += (1 - p) * dW;
     const npw = pw + 2 * a * pc + a * a * pe + vI / rho / rho + P.qW, npc = pc + a * pe;
-    pw = npw; pc = paused ? 0 : npc; pe += paused ? 0 : P.qE;
+    pw = npw; pc = pausedN ? 0 : npc; pe += pausedN ? 0 : P.qE;
   }
   return { tw, exp };
+}
+/* Days that may be partly logged, newest first: under XP.flag of the days before, with his answer if he gave one and
+   whether the model treats it as partly logged right now. Today is left out (it's still being logged). */
+function partialFlags(days = 21) {
+  const out = [], t = today(), m = S().partial || {};
+  for (let i = 1; i <= days; i++) {
+    const d = addDays(t, -i), pct = weekPct(STATE.d, d); if (pct == null || pct >= XP.flag) continue;
+    out.push({ d, kcal: STATE.d[d].kcal, pct, ans: m[d] ?? null, part: m[d] ?? pct < XP.part });
+  }
+  return out;
 }
 let DER = { key: null };
 function derived() {
   const key = STATE.v + ':' + Object.keys(STATE.d).length + ':' + today(); if (DER.key === key) return DER; // today: a new day extends the trend
-  return DER = { key, ...xpRun(STATE.d, today()) };
+  return DER = { key, ...xpRun(STATE.d, today(), XP, S().partial || {}) };
 }
 function avgOver(k, end, days, excludeEnd) {
   const v = []; for (let i = excludeEnd ? 1 : 0; i < days + (excludeEnd ? 1 : 0); i++) { const x = dayVal(addDays(end, -i), k); if (x != null) v.push(x); }
