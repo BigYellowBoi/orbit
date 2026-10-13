@@ -103,7 +103,8 @@ button.pill { border: 0; font: inherit; font-size: 12.5px; font-weight: 500; cur
 .sd.now { border-color: var(--accent); background: var(--accent-soft); }
 .sd.now.done { opacity: 1; } .sd.now.done b::after { content: ' ✓'; color: var(--good-ink); font-weight: 600; } /* today stays highlighted once logged */
 .chips.one { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; } .chips.one::-webkit-scrollbar { display: none; }
-.chips.one { gap: 6px; } .chips.one .pill { font-size: 12px; padding: 3px 8px; flex: none; }
+.chips.one { display: grid; grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr); gap: 6px; } /* WHOOP left, MacroFactor centred, Apple Health right */
+.chips.one > :nth-child(1) { justify-self: start; } .chips.one > :nth-child(2) { justify-self: center; } .chips.one > :nth-child(3) { justify-self: end; } .chips.one .pill { font-size: 12px; padding: 3px 8px; flex: none; }
 .sd.done { opacity: .6; }
 .sd.rest b { color: var(--ink-3); font-weight: 500; }
 button.sd { font: inherit; color: inherit; text-align: left; cursor: pointer; }
@@ -256,6 +257,7 @@ textarea.in { text-align: left; font-size: 15px; min-height: 76px; padding: 10px
 
 /* charts */
 .chart { position: relative; width: 100%; }
+.chart, .chart *, .hbars, .ring, .rot, .strip { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; } /* press-and-hold reads values; it mustn't select text or open iOS's callout */
 .chart svg { display: block; width: 100%; height: 100%; overflow: visible; touch-action: pan-y; }
 .chart .grid { stroke: var(--line); stroke-width: 1; }
 .chart .ax { fill: var(--ink-3); font: 10.5px var(--f-mono); }

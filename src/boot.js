@@ -374,7 +374,7 @@ const ACT = {
   exnote: el => { ui.exNote = +el.dataset.e; render(true); setTimeout(() => $('#xn' + el.dataset.e)?.focus(), 30); },
   weeksall: () => { ui.weeksAll = !ui.weeksAll; render(true); },
   range: el => { ui.range = +el.dataset.v; render(true); },
-  preset: el => { ui.confirm = 'preset:' + el.dataset.id; render(true); },
+  preset: el => { if (progSig(PRESETS[el.dataset.id]) === progSig(S().prog)) return; ui.confirm = 'preset:' + el.dataset.id; render(true); }, // already your split exactly: nothing to switch to
   usepreset: el => {
     const p = PRESETS[el.dataset.id]; S().preset = el.dataset.id; S().prog = { order: p.order.slice(), sessions: clone(p.sessions) };
     for (const sd of Object.values(S().prog.sessions)) for (const it of sd.items) if (!S().ex[it.ex] && EXLIB[it.ex]) S().ex[it.ex] = clone(EXLIB[it.ex]);

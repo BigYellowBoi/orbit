@@ -140,7 +140,8 @@ button.pill { border: 0; font: inherit; font-size: 12.5px; font-weight: 500; cur
 .sd.now { border-color: var(--accent); background: var(--accent-soft); }
 .sd.now.done { opacity: 1; } .sd.now.done b::after { content: ' ✓'; color: var(--good-ink); font-weight: 600; } /* today stays highlighted once logged */
 .chips.one { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; } .chips.one::-webkit-scrollbar { display: none; }
-.chips.one { gap: 6px; } .chips.one .pill { font-size: 12px; padding: 3px 8px; flex: none; }
+.chips.one { display: grid; grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr); gap: 6px; } /* WHOOP left, MacroFactor centred, Apple Health right */
+.chips.one > :nth-child(1) { justify-self: start; } .chips.one > :nth-child(2) { justify-self: center; } .chips.one > :nth-child(3) { justify-self: end; } .chips.one .pill { font-size: 12px; padding: 3px 8px; flex: none; }
 .sd.done { opacity: .6; }
 .sd.rest b { color: var(--ink-3); font-weight: 500; }
 button.sd { font: inherit; color: inherit; text-align: left; cursor: pointer; }
@@ -293,6 +294,7 @@ textarea.in { text-align: left; font-size: 15px; min-height: 76px; padding: 10px
 
 /* charts */
 .chart { position: relative; width: 100%; }
+.chart, .chart *, .hbars, .ring, .rot, .strip { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; } /* press-and-hold reads values; it mustn't select text or open iOS's callout */
 .chart svg { display: block; width: 100%; height: 100%; overflow: visible; touch-action: pan-y; }
 .chart .grid { stroke: var(--line); stroke-width: 1; }
 .chart .ax { fill: var(--ink-3); font: 10.5px var(--f-mono); }
@@ -531,7 +533,7 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.25'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.26'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
@@ -2352,7 +2354,7 @@ const ACT = {
   exnote: el => { ui.exNote = +el.dataset.e; render(true); setTimeout(() => $('#xn' + el.dataset.e)?.focus(), 30); },
   weeksall: () => { ui.weeksAll = !ui.weeksAll; render(true); },
   range: el => { ui.range = +el.dataset.v; render(true); },
-  preset: el => { ui.confirm = 'preset:' + el.dataset.id; render(true); },
+  preset: el => { if (progSig(PRESETS[el.dataset.id]) === progSig(S().prog)) return; ui.confirm = 'preset:' + el.dataset.id; render(true); }, // already your split exactly: nothing to switch to
   usepreset: el => {
     const p = PRESETS[el.dataset.id]; S().preset = el.dataset.id; S().prog = { order: p.order.slice(), sessions: clone(p.sessions) };
     for (const sd of Object.values(S().prog.sessions)) for (const it of sd.items) if (!S().ex[it.ex] && EXLIB[it.ex]) S().ex[it.ex] = clone(EXLIB[it.ex]);
