@@ -309,7 +309,7 @@ const ACT = {
   },
   delex: el => { delete S().ex[el.dataset.id]; ui.editEx = null; saveSettings(); render(true); },
   doimport: el => { const src = el.dataset.v, p = ui.imp[src]; if (!p) return; const months = applyImport(p); saveMonths('dy', months);
-    if (src === 'whoop') for (const w of Object.values(STATE.w)) if (p.days[w.date] && autoCardio(w)) saveW(w.date); saveSettings(); delete ui.imp[src]; toast(`Imported ${Object.keys(p.days).length} days from ${src === 'whoop' ? 'WHOOP' : 'MacroFactor'}`); render(true); },
+    if (src === 'whoop') for (const w of Object.values(STATE.w)) if (p.days[w.date] && autoCardio(w)) saveW(w.date); saveSettings(); delete ui.imp[src]; toast(`Imported ${Object.keys(p.days).length} days from ${{ whoop: 'WHOOP', mf: 'MacroFactor', ah: 'Apple Health' }[src]}`); render(true); },
   cancelimp: el => { delete ui.imp[el.dataset.v]; render(true); },
   export: el => el.dataset.v === 'csv' ? offerFile(`orbit-sets-${today()}.csv`, exportCsv()) : offerFile(`orbit-backup-${today()}.json`, exportJson()),
   copyexport: async () => { const ta = $('#exporttext'); try { await navigator.clipboard.writeText(ta.value); toast('Copied'); } catch (e) { ta.select(); toast('Selected. Copy it with your keyboard or the share menu.'); } },
@@ -349,6 +349,7 @@ const INP = {
   proteint: el => { const n = num(el.value); S().proteinT = n > 0 ? n : null; saveSettings(); },
   fwhoop: el => readFiles(el, readWhoopFiles),
   fmf: el => readFiles(el, readMfFiles),
+  fah: el => readFiles(el, readAhFiles),
   fbackup: async el => {
     const f = el.files?.[0]; if (!f) return;
     try { const n = restoreBackup(JSON.parse(await f.text())); toast(`Restored ${n} sessions`); go('today'); }

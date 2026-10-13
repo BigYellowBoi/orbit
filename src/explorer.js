@@ -36,7 +36,7 @@ const METRICS = [
   { id: 'resth', g: 'Sleep', label: 'Restorative sleep (hours)', unit: '', src: 'WHOOP', v: d => { const a = dayVal(d, 'deep'), b = dayVal(d, 'rem'); return a != null && b != null ? a + b : null; }, chart: 'stack', better: 1, f: v => hm(v) },
   { id: 'restp', g: 'Sleep', label: 'Restorative sleep (%)', unit: '%', src: 'WHOOP', v: d => { const a = dayVal(d, 'deep'), b = dayVal(d, 'rem'), t = dayVal(d, 'slp'); return a != null && b != null && t ? (a + b) / t * 100 : null; }, chart: 'bar', better: 1, f: v => fmt(v, 0) },
   { id: 'se', g: 'Sleep', label: 'Sleep efficiency', unit: '%', src: 'WHOOP', v: dv('se'), chart: 'line', better: 1, f: v => fmt(v, 0) },
-  { id: 'sd', g: 'Sleep', label: 'Sleep debt', unit: '', src: 'WHOOP', v: dv('sd'), chart: 'bar', better: -1, f: v => hm(v) },
+  { id: 'sd', g: 'Sleep', label: 'Sleep debt', unit: '', src: 'WHOOP', v: dv('sd'), chart: 'bar', better: -1, hmY: true, f: v => hm(v) },
   // Strain
   { id: 'str', g: 'Strain', label: 'Day strain', unit: '', src: 'WHOOP', v: dv('str'), chart: 'bar', better: 0, delta: 'abs', partial: true, f: v => fmt(v, 1), yMin: 0, yMax: 21,
     breakdown: sevBreak([['All out (18+)', v => v >= 18, 'var(--z5)'], ['Strenuous (14–18)', v => v >= 14 && v < 18, 'var(--z4)'], ['Moderate (10–14)', v => v >= 10 && v < 14, 'var(--z2)'], ['Light (under 10)', v => v < 10, 'var(--z1)']]) },
@@ -44,13 +44,19 @@ const METRICS = [
   { id: 'z13', g: 'Strain', label: 'Heart rate zones 1–3', unit: 'hr', src: 'WHOOP', v: d => { const z = zoneMin(d); return z ? z[1] + z[2] + z[3] : null; }, zones: [1, 2, 3], chart: 'zones', weekly: true, better: 0, partial: true, f: v => hm(v) },
   { id: 'z45', g: 'Strain', label: 'Heart rate zones 4–5', unit: 'hr', src: 'WHOOP', v: d => { const z = zoneMin(d); return z ? z[4] + z[5] : null; }, zones: [4, 5], chart: 'zones', weekly: true, better: 0, partial: true, f: v => hm(v) },
   { id: 'zall', g: 'Strain', label: 'Heart rate zones, all', unit: 'hr', src: 'WHOOP', v: d => { const z = zoneMin(d); return z ? sum(z) : null; }, zones: [0, 1, 2, 3, 4, 5], chart: 'zones', weekly: true, better: 0, partial: true, f: v => hm(v) },
+  { id: 'stp', g: 'Strain', label: 'Steps', unit: '', src: 'WHOOP, or your iPhone on days WHOOP has none', v: d => stepsOf(d), chart: 'bar', better: 1, partial: true, f: v => fmt(v, 0),
+    breakdown: sevBreak([['10,000+', v => v >= 10000, 'var(--good)'], ['7,500–9,999', v => v >= 7500 && v < 10000, 'var(--z2)'], ['5,000–7,499', v => v >= 5000 && v < 7500, 'var(--z1)'], ['Under 5,000', v => v < 5000, 'var(--warn)']]) },
   { id: 'lift', g: 'Strain', label: 'Strength activity time', unit: 'hr', src: 'WHOOP', v: d => whoopLiftMin(d), chart: 'bar', weekly: true, better: 0, partial: true, f: v => hm(v) },
   { id: 'vol', g: 'Strain', label: 'Total volume load', unit: 't', src: 'Logbook', v: d => { const w = STATE.w[d]; if (!w || w.rest) return null; const k = wStats(w).kg; return k ? k / 1000 : null; }, chart: 'bar', weekly: true, better: 0, f: v => fmt(v, 1) },
   // Body + nutrition
-  { id: 'wt', g: 'Body + nutrition', label: 'Weight', unit: 'kg', src: 'MacroFactor', v: dv('tw'), chart: 'weight', better: 0, diff: true, delta: 'abs', f: v => fmt(v, 1) },
-  { id: 'kcal', g: 'Body + nutrition', label: 'Calories in', unit: 'kcal', src: 'MacroFactor', v: dv('kcal'), chart: 'intake', better: 0, partial: true, f: v => fmt(v, 0) },
-  { id: 'exp', g: 'Body + nutrition', label: 'Expenditure', unit: 'kcal', src: 'MacroFactor', v: dv('exp'), chart: 'line', better: 0, diff: true, f: v => fmt(v, 0) },
-  { id: 'p', g: 'Body + nutrition', label: 'Protein', unit: 'g', src: 'MacroFactor', v: dv('p'), chart: 'bar', better: 0, partial: true, f: v => fmt(v, 0) },
+  { id: 'wt', g: 'Body + nutrition', label: 'Weight', unit: 'kg', src: 'MacroFactor, by export or Apple Health', v: dv('tw'), chart: 'weight', better: 0, diff: true, delta: 'abs', f: v => fmt(v, 1) },
+  { id: 'kcal', g: 'Body + nutrition', label: 'Calories in', unit: 'kcal', src: 'MacroFactor, by export or Apple Health', v: dv('kcal'), chart: 'intake', better: 0, partial: true, f: v => fmt(v, 0) },
+  { id: 'exp', g: 'Body + nutrition', label: 'Expenditure', unit: 'kcal', src: 'MacroFactor, by export or Apple Health', v: dv('exp'), chart: 'line', better: 0, diff: true, f: v => fmt(v, 0) },
+  { id: 'p', g: 'Body + nutrition', label: 'Protein', unit: 'g', src: 'MacroFactor, by export or Apple Health', v: dv('p'), chart: 'bar', better: 0, partial: true, f: v => fmt(v, 0) },
+  // Hearing (Apple Health, from AirPods and other headphones)
+  { id: 'hp', g: 'Hearing', label: 'Headphone volume', short: 'headphone volume', unit: 'dB', src: 'Apple Health (headphone audio levels)', v: dv('hp'), chart: 'line', better: -1, partial: true, f: v => fmt(v, 0),
+    breakdown: sevBreak([['Under 70 dB', v => v < 70, 'var(--good)'], ['70–79 dB', v => v >= 70 && v < 80, 'var(--z1)'], ['80 dB+', v => v >= 80, 'var(--warn)']]) },
+  { id: 'hpm', g: 'Hearing', label: 'Headphone time', unit: '', src: 'Apple Health (headphone audio levels)', v: dv('hpm'), chart: 'bar', better: 0, partial: true, hmY: true, f: v => hm(v) },
 ];
 function explorerHTML() {
   const m = METRICS.find(x => x.id === ui.metric) || METRICS[0], [n0, word] = PERIODS[ui.per] || PERIODS.M, t = today();
@@ -102,6 +108,8 @@ function explorerHTML() {
         <ul class="bk">${zs.map(i => `<li><i style="background:${ZCOL[i]}"></i><b>${hm(tz[i] / wk)}</b><span>${ZONES[i]}</span></li>`).join('')}</ul>
         <p class="xs muted">Zone time comes from activities WHOOP logged. Zone 0 is the time in each activity below zone 1.</p></div>`; }
   }
+  if (m.id === 'hp') h += `<p class="xs muted">Average level while headphones were playing, weighted by time. For comparison, the WHO treats 80 dB for 40 hours a week as the safe limit; every 3 dB louder halves that time.</p>`;
+  if (m.id === 'wt' || m.id === 'exp') h += `<p class="xs muted">Days MacroFactor's export doesn't cover use Orbit's own estimate from Apple Health: trend is scale weight smoothed over time, and expenditure is the last 28 days' intake adjusted for the change in trend weight.</p>`;
   if (m.band) h += `<p class="xs muted">Shaded band: your normal range, from the previous 60 days' average ± half a standard deviation of log-transformed HRV (Plews et al., 2013). A 7-day average sitting below it for several days is the signal worth noticing.</p>`;
   h += `<p class="xs muted">Source: ${esc(m.src)}.</p></section>`;
   return h;
@@ -134,8 +142,8 @@ function explorerChart(m, days, start, n) {
   switch (m.chart) {
     case 'bar': case 'zones': {
       if (m.chart === 'zones') return chartHTML({ ...base, yMin: 0, yFmt: v => hm(v * 60), bars: has.map(d => { const z = zoneMin(d); return { x: xi(d), segs: m.zones.map(k => ({ v: z[k] / 60, color: ZCOL[k] })), tot: m.v(d) }; }), barLabel: lab ? b => hm(b.tot) : null });
-      const sc = m.unit === 'hr' ? 1 / 60 : 1;
-      return chartHTML({ ...base, yMin: m.yMin ?? 0, yMax: m.yMax, yFmt: v => m.unit === 'hr' || m.id === 'sd' ? hm(v / sc) : fmt(v, 0), refY: m.id === 'p' && S().proteinT ? { v: S().proteinT } : null,
+      const sc = m.unit === 'hr' || m.hmY ? 1 / 60 : 1; // minutes drawn in hours so the axis lands on whole hours
+      return chartHTML({ ...base, yMin: m.yMin ?? 0, yMax: m.yMax, yFmt: v => m.unit === 'hr' || m.hmY ? hm(v / sc) : fmt(v, 0), refY: m.id === 'p' && S().proteinT ? { v: S().proteinT } : null,
         bars: has.map(d => ({ x: xi(d), v: m.v(d) * sc, raw: m.v(d), color: m.color ? m.color(m.v(d)) : 'var(--s1)' })), barLabel: lab ? b => m.f(b.raw) : null });
     }
     case 'line': {

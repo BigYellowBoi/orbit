@@ -151,12 +151,23 @@ async function readMfFiles(files) {
   const names = { kcal: 'calories', p: 'protein', c: 'carbs', f: 'fat', wt: 'scale weight', tw: 'trend weight', exp: 'expenditure', kT: 'calorie target', pT: 'protein target' };
   return { src: 'mf', days: acc.days, summary: `${Object.keys(acc.days).length} days · ${[...acc.found].map(k => names[k] || k).join(', ')}`, files: files.map(f => f.name) };
 }
+/* ---------- Apple Health (a prepared .json; the raw export is too big to open in a browser) ---------- */
+const AH_KEYS = { stpi: 'iPhone steps', hp: 'headphone volume', hpm: 'headphone time', kcal: 'calories', p: 'protein', c: 'carbs', f: 'fat', wt: 'scale weight' };
+async function readAhFiles(files) {
+  let o; try { o = JSON.parse(await files[0].text()); } catch (e) { throw new Error('That isn’t an Orbit Health file.'); }
+  if (!o || o.app !== 'orbit-health' || !o.days) throw new Error('That isn’t an Orbit Health file.');
+  const days = {}, found = new Set();
+  for (const d in o.days) { if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) continue; const x = {}; for (const k in AH_KEYS) { const v = o.days[d][k]; if (typeof v === 'number' && Number.isFinite(v)) { x[k] = v; found.add(k); } } if (Object.keys(x).length) days[d] = x; }
+  if (!Object.keys(days).length) throw new Error('No days found in that file.');
+  return { src: 'ah', days, summary: `${Object.keys(days).length} days · ${[...found].map(k => AH_KEYS[k]).join(', ')}`, files: [files[0].name] };
+}
 function previewRange(days) { const ds = Object.keys(days).sort(); return ds.length ? `${fmtDate(ds[0], { year: 'numeric' })} to ${fmtDate(ds[ds.length - 1], { year: 'numeric' })}` : ''; }
 function applyImport(p) {
-  const months = new Set(); const keysBySrc = { whoop: ['rec', 'hrv', 'rhr', 'str', 'kb', 'slp', 'sp', 'sn', 'sd', 'se', 'sc', 'deep', 'rem', 'lt', 'aw', 'bed', 'rr', 'spo2', 'skt', 'on', 'off', 'alc', 'acts'], mf: ['kcal', 'p', 'c', 'f', 'wt', 'tw', 'exp', 'kT', 'pT'] }[p.src];
+  const months = new Set(); const keysBySrc = { whoop: ['rec', 'hrv', 'rhr', 'str', 'kb', 'stp', 'slp', 'sp', 'sn', 'sd', 'se', 'sc', 'deep', 'rem', 'lt', 'aw', 'bed', 'rr', 'spo2', 'skt', 'on', 'off', 'alc', 'acts'], mf: ['kcal', 'p', 'c', 'f', 'wt', 'tw', 'exp', 'kT', 'pT'], ah: Object.keys(AH_KEYS) }[p.src];
+  const fillOnly = p.src === 'ah' ? new Set(['kcal', 'p', 'c', 'f', 'wt']) : new Set(); // MacroFactor's own export wins for these
   for (const date in p.days) {
     const cur = STATE.d[date] || {}; const nx = { ...cur };
-    for (const k of keysBySrc) if (p.days[date][k] != null) nx[k] = p.days[date][k];
+    for (const k of keysBySrc) if (p.days[date][k] != null && !(fillOnly.has(k) && cur[k] != null)) nx[k] = p.days[date][k];
     STATE.d[date] = nx; months.add(date.slice(0, 7));
   }
   S().imports = { ...(S().imports || {}), [p.src]: { at: Date.now(), range: previewRange(p.days), n: Object.keys(p.days).length } };

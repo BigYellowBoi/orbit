@@ -457,7 +457,7 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.6'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.7'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
@@ -735,10 +735,44 @@ function doneByGroup(from, to) {
    d[date] = { rec, hrv, rhr, slp (min asleep), sp (sleep perf %), str (day strain), kb (kcal burned),
                wt (scale kg), tw (trend kg), kcal, p, c, f, exp (expenditure), kT, pT, acts:[...] }
    ============================================================ */
-function dayVal(date, k) { const v = STATE.d[date]?.[k]; return v == null ? null : v; }
+function dayVal(date, k) {
+  const v = STATE.d[date]?.[k]; if (v != null) return v;
+  if (k === 'tw' || k === 'exp') { const x = derived()[k][date]; return x == null ? null : x; }
+  return null;
+}
 function latestWith(k, onOrBefore = today()) {
   let best = null; for (const date in STATE.d) if (date <= onOrBefore && STATE.d[date][k] != null && (!best || date > best)) best = date;
+  if (k === 'tw' || k === 'exp') for (const date in derived()[k]) if (date <= onOrBefore && (!best || date > best)) best = date;
   return best;
+}
+const stepsOf = d => dayVal(d, 'stp') ?? dayVal(d, 'stpi'); // WHOOP's count first, the iPhone's when WHOOP has none
+/* Trend weight and expenditure for days MacroFactor's export doesn't cover (Apple Health only carries intake and scale
+   weight). Trend: scale weight smoothed 10% per weigh-in, carrying on from MacroFactor's trend wherever one exists, shown
+   up to 7 days past the last weigh-in. Expenditure: average intake over the 28 days before, minus the change in trend
+   weight over them (7700 kcal per kg); needs at least 21 logged days. MacroFactor's own numbers always win. */
+let DER = { key: null };
+function derived() {
+  const key = STATE.v + ':' + Object.keys(STATE.d).length; if (DER.key === key) return DER;
+  const tw = {}, exp = {}, t0 = today(), D = STATE.d;
+  const ds = Object.keys(D).filter(d => d <= t0 && (D[d].wt != null || D[d].tw != null || D[d].kcal != null)).sort();
+  if (ds.length) {
+    let t = null, lastW = null;
+    for (let d = ds[0]; d <= t0; d = addDays(d, 1)) {
+      const x = D[d] || {};
+      if (x.tw != null) t = x.tw; else if (x.wt != null) t = t == null ? x.wt : t + 0.1 * (x.wt - t);
+      if (x.wt != null || x.tw != null) lastW = d;
+      if (x.tw == null && t != null && diffDays(lastW, d) <= 7) tw[d] = Math.round(t * 100) / 100;
+    }
+    const twv = d => D[d]?.tw ?? tw[d];
+    for (let d = addDays(ds[0], 28); d <= t0; d = addDays(d, 1)) {
+      if (D[d]?.exp != null) continue;
+      const a = addDays(d, -28), b = addDays(d, -1), wa = twv(a), wb = twv(b); if (wa == null || wb == null) continue;
+      const k = []; for (let i = 1; i <= 28; i++) { const v = D[addDays(d, -i)]?.kcal; if (v != null) k.push(v); }
+      if (k.length < 21) continue;
+      exp[d] = Math.round((mean(k) - (wb - wa) * 7700 / 27) / 10) * 10;
+    }
+  }
+  return DER = { key, tw, exp };
 }
 function avgOver(k, end, days, excludeEnd) {
   const v = []; for (let i = excludeEnd ? 1 : 0; i < days + (excludeEnd ? 1 : 0); i++) { const x = dayVal(addDays(end, -i), k); if (x != null) v.push(x); }
@@ -759,7 +793,7 @@ const HRV_STATE = { below: ['warn', 'Below normal'], within: ['good', 'Normal ra
 function weightRate(end = today(), days = 28) { // trend-weight change per week over the last `days`
   const d1 = latestWith('tw', end); if (!d1) return null;
   const d0 = latestWith('tw', addDays(d1, -days)); if (!d0 || diffDays(d0, d1) < 14) return null;
-  const a = STATE.d[d0].tw, b = STATE.d[d1].tw, wk = (b - a) / diffDays(d0, d1) * 7;
+  const a = dayVal(d0, 'tw'), b = dayVal(d1, 'tw'), wk = (b - a) / diffDays(d0, d1) * 7;
   return { wk, pct: wk / b * 100, now: b, weeks: Math.round(diffDays(d0, d1) / 7) };
 }
 function weekRows(n) {
@@ -942,12 +976,23 @@ async function readMfFiles(files) {
   const names = { kcal: 'calories', p: 'protein', c: 'carbs', f: 'fat', wt: 'scale weight', tw: 'trend weight', exp: 'expenditure', kT: 'calorie target', pT: 'protein target' };
   return { src: 'mf', days: acc.days, summary: `${Object.keys(acc.days).length} days · ${[...acc.found].map(k => names[k] || k).join(', ')}`, files: files.map(f => f.name) };
 }
+/* ---------- Apple Health (a prepared .json; the raw export is too big to open in a browser) ---------- */
+const AH_KEYS = { stpi: 'iPhone steps', hp: 'headphone volume', hpm: 'headphone time', kcal: 'calories', p: 'protein', c: 'carbs', f: 'fat', wt: 'scale weight' };
+async function readAhFiles(files) {
+  let o; try { o = JSON.parse(await files[0].text()); } catch (e) { throw new Error('That isn’t an Orbit Health file.'); }
+  if (!o || o.app !== 'orbit-health' || !o.days) throw new Error('That isn’t an Orbit Health file.');
+  const days = {}, found = new Set();
+  for (const d in o.days) { if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) continue; const x = {}; for (const k in AH_KEYS) { const v = o.days[d][k]; if (typeof v === 'number' && Number.isFinite(v)) { x[k] = v; found.add(k); } } if (Object.keys(x).length) days[d] = x; }
+  if (!Object.keys(days).length) throw new Error('No days found in that file.');
+  return { src: 'ah', days, summary: `${Object.keys(days).length} days · ${[...found].map(k => AH_KEYS[k]).join(', ')}`, files: [files[0].name] };
+}
 function previewRange(days) { const ds = Object.keys(days).sort(); return ds.length ? `${fmtDate(ds[0], { year: 'numeric' })} to ${fmtDate(ds[ds.length - 1], { year: 'numeric' })}` : ''; }
 function applyImport(p) {
-  const months = new Set(); const keysBySrc = { whoop: ['rec', 'hrv', 'rhr', 'str', 'kb', 'slp', 'sp', 'sn', 'sd', 'se', 'sc', 'deep', 'rem', 'lt', 'aw', 'bed', 'rr', 'spo2', 'skt', 'on', 'off', 'alc', 'acts'], mf: ['kcal', 'p', 'c', 'f', 'wt', 'tw', 'exp', 'kT', 'pT'] }[p.src];
+  const months = new Set(); const keysBySrc = { whoop: ['rec', 'hrv', 'rhr', 'str', 'kb', 'stp', 'slp', 'sp', 'sn', 'sd', 'se', 'sc', 'deep', 'rem', 'lt', 'aw', 'bed', 'rr', 'spo2', 'skt', 'on', 'off', 'alc', 'acts'], mf: ['kcal', 'p', 'c', 'f', 'wt', 'tw', 'exp', 'kT', 'pT'], ah: Object.keys(AH_KEYS) }[p.src];
+  const fillOnly = p.src === 'ah' ? new Set(['kcal', 'p', 'c', 'f', 'wt']) : new Set(); // MacroFactor's own export wins for these
   for (const date in p.days) {
     const cur = STATE.d[date] || {}; const nx = { ...cur };
-    for (const k of keysBySrc) if (p.days[date][k] != null) nx[k] = p.days[date][k];
+    for (const k of keysBySrc) if (p.days[date][k] != null && !(fillOnly.has(k) && cur[k] != null)) nx[k] = p.days[date][k];
     STATE.d[date] = nx; months.add(date.slice(0, 7));
   }
   S().imports = { ...(S().imports || {}), [p.src]: { at: Date.now(), range: previewRange(p.days), n: Object.keys(p.days).length } };
@@ -1079,7 +1124,7 @@ const METRICS = [
   { id: 'resth', g: 'Sleep', label: 'Restorative sleep (hours)', unit: '', src: 'WHOOP', v: d => { const a = dayVal(d, 'deep'), b = dayVal(d, 'rem'); return a != null && b != null ? a + b : null; }, chart: 'stack', better: 1, f: v => hm(v) },
   { id: 'restp', g: 'Sleep', label: 'Restorative sleep (%)', unit: '%', src: 'WHOOP', v: d => { const a = dayVal(d, 'deep'), b = dayVal(d, 'rem'), t = dayVal(d, 'slp'); return a != null && b != null && t ? (a + b) / t * 100 : null; }, chart: 'bar', better: 1, f: v => fmt(v, 0) },
   { id: 'se', g: 'Sleep', label: 'Sleep efficiency', unit: '%', src: 'WHOOP', v: dv('se'), chart: 'line', better: 1, f: v => fmt(v, 0) },
-  { id: 'sd', g: 'Sleep', label: 'Sleep debt', unit: '', src: 'WHOOP', v: dv('sd'), chart: 'bar', better: -1, f: v => hm(v) },
+  { id: 'sd', g: 'Sleep', label: 'Sleep debt', unit: '', src: 'WHOOP', v: dv('sd'), chart: 'bar', better: -1, hmY: true, f: v => hm(v) },
   // Strain
   { id: 'str', g: 'Strain', label: 'Day strain', unit: '', src: 'WHOOP', v: dv('str'), chart: 'bar', better: 0, delta: 'abs', partial: true, f: v => fmt(v, 1), yMin: 0, yMax: 21,
     breakdown: sevBreak([['All out (18+)', v => v >= 18, 'var(--z5)'], ['Strenuous (14–18)', v => v >= 14 && v < 18, 'var(--z4)'], ['Moderate (10–14)', v => v >= 10 && v < 14, 'var(--z2)'], ['Light (under 10)', v => v < 10, 'var(--z1)']]) },
@@ -1087,13 +1132,19 @@ const METRICS = [
   { id: 'z13', g: 'Strain', label: 'Heart rate zones 1–3', unit: 'hr', src: 'WHOOP', v: d => { const z = zoneMin(d); return z ? z[1] + z[2] + z[3] : null; }, zones: [1, 2, 3], chart: 'zones', weekly: true, better: 0, partial: true, f: v => hm(v) },
   { id: 'z45', g: 'Strain', label: 'Heart rate zones 4–5', unit: 'hr', src: 'WHOOP', v: d => { const z = zoneMin(d); return z ? z[4] + z[5] : null; }, zones: [4, 5], chart: 'zones', weekly: true, better: 0, partial: true, f: v => hm(v) },
   { id: 'zall', g: 'Strain', label: 'Heart rate zones, all', unit: 'hr', src: 'WHOOP', v: d => { const z = zoneMin(d); return z ? sum(z) : null; }, zones: [0, 1, 2, 3, 4, 5], chart: 'zones', weekly: true, better: 0, partial: true, f: v => hm(v) },
+  { id: 'stp', g: 'Strain', label: 'Steps', unit: '', src: 'WHOOP, or your iPhone on days WHOOP has none', v: d => stepsOf(d), chart: 'bar', better: 1, partial: true, f: v => fmt(v, 0),
+    breakdown: sevBreak([['10,000+', v => v >= 10000, 'var(--good)'], ['7,500–9,999', v => v >= 7500 && v < 10000, 'var(--z2)'], ['5,000–7,499', v => v >= 5000 && v < 7500, 'var(--z1)'], ['Under 5,000', v => v < 5000, 'var(--warn)']]) },
   { id: 'lift', g: 'Strain', label: 'Strength activity time', unit: 'hr', src: 'WHOOP', v: d => whoopLiftMin(d), chart: 'bar', weekly: true, better: 0, partial: true, f: v => hm(v) },
   { id: 'vol', g: 'Strain', label: 'Total volume load', unit: 't', src: 'Logbook', v: d => { const w = STATE.w[d]; if (!w || w.rest) return null; const k = wStats(w).kg; return k ? k / 1000 : null; }, chart: 'bar', weekly: true, better: 0, f: v => fmt(v, 1) },
   // Body + nutrition
-  { id: 'wt', g: 'Body + nutrition', label: 'Weight', unit: 'kg', src: 'MacroFactor', v: dv('tw'), chart: 'weight', better: 0, diff: true, delta: 'abs', f: v => fmt(v, 1) },
-  { id: 'kcal', g: 'Body + nutrition', label: 'Calories in', unit: 'kcal', src: 'MacroFactor', v: dv('kcal'), chart: 'intake', better: 0, partial: true, f: v => fmt(v, 0) },
-  { id: 'exp', g: 'Body + nutrition', label: 'Expenditure', unit: 'kcal', src: 'MacroFactor', v: dv('exp'), chart: 'line', better: 0, diff: true, f: v => fmt(v, 0) },
-  { id: 'p', g: 'Body + nutrition', label: 'Protein', unit: 'g', src: 'MacroFactor', v: dv('p'), chart: 'bar', better: 0, partial: true, f: v => fmt(v, 0) },
+  { id: 'wt', g: 'Body + nutrition', label: 'Weight', unit: 'kg', src: 'MacroFactor, by export or Apple Health', v: dv('tw'), chart: 'weight', better: 0, diff: true, delta: 'abs', f: v => fmt(v, 1) },
+  { id: 'kcal', g: 'Body + nutrition', label: 'Calories in', unit: 'kcal', src: 'MacroFactor, by export or Apple Health', v: dv('kcal'), chart: 'intake', better: 0, partial: true, f: v => fmt(v, 0) },
+  { id: 'exp', g: 'Body + nutrition', label: 'Expenditure', unit: 'kcal', src: 'MacroFactor, by export or Apple Health', v: dv('exp'), chart: 'line', better: 0, diff: true, f: v => fmt(v, 0) },
+  { id: 'p', g: 'Body + nutrition', label: 'Protein', unit: 'g', src: 'MacroFactor, by export or Apple Health', v: dv('p'), chart: 'bar', better: 0, partial: true, f: v => fmt(v, 0) },
+  // Hearing (Apple Health, from AirPods and other headphones)
+  { id: 'hp', g: 'Hearing', label: 'Headphone volume', short: 'headphone volume', unit: 'dB', src: 'Apple Health (headphone audio levels)', v: dv('hp'), chart: 'line', better: -1, partial: true, f: v => fmt(v, 0),
+    breakdown: sevBreak([['Under 70 dB', v => v < 70, 'var(--good)'], ['70–79 dB', v => v >= 70 && v < 80, 'var(--z1)'], ['80 dB+', v => v >= 80, 'var(--warn)']]) },
+  { id: 'hpm', g: 'Hearing', label: 'Headphone time', unit: '', src: 'Apple Health (headphone audio levels)', v: dv('hpm'), chart: 'bar', better: 0, partial: true, hmY: true, f: v => hm(v) },
 ];
 function explorerHTML() {
   const m = METRICS.find(x => x.id === ui.metric) || METRICS[0], [n0, word] = PERIODS[ui.per] || PERIODS.M, t = today();
@@ -1145,6 +1196,8 @@ function explorerHTML() {
         <ul class="bk">${zs.map(i => `<li><i style="background:${ZCOL[i]}"></i><b>${hm(tz[i] / wk)}</b><span>${ZONES[i]}</span></li>`).join('')}</ul>
         <p class="xs muted">Zone time comes from activities WHOOP logged. Zone 0 is the time in each activity below zone 1.</p></div>`; }
   }
+  if (m.id === 'hp') h += `<p class="xs muted">Average level while headphones were playing, weighted by time. For comparison, the WHO treats 80 dB for 40 hours a week as the safe limit; every 3 dB louder halves that time.</p>`;
+  if (m.id === 'wt' || m.id === 'exp') h += `<p class="xs muted">Days MacroFactor's export doesn't cover use Orbit's own estimate from Apple Health: trend is scale weight smoothed over time, and expenditure is the last 28 days' intake adjusted for the change in trend weight.</p>`;
   if (m.band) h += `<p class="xs muted">Shaded band: your normal range, from the previous 60 days' average ± half a standard deviation of log-transformed HRV (Plews et al., 2013). A 7-day average sitting below it for several days is the signal worth noticing.</p>`;
   h += `<p class="xs muted">Source: ${esc(m.src)}.</p></section>`;
   return h;
@@ -1177,8 +1230,8 @@ function explorerChart(m, days, start, n) {
   switch (m.chart) {
     case 'bar': case 'zones': {
       if (m.chart === 'zones') return chartHTML({ ...base, yMin: 0, yFmt: v => hm(v * 60), bars: has.map(d => { const z = zoneMin(d); return { x: xi(d), segs: m.zones.map(k => ({ v: z[k] / 60, color: ZCOL[k] })), tot: m.v(d) }; }), barLabel: lab ? b => hm(b.tot) : null });
-      const sc = m.unit === 'hr' ? 1 / 60 : 1;
-      return chartHTML({ ...base, yMin: m.yMin ?? 0, yMax: m.yMax, yFmt: v => m.unit === 'hr' || m.id === 'sd' ? hm(v / sc) : fmt(v, 0), refY: m.id === 'p' && S().proteinT ? { v: S().proteinT } : null,
+      const sc = m.unit === 'hr' || m.hmY ? 1 / 60 : 1; // minutes drawn in hours so the axis lands on whole hours
+      return chartHTML({ ...base, yMin: m.yMin ?? 0, yMax: m.yMax, yFmt: v => m.unit === 'hr' || m.hmY ? hm(v / sc) : fmt(v, 0), refY: m.id === 'p' && S().proteinT ? { v: S().proteinT } : null,
         bars: has.map(d => ({ x: xi(d), v: m.v(d) * sc, raw: m.v(d), color: m.color ? m.color(m.v(d)) : 'var(--s1)' })), barLabel: lab ? b => m.f(b.raw) : null });
     }
     case 'line': {
@@ -1379,6 +1432,7 @@ function whoopCard() {
   if (x.rr != null) extra.push(stat(fmt(x.rr, 1), 'rpm', 'Respiratory rate', deltaTxt(x.rr, base('rr'), 1, '', true)));
   if (x.spo2 != null) extra.push(stat(fmt(x.spo2, 0), '%', 'Blood oxygen'));
   if (x.skt != null) extra.push(stat(fmt(x.skt, 1), '°C', 'Skin temp', deltaTxt(x.skt, base('skt'), 1, '°')));
+  const stY = stepsOf(addDays(t, -1)); if (stY != null) extra.push(stat(fmt(stY, 0), '', 'Steps, yesterday'));
   return `<section class="card"><div class="card-h"><h2>Recovery</h2>${x.rec != null ? pill(tone, recWord(x.rec)) : ''}</div>
     <div class="recov">${ring(x.rec, tone, strY)}<div class="stats" style="grid-template-columns:repeat(2,minmax(0,1fr))">
       ${stat(x.hrv != null ? fmt(x.hrv, 0) : '–', 'ms', 'HRV', hb ? `<span class="delta" style="color:var(${hb.state === 'below' ? '--warn-ink' : hb.state === 'within' ? '--good-ink' : '--ink-2'})">7-day ${HRV_STATE[hb.state][1].toLowerCase()}</span>` : '')}
@@ -1537,10 +1591,11 @@ function vStrength() {
 function freshHTML() { // how current each source is, so lagging data is obvious
   const t = today(), wd = latestWith('rec') || latestWith('slp'), md = latestWith('kcal') || latestWith('tw') || latestWith('wt');
   const one = (name, d) => { if (!d) return pill('', `${name} not imported`); const age = diffDays(d, t); return pill(age <= 1 ? 'good' : age <= 3 ? '' : 'warn', `${name} to ${fmtDate(d)}`); };
-  return `<div class="chips">${one('WHOOP', wd)}${one('MacroFactor', md)}</div>`;
+  const hd = latestWith('stpi') || latestWith('hp');
+  return `<div class="chips">${one('WHOOP', wd)}${one('MacroFactor', md)}${hd ? one('iPhone', hd) : ''}</div>`;
 }
 function vBody() {
-  let h = `<div class="page-h"><div><div class="eyebrow">WHOOP · MacroFactor</div><h1>Body</h1></div></div>`;
+  let h = `<div class="page-h"><div><div class="eyebrow">WHOOP · MacroFactor · Apple Health</div><h1>Body</h1></div></div>`;
   h += freshHTML();
   h += explorerHTML();
   h += alcoholCard();
@@ -1667,6 +1722,9 @@ function vData() {
   h += `<section class="card"><div class="card-h"><h2>MacroFactor</h2><span class="eyebrow">intake · weight · expenditure</span></div>
     <ol class="steps"><li>In MacroFactor, go to <b>More → Data Management → Data Export</b>.</li><li>Include nutrition, scale weight, weight trend and expenditure, choose a time frame, then save the spreadsheet.</li><li>Choose it below. Re-importing is safe: matching days are updated, not duplicated.</li></ol>
     <div class="drop" data-drop="mf"><input type="file" class="file" id="f_mf" accept=".xlsx,.xls,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple data-in="fmf"><span class="xs muted">${last('mf')}</span></div>${impBox('mf')}</section>`;
+  h += `<section class="card"><div class="card-h"><h2>Apple Health</h2><span class="eyebrow">steps · headphones · MacroFactor</span></div>
+    <p class="small dim">New days arrive through the Orbit sync Shortcut. For history, choose an Orbit Health file (.json) made from your Health export. Steps and headphone numbers are updated; calories, macros and weight only fill days MacroFactor's export doesn't have.</p>
+    <div class="drop" data-drop="ah"><input type="file" class="file" id="f_ah" accept=".json,application/json" data-in="fah"><span class="xs muted">${last('ah')}</span></div>${impBox('ah')}</section>`;
   h += `<section class="card"><div class="card-h"><h2>Backups</h2></div><p class="small dim">A full backup restores everything here. The CSV is every logged set, for a spreadsheet.</p>
     <div class="btnrow"><button class="btn sm ghost" data-act="export" data-v="json">Save full backup (.json)</button><button class="btn sm ghost" data-act="export" data-v="csv">Save sets (.csv)</button></div>
     ${ui.exportText ? `<div class="exportbox sec"><span class="xs muted">Saving files isn't available here. Copy this instead.</span><textarea class="in" id="exporttext" readonly>${esc(ui.exportText)}</textarea><button class="btn sm" data-act="copyexport">Copy</button></div>` : ''}
@@ -1989,7 +2047,7 @@ const ACT = {
   },
   delex: el => { delete S().ex[el.dataset.id]; ui.editEx = null; saveSettings(); render(true); },
   doimport: el => { const src = el.dataset.v, p = ui.imp[src]; if (!p) return; const months = applyImport(p); saveMonths('dy', months);
-    if (src === 'whoop') for (const w of Object.values(STATE.w)) if (p.days[w.date] && autoCardio(w)) saveW(w.date); saveSettings(); delete ui.imp[src]; toast(`Imported ${Object.keys(p.days).length} days from ${src === 'whoop' ? 'WHOOP' : 'MacroFactor'}`); render(true); },
+    if (src === 'whoop') for (const w of Object.values(STATE.w)) if (p.days[w.date] && autoCardio(w)) saveW(w.date); saveSettings(); delete ui.imp[src]; toast(`Imported ${Object.keys(p.days).length} days from ${{ whoop: 'WHOOP', mf: 'MacroFactor', ah: 'Apple Health' }[src]}`); render(true); },
   cancelimp: el => { delete ui.imp[el.dataset.v]; render(true); },
   export: el => el.dataset.v === 'csv' ? offerFile(`orbit-sets-${today()}.csv`, exportCsv()) : offerFile(`orbit-backup-${today()}.json`, exportJson()),
   copyexport: async () => { const ta = $('#exporttext'); try { await navigator.clipboard.writeText(ta.value); toast('Copied'); } catch (e) { ta.select(); toast('Selected. Copy it with your keyboard or the share menu.'); } },
@@ -2029,6 +2087,7 @@ const INP = {
   proteint: el => { const n = num(el.value); S().proteinT = n > 0 ? n : null; saveSettings(); },
   fwhoop: el => readFiles(el, readWhoopFiles),
   fmf: el => readFiles(el, readMfFiles),
+  fah: el => readFiles(el, readAhFiles),
   fbackup: async el => {
     const f = el.files?.[0]; if (!f) return;
     try { const n = restoreBackup(JSON.parse(await f.text())); toast(`Restored ${n} sessions`); go('today'); }
@@ -2218,7 +2277,7 @@ const GH = {
     const keep = new Set(Array.isArray(dirty) ? dirty : []);
     const next = { ...items };
     if (first) { for (const k in local) if (!items[k]) { next[k] = local[k]; keep.add(k); } } // first connect: union, the repo wins on overlaps
-    else for (const k of keep) { if (local[k]) next[k] = local[k]; else delete next[k]; }
+    else for (const k of keep) { if (!local[k]) delete next[k]; else next[k] = info.kind === 'dy' && items[k] ? { ...items[k], ...local[k] } : local[k]; } // day data: fields from the sync helper and this device combine
     if (JSON.stringify(next) === JSON.stringify(local)) return false;
     for (const k in local) delete tgt[k];
     Object.assign(tgt, clone(next));

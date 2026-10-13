@@ -88,6 +88,7 @@ function whoopCard() {
   if (x.rr != null) extra.push(stat(fmt(x.rr, 1), 'rpm', 'Respiratory rate', deltaTxt(x.rr, base('rr'), 1, '', true)));
   if (x.spo2 != null) extra.push(stat(fmt(x.spo2, 0), '%', 'Blood oxygen'));
   if (x.skt != null) extra.push(stat(fmt(x.skt, 1), '°C', 'Skin temp', deltaTxt(x.skt, base('skt'), 1, '°')));
+  const stY = stepsOf(addDays(t, -1)); if (stY != null) extra.push(stat(fmt(stY, 0), '', 'Steps, yesterday'));
   return `<section class="card"><div class="card-h"><h2>Recovery</h2>${x.rec != null ? pill(tone, recWord(x.rec)) : ''}</div>
     <div class="recov">${ring(x.rec, tone, strY)}<div class="stats" style="grid-template-columns:repeat(2,minmax(0,1fr))">
       ${stat(x.hrv != null ? fmt(x.hrv, 0) : '–', 'ms', 'HRV', hb ? `<span class="delta" style="color:var(${hb.state === 'below' ? '--warn-ink' : hb.state === 'within' ? '--good-ink' : '--ink-2'})">7-day ${HRV_STATE[hb.state][1].toLowerCase()}</span>` : '')}
@@ -246,10 +247,11 @@ function vStrength() {
 function freshHTML() { // how current each source is, so lagging data is obvious
   const t = today(), wd = latestWith('rec') || latestWith('slp'), md = latestWith('kcal') || latestWith('tw') || latestWith('wt');
   const one = (name, d) => { if (!d) return pill('', `${name} not imported`); const age = diffDays(d, t); return pill(age <= 1 ? 'good' : age <= 3 ? '' : 'warn', `${name} to ${fmtDate(d)}`); };
-  return `<div class="chips">${one('WHOOP', wd)}${one('MacroFactor', md)}</div>`;
+  const hd = latestWith('stpi') || latestWith('hp');
+  return `<div class="chips">${one('WHOOP', wd)}${one('MacroFactor', md)}${hd ? one('iPhone', hd) : ''}</div>`;
 }
 function vBody() {
-  let h = `<div class="page-h"><div><div class="eyebrow">WHOOP · MacroFactor</div><h1>Body</h1></div></div>`;
+  let h = `<div class="page-h"><div><div class="eyebrow">WHOOP · MacroFactor · Apple Health</div><h1>Body</h1></div></div>`;
   h += freshHTML();
   h += explorerHTML();
   h += alcoholCard();
@@ -376,6 +378,9 @@ function vData() {
   h += `<section class="card"><div class="card-h"><h2>MacroFactor</h2><span class="eyebrow">intake · weight · expenditure</span></div>
     <ol class="steps"><li>In MacroFactor, go to <b>More → Data Management → Data Export</b>.</li><li>Include nutrition, scale weight, weight trend and expenditure, choose a time frame, then save the spreadsheet.</li><li>Choose it below. Re-importing is safe: matching days are updated, not duplicated.</li></ol>
     <div class="drop" data-drop="mf"><input type="file" class="file" id="f_mf" accept=".xlsx,.xls,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple data-in="fmf"><span class="xs muted">${last('mf')}</span></div>${impBox('mf')}</section>`;
+  h += `<section class="card"><div class="card-h"><h2>Apple Health</h2><span class="eyebrow">steps · headphones · MacroFactor</span></div>
+    <p class="small dim">New days arrive through the Orbit sync Shortcut. For history, choose an Orbit Health file (.json) made from your Health export. Steps and headphone numbers are updated; calories, macros and weight only fill days MacroFactor's export doesn't have.</p>
+    <div class="drop" data-drop="ah"><input type="file" class="file" id="f_ah" accept=".json,application/json" data-in="fah"><span class="xs muted">${last('ah')}</span></div>${impBox('ah')}</section>`;
   h += `<section class="card"><div class="card-h"><h2>Backups</h2></div><p class="small dim">A full backup restores everything here. The CSV is every logged set, for a spreadsheet.</p>
     <div class="btnrow"><button class="btn sm ghost" data-act="export" data-v="json">Save full backup (.json)</button><button class="btn sm ghost" data-act="export" data-v="csv">Save sets (.csv)</button></div>
     ${ui.exportText ? `<div class="exportbox sec"><span class="xs muted">Saving files isn't available here. Copy this instead.</span><textarea class="in" id="exporttext" readonly>${esc(ui.exportText)}</textarea><button class="btn sm" data-act="copyexport">Copy</button></div>` : ''}

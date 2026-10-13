@@ -131,6 +131,15 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   await A.evaluate(() => GH.sync()); await wait(800);
   check(!(await W(A))['2026-09-20'], 'A dropped the deleted session');
 
+  console.log('6b. Sync helper and a device both change the same day');
+  const helperWrite = items => { G.head = putCommit(putTree({ ...files(), 'orbit/dy/2026-10.json': putBlob(JSON.stringify({ items })) }), [G.head]); };
+  await A.evaluate(() => GH.sync()); await wait(600);
+  helperWrite({ ...read('orbit/dy/2026-10.json').items, '2026-10-01': { ...read('orbit/dy/2026-10.json').items['2026-10-01'], stp: 9000, rec: 71 } });
+  await A.evaluate(() => { STATE.d['2026-10-01'] = { ...STATE.d['2026-10-01'], stpi: 8500 }; saveMonths('dy', ['2026-10']); }); await wait(2800);
+  const d6 = read('orbit/dy/2026-10.json').items['2026-10-01'];
+  check(d6.stp === 9000 && d6.stpi === 8500 && d6.hrv === 80, 'repo keeps the helper’s fields and the device’s: ' + JSON.stringify(d6));
+  check(await A.evaluate(() => STATE.d['2026-10-01'].stp) === 9000, 'device has the helper’s fields too');
+
   console.log('7. Restore on A replaces data everywhere');
   await A.evaluate(() => { restoreBackup({ app: 'orbit', settings: S(), workouts: { '2026-08-08': { date: '2026-08-08', s: order()[0], ex: [] } }, days: {} }); }); await wait(2600);
   const f7 = Object.keys(files()).sort();

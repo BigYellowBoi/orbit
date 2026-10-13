@@ -100,7 +100,7 @@ const GH = {
     const keep = new Set(Array.isArray(dirty) ? dirty : []);
     const next = { ...items };
     if (first) { for (const k in local) if (!items[k]) { next[k] = local[k]; keep.add(k); } } // first connect: union, the repo wins on overlaps
-    else for (const k of keep) { if (local[k]) next[k] = local[k]; else delete next[k]; }
+    else for (const k of keep) { if (!local[k]) delete next[k]; else next[k] = info.kind === 'dy' && items[k] ? { ...items[k], ...local[k] } : local[k]; } // day data: fields from the sync helper and this device combine
     if (JSON.stringify(next) === JSON.stringify(local)) return false;
     for (const k in local) delete tgt[k];
     Object.assign(tgt, clone(next));

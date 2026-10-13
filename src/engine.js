@@ -264,10 +264,44 @@ function doneByGroup(from, to) {
    d[date] = { rec, hrv, rhr, slp (min asleep), sp (sleep perf %), str (day strain), kb (kcal burned),
                wt (scale kg), tw (trend kg), kcal, p, c, f, exp (expenditure), kT, pT, acts:[...] }
    ============================================================ */
-function dayVal(date, k) { const v = STATE.d[date]?.[k]; return v == null ? null : v; }
+function dayVal(date, k) {
+  const v = STATE.d[date]?.[k]; if (v != null) return v;
+  if (k === 'tw' || k === 'exp') { const x = derived()[k][date]; return x == null ? null : x; }
+  return null;
+}
 function latestWith(k, onOrBefore = today()) {
   let best = null; for (const date in STATE.d) if (date <= onOrBefore && STATE.d[date][k] != null && (!best || date > best)) best = date;
+  if (k === 'tw' || k === 'exp') for (const date in derived()[k]) if (date <= onOrBefore && (!best || date > best)) best = date;
   return best;
+}
+const stepsOf = d => dayVal(d, 'stp') ?? dayVal(d, 'stpi'); // WHOOP's count first, the iPhone's when WHOOP has none
+/* Trend weight and expenditure for days MacroFactor's export doesn't cover (Apple Health only carries intake and scale
+   weight). Trend: scale weight smoothed 10% per weigh-in, carrying on from MacroFactor's trend wherever one exists, shown
+   up to 7 days past the last weigh-in. Expenditure: average intake over the 28 days before, minus the change in trend
+   weight over them (7700 kcal per kg); needs at least 21 logged days. MacroFactor's own numbers always win. */
+let DER = { key: null };
+function derived() {
+  const key = STATE.v + ':' + Object.keys(STATE.d).length; if (DER.key === key) return DER;
+  const tw = {}, exp = {}, t0 = today(), D = STATE.d;
+  const ds = Object.keys(D).filter(d => d <= t0 && (D[d].wt != null || D[d].tw != null || D[d].kcal != null)).sort();
+  if (ds.length) {
+    let t = null, lastW = null;
+    for (let d = ds[0]; d <= t0; d = addDays(d, 1)) {
+      const x = D[d] || {};
+      if (x.tw != null) t = x.tw; else if (x.wt != null) t = t == null ? x.wt : t + 0.1 * (x.wt - t);
+      if (x.wt != null || x.tw != null) lastW = d;
+      if (x.tw == null && t != null && diffDays(lastW, d) <= 7) tw[d] = Math.round(t * 100) / 100;
+    }
+    const twv = d => D[d]?.tw ?? tw[d];
+    for (let d = addDays(ds[0], 28); d <= t0; d = addDays(d, 1)) {
+      if (D[d]?.exp != null) continue;
+      const a = addDays(d, -28), b = addDays(d, -1), wa = twv(a), wb = twv(b); if (wa == null || wb == null) continue;
+      const k = []; for (let i = 1; i <= 28; i++) { const v = D[addDays(d, -i)]?.kcal; if (v != null) k.push(v); }
+      if (k.length < 21) continue;
+      exp[d] = Math.round((mean(k) - (wb - wa) * 7700 / 27) / 10) * 10;
+    }
+  }
+  return DER = { key, tw, exp };
 }
 function avgOver(k, end, days, excludeEnd) {
   const v = []; for (let i = excludeEnd ? 1 : 0; i < days + (excludeEnd ? 1 : 0); i++) { const x = dayVal(addDays(end, -i), k); if (x != null) v.push(x); }
@@ -288,7 +322,7 @@ const HRV_STATE = { below: ['warn', 'Below normal'], within: ['good', 'Normal ra
 function weightRate(end = today(), days = 28) { // trend-weight change per week over the last `days`
   const d1 = latestWith('tw', end); if (!d1) return null;
   const d0 = latestWith('tw', addDays(d1, -days)); if (!d0 || diffDays(d0, d1) < 14) return null;
-  const a = STATE.d[d0].tw, b = STATE.d[d1].tw, wk = (b - a) / diffDays(d0, d1) * 7;
+  const a = dayVal(d0, 'tw'), b = dayVal(d1, 'tw'), wk = (b - a) / diffDays(d0, d1) * 7;
   return { wk, pct: wk / b * 100, now: b, weeks: Math.round(diffDays(d0, d1) / 7) };
 }
 function weekRows(n) {
