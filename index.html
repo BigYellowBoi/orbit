@@ -534,7 +534,7 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.29'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.30'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
@@ -2883,7 +2883,7 @@ const Helper = {
     h += `</ul>${u ? `<span class="xs muted">${u.runs} scheduled checks, ${u.hooks} WHOOP notifications, ${u.health} Apple Health posts today. WHOOP also allows 100 calls a minute; one run uses at most 45.</span>` : ''}`;
     h += `<div class="tblwrap"><table class="tbl net"><thead><tr><th>Link</th><th class="n">Response</th><th class="n">↓ Speed</th><th class="n">Data</th></tr></thead><tbody>
       ${row('Phone → GitHub', phoneGh, `${phoneGh.n} request${phoneGh.n === 1 ? '' : 's'} this session${phoneGh.n304 ? `, ${phoneGh.n304} unchanged` : ''}`)}
-      ${row('Phone → helper', NET.helper, `${NET.helper.n} request${NET.helper.n === 1 ? '' : 's'} this session`)}
+      ${row('Phone → Helper', NET.helper, `${NET.helper.n} request${NET.helper.n === 1 ? '' : 's'} this session`)}
       ${row('Helper → WHOOP', net.whoop, net.whoop?.at ? `last run ${esc(new Date(net.whoop.at).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }))}` : '')}
       ${row('Helper → GitHub', net.gh, net.gh?.at ? `last run ${esc(new Date(net.gh.at).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }))}` : '')}
     </tbody></table></div><p class="xs muted">Response is the average time per request, to the last byte. Speed needs at least 2 KB to mean anything; small requests are nearly all waiting time. Upload speed can't be timed on its own from a browser or the helper, so only the data sent is shown.</p>`;
