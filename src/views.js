@@ -416,7 +416,7 @@ function recPerfHTML() {
 function prTimelineHTML() {
   const t = today(), from = addDays(weekStart(t), -7 * 11), prs = [];
   for (const w of workoutsSorted()) { if (w.date < addDays(from, -200)) continue; const seen = {}; for (const p of prsIn(w)) { const prev = seen[p.id] ?? bestBefore(p.id, w.date), sc = setScore(p.id, p.s, w.date); prs.push({ date: w.date, id: p.id, s: p.s, up: prev > 0 ? sc / prev - 1 : null }); seen[p.id] = sc; } }
-  if (!prs.length) return '';
+  if (!prs.length) return `<section class="card"><div class="card-h"><h2>New bests</h2><span class="eyebrow">none yet</span></div><p class="small dim">A set shows here when its estimated 1RM beats your best for that lift, including the max you entered in Plan.</p></section>`; // always shown, so the card is findable (v1.38)
   const bars = []; for (let k = 0; k < 12; k++) { const ws = addDays(from, 7 * k), we = addDays(ws, 6); bars.push({ x: k, v: prs.filter(p => p.date >= ws && p.date <= we).length, ws }); }
   const last = prs.slice(-10).reverse();
   return `<section class="card"><div class="card-h"><h2>New bests</h2><span class="eyebrow">${prs.filter(p => p.date >= from).length} in 12 weeks</span></div>

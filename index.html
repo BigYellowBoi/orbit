@@ -637,7 +637,7 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.37'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.38'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
@@ -2109,7 +2109,7 @@ function recPerfHTML() {
 function prTimelineHTML() {
   const t = today(), from = addDays(weekStart(t), -7 * 11), prs = [];
   for (const w of workoutsSorted()) { if (w.date < addDays(from, -200)) continue; const seen = {}; for (const p of prsIn(w)) { const prev = seen[p.id] ?? bestBefore(p.id, w.date), sc = setScore(p.id, p.s, w.date); prs.push({ date: w.date, id: p.id, s: p.s, up: prev > 0 ? sc / prev - 1 : null }); seen[p.id] = sc; } }
-  if (!prs.length) return '';
+  if (!prs.length) return `<section class="card"><div class="card-h"><h2>New bests</h2><span class="eyebrow">none yet</span></div><p class="small dim">A set shows here when its estimated 1RM beats your best for that lift, including the max you entered in Plan.</p></section>`; // always shown, so the card is findable (v1.38)
   const bars = []; for (let k = 0; k < 12; k++) { const ws = addDays(from, 7 * k), we = addDays(ws, 6); bars.push({ x: k, v: prs.filter(p => p.date >= ws && p.date <= we).length, ws }); }
   const last = prs.slice(-10).reverse();
   return `<section class="card"><div class="card-h"><h2>New bests</h2><span class="eyebrow">${prs.filter(p => p.date >= from).length} in 12 weeks</span></div>
