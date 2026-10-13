@@ -2,7 +2,7 @@
 <html lang="en" class="sbox">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -12,10 +12,13 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="manifest" href="manifest.webmanifest">
+<script>/* No zooming (Louis's call, v1.16): maximum-scale stops iOS zooming in on a focused input, the gesture events stop
+   pinch zoom (iOS ignores user-scalable=no on its own), and touch-action: manipulation below stops double-tap zoom. */
+['gesturestart', 'gesturechange', 'gestureend'].forEach(t => document.addEventListener(t, e => e.preventDefault(), { passive: false }));</script>
 <script>try { localStorage.removeItem('orbit-layout'); localStorage.removeItem('orbit-hdr'); localStorage.removeItem('orbit-scrollbox'); } catch (e) { } /* retired layout experiments and switches */</script>
 <style>
 html, body { margin: 0; }
-html { -webkit-text-size-adjust: 100%; }
+html { -webkit-text-size-adjust: 100%; touch-action: manipulation; }
 body { min-height: 100vh; } /* vh includes the safe areas in home-screen apps (WebKit bug 254868) */
 /* iOS draws a blurred band over the top of home-screen apps, reaching about 14pt below the status bar. Tested on an
    iPhone 13 Pro Max (v1.3 Display check): the header row is sharp only when moved below it. */
@@ -469,7 +472,7 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.15'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.16'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
