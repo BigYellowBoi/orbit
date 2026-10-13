@@ -492,7 +492,7 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.21'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.22'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
@@ -1680,12 +1680,12 @@ function vStrength() {
     ${chartHTML({ h: 170, ...ax, refY: maxScore(pick) ? { v: maxScore(pick) } : null, yPad: u === 'plates' ? .1 : 1, yFmt: v => fmt(v, u === 'plates' ? 2 : 0), series: [{ color: 'var(--s1)', pts: ser.map(p => ({ x: xi(p.date), y: p.y })), dots: true, r: 3.5, end: true }], hoverXs: ser.map(p => xi(p.date)), tip: x => { const p = ser.find(q => xi(q.date) === x); return p ? `<b>${esc(fmtDate(p.date))}</b><br>${esc(fmtSet(pick, p.top))} · ${esc(scoreTxt(pick, p.y))}` : ''; }, empty: 'No sets logged for this lift yet', label: 'Lift trend' })}</section>`;
   const when = c => c.date ? esc(fmtDMY(c.date)) : 'stated';
   h += `<section class="card"><div class="tblwrap"><table class="tbl lifts"><thead><tr><th>Lift</th><th class="n">Best</th><th class="n">Last</th><th class="n">4 wk</th></tr></thead><tbody>
-    ${ids.map(id => { const r = records(id), m = maintenance(id), [tone, word] = MSTATE[m.state]; return `<tr class="${id === pick ? 'sel' : ''}" data-act="liftsel" data-id="${id}"><td>${esc(exDef(id).name)}</td>
+    ${ids.map(id => { const r = records(id), m = maintenance(id), [tone, word] = MSTATE[m.state]; return `<tr class="${id === pick && ui.lift ? 'sel' : ''}" data-act="liftsel" data-id="${id}"><td>${esc(exDef(id).name)}</td>
       <td class="n">${esc(fmtSet(id, r.best.s))}<br><span class="xs muted">${when(r.best)}</span></td>
       <td class="n">${m.last ? `${esc(fmtSet(id, m.last.top))}<br><span class="xs muted">${esc(fmtDate(m.last.date))}</span>` : '<span class="muted">–</span>'}</td>
       <td class="n">${tone ? `<span class="pill plain ${tone}" title="${word}">${(m.ch >= 0 ? '+' : '−') + fmt(Math.abs(m.ch), 1)}%</span>` : `<span class="xs muted">${m.state === 'new' ? 'New' : '–'}</span>`}</td></tr>`; }).join('')}
     </tbody></table></div>
-    <p class="xs muted">Tap a lift to chart it. Best is your strongest set ever, counting the max you entered in Plan ("stated"). Sets with different reps are compared by estimated 1RM (Epley), which gets less reliable above about 10 reps. 4 wk compares your typical session (the median of each session's best set) in the last 4 weeks with the 2 months before, so one standout day doesn't swing it: green is holding (within ±2.5%, about the size of day-to-day variation) or up, amber a dip of up to 5%, red a bigger drop.</p></section>`;
+    <p class="xs muted">Tap a lift to chart it; tap it again or anywhere else to go back. Best is your strongest set ever, counting the max you entered in Plan ("stated"). Sets with different reps are compared by estimated 1RM (Epley), which gets less reliable above about 10 reps. 4 wk compares your typical session (the median of each session's best set) in the last 4 weeks with the 2 months before, so one standout day doesn't swing it: green is holding (within ±2.5%, about the size of day-to-day variation) or up, amber a dip of up to 5%, red a bigger drop.</p></section>`;
   const plan = planWeekly(S().prog), done = doneByGroup(addDays(t, -6), t), gs = GROUP_ORDER.filter(g => plan[g] || done[g]);
   const mx = Math.max(1, ...gs.map(g => Math.max(plan[g] || 0, done[g] || 0)));
   h += `<section class="sec"><div class="sec-h"><span class="eyebrow">Volume · last 7 days</span></div><section class="card"><div class="legend"><span><i class="ln" style="background:var(--s1);height:8px;width:12px"></i>Sets done</span><span><i class="tk"></i>Plan, if trained daily</span></div>
@@ -2069,6 +2069,7 @@ function go(tab) {
   if (tab === 'trends') tab = 'body';
   if (tab === 'log' && (!ui.logDate || ui.logDate >= today())) { tab = 'today'; ui.editToday = true; } // today's log lives on Today
   if (ui.tab === 'today' && tab !== 'today') ui.editToday = false;
+  if (ui.tab === 'strength' && tab !== 'strength') ui.lift = null; // a picked lift lasts while you stay on Strength
   if (ui.tab === 'log' && ui.logDate && tab !== 'log') dropEmpty(ui.logDate); // an empty past-day log isn't kept
   ui.exNote = null; ui.noteEdit = null; ui.exHist = null; ui.exMore = null;
   if (tab !== ui.tab) ui.exQ = ''; ui.restPick = null; // exercise search lasts while you stay on Plan
@@ -2122,7 +2123,7 @@ const ACT = {
   edittoday: () => { ui.editToday = true; render(true); },
   pastlog: () => { ui.logDate = addDays(today(), -1); ui.pickSess = null; go('log'); },
   exhist: el => { const i = +el.dataset.e; ui.exHist = ui.exHist === i ? null : i; render(true); },
-  liftsel: el => { ui.lift = el.dataset.id; render(true); const c = $('#liftchart'); if (c && c.getBoundingClientRect().top < ($('.top')?.getBoundingClientRect().bottom || 0)) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); },
+  liftsel: el => { if (ui.lift === el.dataset.id) { ui.lift = null; render(true); return; } ui.lift = el.dataset.id; render(true); const c = $('#liftchart'); if (c && c.getBoundingClientRect().top < ($('.top')?.getBoundingClientRect().bottom || 0)) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); },
   liftgo: el => { ui.lift = el.dataset.id; go('strength'); },
   addset: el => { const w = logW(), e = w.ex[+el.dataset.e]; const l = e.sets[e.sets.length - 1]; e.sets.push({ w: null, r: null, pw: l ? (l.w ?? l.pw) : null, pr: l ? (l.r ?? l.pr) : null, done: false }); saveW(w.date); render(true); setTimeout(() => $(`#r${el.dataset.e}_${e.sets.length - 1}`)?.focus(), 30); },
   remset: el => { const w = logW(), e = w.ex[+el.dataset.e]; if (e.sets.length > 1) e.sets.pop(); saveW(w.date); render(true); },
@@ -2315,6 +2316,16 @@ document.addEventListener('pointerup', ev => {
   clearTimeout(pickT); pickT = setTimeout(unpick, 350); // fallback when the tap lands on something with no click
 }, true);
 document.addEventListener('click', () => { if (pickT) unpick(); }, true);
+/* ---------- a picked lift on Strength: tapping it again or anywhere outside the chart card drops it; a scroll doesn't ---------- */
+let liftTap = null, liftT = null;
+function unpickLift() { clearTimeout(liftT); liftT = null; if (!ui.lift || ui.tab !== 'strength') return; ui.lift = null; render(true); }
+document.addEventListener('pointerdown', ev => { liftTap = ui.tab === 'strength' && ui.lift ? { x: ev.clientX, y: ev.clientY } : null; }, true);
+document.addEventListener('pointerup', ev => {
+  const p = liftTap; liftTap = null; if (!p || !ui.lift || Math.hypot(ev.clientX - p.x, ev.clientY - p.y) > 10) return; // a scroll isn't a tap
+  if (ev.target.closest('#liftchart, .tbl.lifts tr[data-act], .tabs, #gear')) return; // the chart card, rows (they toggle) and navigation handle themselves
+  clearTimeout(liftT); liftT = setTimeout(unpickLift, 350); // fallback when the tap lands on something with no click
+}, true);
+document.addEventListener('click', () => { if (liftT) setTimeout(unpickLift, 0); }, true); // after the tap's own click has run
 /* ---------- exercise search (Plan): filters rows in place so the input keeps focus ---------- */
 function filterEx() {
   const list = $('#exlist'); if (!list) return; let n = 0;

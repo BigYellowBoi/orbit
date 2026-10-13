@@ -216,6 +216,7 @@ function go(tab) {
   if (tab === 'trends') tab = 'body';
   if (tab === 'log' && (!ui.logDate || ui.logDate >= today())) { tab = 'today'; ui.editToday = true; } // today's log lives on Today
   if (ui.tab === 'today' && tab !== 'today') ui.editToday = false;
+  if (ui.tab === 'strength' && tab !== 'strength') ui.lift = null; // a picked lift lasts while you stay on Strength
   if (ui.tab === 'log' && ui.logDate && tab !== 'log') dropEmpty(ui.logDate); // an empty past-day log isn't kept
   ui.exNote = null; ui.noteEdit = null; ui.exHist = null; ui.exMore = null;
   if (tab !== ui.tab) ui.exQ = ''; ui.restPick = null; // exercise search lasts while you stay on Plan
@@ -269,7 +270,7 @@ const ACT = {
   edittoday: () => { ui.editToday = true; render(true); },
   pastlog: () => { ui.logDate = addDays(today(), -1); ui.pickSess = null; go('log'); },
   exhist: el => { const i = +el.dataset.e; ui.exHist = ui.exHist === i ? null : i; render(true); },
-  liftsel: el => { ui.lift = el.dataset.id; render(true); const c = $('#liftchart'); if (c && c.getBoundingClientRect().top < ($('.top')?.getBoundingClientRect().bottom || 0)) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); },
+  liftsel: el => { if (ui.lift === el.dataset.id) { ui.lift = null; render(true); return; } ui.lift = el.dataset.id; render(true); const c = $('#liftchart'); if (c && c.getBoundingClientRect().top < ($('.top')?.getBoundingClientRect().bottom || 0)) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); },
   liftgo: el => { ui.lift = el.dataset.id; go('strength'); },
   addset: el => { const w = logW(), e = w.ex[+el.dataset.e]; const l = e.sets[e.sets.length - 1]; e.sets.push({ w: null, r: null, pw: l ? (l.w ?? l.pw) : null, pr: l ? (l.r ?? l.pr) : null, done: false }); saveW(w.date); render(true); setTimeout(() => $(`#r${el.dataset.e}_${e.sets.length - 1}`)?.focus(), 30); },
   remset: el => { const w = logW(), e = w.ex[+el.dataset.e]; if (e.sets.length > 1) e.sets.pop(); saveW(w.date); render(true); },
@@ -462,6 +463,16 @@ document.addEventListener('pointerup', ev => {
   clearTimeout(pickT); pickT = setTimeout(unpick, 350); // fallback when the tap lands on something with no click
 }, true);
 document.addEventListener('click', () => { if (pickT) unpick(); }, true);
+/* ---------- a picked lift on Strength: tapping it again or anywhere outside the chart card drops it; a scroll doesn't ---------- */
+let liftTap = null, liftT = null;
+function unpickLift() { clearTimeout(liftT); liftT = null; if (!ui.lift || ui.tab !== 'strength') return; ui.lift = null; render(true); }
+document.addEventListener('pointerdown', ev => { liftTap = ui.tab === 'strength' && ui.lift ? { x: ev.clientX, y: ev.clientY } : null; }, true);
+document.addEventListener('pointerup', ev => {
+  const p = liftTap; liftTap = null; if (!p || !ui.lift || Math.hypot(ev.clientX - p.x, ev.clientY - p.y) > 10) return; // a scroll isn't a tap
+  if (ev.target.closest('#liftchart, .tbl.lifts tr[data-act], .tabs, #gear')) return; // the chart card, rows (they toggle) and navigation handle themselves
+  clearTimeout(liftT); liftT = setTimeout(unpickLift, 350); // fallback when the tap lands on something with no click
+}, true);
+document.addEventListener('click', () => { if (liftT) setTimeout(unpickLift, 0); }, true); // after the tap's own click has run
 /* ---------- exercise search (Plan): filters rows in place so the input keeps focus ---------- */
 function filterEx() {
   const list = $('#exlist'); if (!list) return; let n = 0;
