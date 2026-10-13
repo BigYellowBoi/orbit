@@ -67,7 +67,7 @@ const EXLIB = {
   calf: X('Calf raises', 'calves', 'plates', 90, 10, 15, 4, 12),
   seated_curl: X('Seated leg curl', 'hams', 'kg', 90, 10, 12, null, null, 'Optional swap for the second leg day'),
 };
-const I = (ex, sets = 3) => ({ ex, sets });
+const I = (ex, sets = 2) => ({ ex, sets }); // 2 hard sets by default (his practice; plenty for maintenance, see Plan's weekly sets)
 const PRESETS = {
   ppl4: {
     name: 'Current split', blurb: 'Your rotation as it is now. Four sessions, legs once per rotation.',
@@ -93,7 +93,7 @@ const PRESETS = {
 };
 function defaultSettings() {
   const p = PRESETS.ppl4;
-  return { v: 1, preset: 'ppl4', prog: { order: p.order.slice(), sessions: clone(p.sessions) }, ex: clone(EXLIB), plateKg: 20, cardio: { name: 'Stairmaster', min: 30 }, proteinT: null, rotOverride: null, imports: {}, suggest: true, goal: 'hold', progRate: 0.005 };
+  return { v: 1, preset: 'ppl4', prog: { order: p.order.slice(), sessions: clone(p.sessions) }, ex: clone(EXLIB), plateKg: 20, cardio: { name: 'Stairmaster', min: 30 }, proteinT: null, rotOverride: null, imports: {}, suggest: true, goal: 'hold', progRate: 0.005, sets2: 1 };
 }
 function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 }; }
 

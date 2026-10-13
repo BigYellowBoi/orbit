@@ -74,13 +74,21 @@ button { cursor: pointer; }
 
 /* header */
 .top { position: fixed; top: 0; left: 0; right: 0; z-index: 20; display: flex; align-items: center; gap: 10px; height: calc(env(safe-area-inset-top, 0px) + var(--toph) + var(--hdrdrop)); padding: calc(env(safe-area-inset-top, 0px) + 12px + var(--hdrdrop)) max(16px, calc((100% - 720px) / 2)) 12px; background: var(--bg); border-bottom: 1px solid var(--line); }
-.brand { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 16px; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; }
+.brand { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 16px; letter-spacing: -.01em; white-space: nowrap; overflow: visible; } /* visible: the logo's glow mustn't be clipped square */
 .mark-wrap { display: inline-grid; flex: none; } .mark { width: 24px; height: 24px; flex: none; filter: drop-shadow(0 0 2.5px var(--glow)); }
 .sync { font-family: var(--f-mono); font-size: 11px; color: var(--ink-3); display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .sync::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--ink-3); }
 .sync.ok::before { background: var(--good); } .sync.bad::before { background: var(--bad); } .sync.busy::before { background: var(--warn); }
 .iconbtn { width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); display: grid; place-items: center; color: var(--ink-2); }
 .iconbtn svg { width: 18px; height: 18px; }
+#reorder[hidden] { display: none; }
+.iconbtn.txt { width: auto; padding: 0 12px; font-size: 14px; font-weight: 600; color: var(--accent); border-color: var(--accent); }
+.reo { display: flex; flex-direction: column; gap: 8px; }
+.reo-item { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.reo-item.sm { flex-direction: row; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; background: var(--surface-2); font-size: 14px; }
+.reo-h { display: flex; align-items: center; gap: 10px; } .reo-h b { font-weight: 600; }
+.reo-cols { display: flex; flex-direction: column; gap: 6px; }
+.reo-item.dragging { border-color: var(--accent); box-shadow: 0 8px 24px rgba(0,0,0,.5); z-index: 2; position: relative; }
 .iconbtn[aria-current="page"] { border-color: var(--accent); color: var(--accent); }
 
 #view { display: flex; flex-direction: column; gap: 14px; padding-top: 18px; }
@@ -130,6 +138,9 @@ button.pill { border: 0; font: inherit; font-size: 12.5px; font-weight: 500; cur
 .sd small { font-family: var(--f-mono); font-size: 10.5px; color: var(--ink-3); text-transform: uppercase; letter-spacing: .05em; }
 .sd b { font-weight: 600; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sd.now { border-color: var(--accent); background: var(--accent-soft); }
+.sd.now.done { opacity: 1; } .sd.now.done b::after { content: ' ✓'; color: var(--good-ink); font-weight: 600; } /* today stays highlighted once logged */
+.chips.one { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; } .chips.one::-webkit-scrollbar { display: none; }
+.chips.one .pill { font-size: 12px; padding: 3px 9px; flex: none; }
 .sd.done { opacity: .6; }
 .sd.rest b { color: var(--ink-3); font-weight: 500; }
 button.sd { font: inherit; color: inherit; text-align: left; cursor: pointer; }
@@ -212,6 +223,7 @@ textarea.in { text-align: left; font-size: 15px; min-height: 76px; padding: 10px
 .exhist .link { align-self: flex-start; min-height: 30px; font-size: 13px; }
 .ex-meta { font-size: 12.5px; color: var(--ink-3); margin-top: -6px; }
 .aim { font-size: 13px; color: var(--ink-2); margin-top: -6px; }
+.warnnote { background: var(--warn-soft); color: var(--warn-ink); border-radius: 10px; padding: 10px 12px; margin: 0; }
 .aim b, .aimtxt { color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums; }
 .sets { display: flex; flex-direction: column; gap: 6px; }
 .set { display: grid; grid-template-columns: 26px minmax(0, 1fr) minmax(0, 1fr) 22px; gap: 8px; align-items: center; }
@@ -247,6 +259,9 @@ textarea.in { text-align: left; font-size: 15px; min-height: 76px; padding: 10px
 .hrow { width: 100%; text-align: left; display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
 .hdate { display: flex; flex-direction: column; line-height: 1.2; } .hdate b { font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; } .hdate small { font-family: var(--f-mono); font-size: 10.5px; color: var(--ink-3); text-transform: uppercase; }
 .hmain { display: flex; flex-direction: column; min-width: 0; } .hmain b { font-weight: 600; font-size: 14.5px; } .hmain small { font-size: 12.5px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hwh { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.hwh b { font-weight: 600; font-size: 14px; } .hwh .strain { color: var(--strain); font-size: 12.5px; }
+.hwh .tn-good { color: var(--good-ink); } .hwh .tn-warn { color: var(--warn-ink); } .hwh .tn-bad { color: var(--bad-ink); }
 .hist { display: flex; flex-direction: column; gap: 6px; }
 
 /* bars (volume, recovery-by-session) */
@@ -255,6 +270,9 @@ textarea.in { text-align: left; font-size: 15px; min-height: 76px; padding: 10px
 .hbars .lab { color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hbars .trk { position: relative; height: 10px; border-radius: 3px; background: var(--surface-2); }
 .hbars .fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 0 4px 4px 0; background: var(--s1); }
+.hbars .band { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--good) 22%, transparent); border-radius: 2px; }
+.legend .bandk { width: 14px; height: 8px; border-radius: 2px; background: color-mix(in srgb, var(--good) 35%, transparent); }
+.hbars .v.tn-good { color: var(--good-ink); } .hbars .v.tn-warn { color: var(--warn-ink); }
 .hbars .tgt { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--ink-2); border-radius: 1px; }
 .hbars .v { font-family: var(--f-mono); font-size: 12px; text-align: right; color: var(--ink); white-space: nowrap; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--ink-2); }
@@ -369,6 +387,24 @@ details.more > summary::-webkit-details-marker { display: none; }
 
 /* toast */
 .toast { position: fixed; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 74px); transform: translate(-50%, -16px); opacity: 0; pointer-events: none; z-index: 50; background: var(--surface-3); border: 1px solid var(--line-2); color: var(--ink); padding: 10px 16px; border-radius: 12px; font-size: 14px; max-width: calc(100% - 32px); text-align: center; transition: opacity .2s, transform .2s; box-shadow: 0 10px 30px rgba(0,0,0,.5); }
+.fab { position: fixed; right: 16px; bottom: calc(var(--tabh) + max(8px, calc(env(safe-area-inset-bottom, 0px) - 8px)) + 14px); z-index: 40; width: 48px; height: 48px; border-radius: 50%; border: 1px solid color-mix(in srgb, var(--accent) 60%, transparent); background: color-mix(in srgb, var(--surface-3) 88%, transparent); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); color: var(--accent); display: grid; place-items: center; box-shadow: 0 4px 18px rgba(0,0,0,.45), 0 0 10px var(--glow); opacity: 0; transform: translateY(8px) scale(.9); pointer-events: none; transition: opacity .18s, transform .18s; }
+.fab.on { opacity: 1; transform: none; pointer-events: auto; }
+.fab i { position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--accent); color: #0b0b10; font: 600 11px/18px var(--f-mono); font-style: normal; text-align: center; }
+body:has(#updp) .fab { bottom: calc(var(--tabh) + max(8px, calc(env(safe-area-inset-bottom, 0px) - 8px)) + 84px); }
+.set.seek { animation: seek 1.5s ease-out; border-radius: 10px; }
+@keyframes seek { 0%, 30% { box-shadow: 0 0 0 2px var(--accent), 0 0 14px var(--glow); } 100% { box-shadow: 0 0 0 2px transparent; } }
+.stat.flash b, .ring.flash { animation: liveflash 1.6s ease-out; }
+@keyframes liveflash { 0% { color: var(--accent); text-shadow: 0 0 12px var(--glow); transform: scale(1.04); } 100% { text-shadow: none; transform: none; } }
+#mark { position: relative; }
+#mark.pulse::after { content: ''; position: absolute; inset: -8px; border-radius: 50%; background: radial-gradient(circle, var(--glow) 0%, transparent 68%); pointer-events: none; animation: markpulse 1.4s ease-out forwards; } /* round glow behind the logo when new data lands */
+@keyframes markpulse { 0% { opacity: 0; transform: scale(.7); } 30% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.15); } }
+.hero.just { animation: donein .5s cubic-bezier(.2,.8,.2,1); }
+.hero.just .pill.good { animation: donepop .5s .25s cubic-bezier(.3,1.6,.5,1) both; }
+.hero.just .rot i.on { transform-origin: left; animation: donefill .6s .15s ease-out both; }
+@keyframes donein { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: none; } }
+@keyframes donepop { from { opacity: 0; transform: scale(.5); } to { opacity: 1; transform: none; } }
+@keyframes donefill { from { transform: scaleX(0); } to { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .hero.just, .hero.just .pill.good, .hero.just .rot i.on, .stat.flash b, .ring.flash, #mark.pulse::after, .set.seek { animation: none; } }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 .toast.pr { border-color: var(--accent); } .toast.bad { border-color: var(--bad); }
 @media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
@@ -378,6 +414,7 @@ details.more > summary::-webkit-details-marker { display: none; }
 <body>
 <header class="top">
     <span class="brand"><span id="mark" class="mark-wrap"></span>Orbit</span>
+    <button class="iconbtn" id="reorder" data-act="reorder" hidden></button>
     <button class="iconbtn" id="gear" data-act="go" data-tab="data" aria-label="Data, imports and backups"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg></button>
 </header>
 <div id="scroll"><div class="wrap"><main id="view"></main></div></div>
@@ -459,7 +496,7 @@ const EXLIB = {
   calf: X('Calf raises', 'calves', 'plates', 90, 10, 15, 4, 12),
   seated_curl: X('Seated leg curl', 'hams', 'kg', 90, 10, 12, null, null, 'Optional swap for the second leg day'),
 };
-const I = (ex, sets = 3) => ({ ex, sets });
+const I = (ex, sets = 2) => ({ ex, sets }); // 2 hard sets by default (his practice; plenty for maintenance, see Plan's weekly sets)
 const PRESETS = {
   ppl4: {
     name: 'Current split', blurb: 'Your rotation as it is now. Four sessions, legs once per rotation.',
@@ -485,14 +522,14 @@ const PRESETS = {
 };
 function defaultSettings() {
   const p = PRESETS.ppl4;
-  return { v: 1, preset: 'ppl4', prog: { order: p.order.slice(), sessions: clone(p.sessions) }, ex: clone(EXLIB), plateKg: 20, cardio: { name: 'Stairmaster', min: 30 }, proteinT: null, rotOverride: null, imports: {}, suggest: true, goal: 'hold', progRate: 0.005 };
+  return { v: 1, preset: 'ppl4', prog: { order: p.order.slice(), sessions: clone(p.sessions) }, ex: clone(EXLIB), plateKg: 20, cardio: { name: 'Stairmaster', min: 30 }, proteinT: null, rotOverride: null, imports: {}, suggest: true, goal: 'hold', progRate: 0.005, sets2: 1 };
 }
 function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 }; }
 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.23'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.24'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
@@ -719,6 +756,18 @@ function progression(exId, weeks, rate, before = today()) {
   for (let k = 1; k <= weeks; k++) { const e = e1 * (1 + rate) ** (k - 1), p = fitLoad(exId, e, w, before); if (!p) return null; w = p.w; out.push({ k, ...p, g: e / ref.v - 1 }); }
   return out;
 }
+/* Sets after the first: one weight step lighter for the same reps. Repeating set 1's load would need long rests, growth is
+   similar across loads when sets end near failure (Schoenfeld et al., 2017), and rest beyond ~90 s adds little (Singer et al., 2024).
+   strengthRef() reads each session's best set, so lighter later sets don't pull future Aims down. */
+function setAim(exId, before, j, sg = suggest(exId, before)) {
+  if (!sg || !j) return sg;
+  const d = exDef(exId); if (d.u === 'bw' && !bwScored(exId)) return sg; // reps-only bodyweight lifts have no load to drop
+  const w = +(sg.w - exStep(exId)).toFixed(3);
+  return (d.u === 'bw' ? w < 0 : w <= 0) ? sg : { ...sg, w, back: true };
+}
+/* Overload during a cut: a deficit of ~500 kcal a day blunts muscle gain though strength mostly holds (Murphy & Koehler, 2022);
+   at Louis's size that is roughly 0.5% of body weight a week, so faster loss flags the Overload setting. */
+function cutCheck() { const r = weightRate(); return r && r.pct <= -0.5 ? r : null; }
 function suggestTxt(exId, sg) { const u = exDef(exId).u, w = fmt(sg.w, 2); return u === 'bw' ? (sg.w ? `BW+${w} × ${sg.r}` : `${sg.r} reps`) : `${w} ${u === 'plates' ? 'pl' : 'kg'} × ${sg.r}`; }
 
 /* ============================================================
@@ -1109,7 +1158,9 @@ function drawChart(el, cfg) {
   const X = x => m.l + (cfg.x1 === cfg.x0 ? iw / 2 : (x - cfg.x0) / (cfg.x1 - cfg.x0) * iw);
   const Y = y => m.t + ih - (y - y0) / (y1 - y0 || 1) * ih;
   let s = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">`;
-  for (const t of nt.t) if (t >= y0 - 1e-9 && t <= y1 + 1e-9) s += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(t)}" y2="${Y(t)}" class="grid"/><text x="${m.l - 6}" y="${Y(t) + 3.5}" class="ax" text-anchor="end">${esc((cfg.yFmt || (v => fmt(v, 1)))(t))}</text>`;
+  let yf = cfg.yFmt || (v => fmt(v, 1));
+  if (new Set(nt.t.map(yf)).size < nt.t.length) { const st = nt.t.length > 1 ? Math.abs(nt.t[1] - nt.t[0]) : 1, d = Math.max(0, Math.min(3, -Math.floor(Math.log10(st) + 1e-9))); yf = v => fmt(v, d); } // close ticks would round to the same label: show the decimals
+  for (const t of nt.t) if (t >= y0 - 1e-9 && t <= y1 + 1e-9) s += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(t)}" y2="${Y(t)}" class="grid"/><text x="${m.l - 6}" y="${Y(t) + 3.5}" class="ax" text-anchor="end">${esc(yf(t))}</text>`;
   for (const x of cfg.xTicks || []) s += `<text x="${X(x)}" y="${H - 5}" class="ax" text-anchor="middle">${esc(cfg.xFmt(x))}</text>`;
   if (cfg.area?.length) {
     let seg = [], prev = null; const segsA = [];
@@ -1426,7 +1477,7 @@ function vNotes() {
    VIEWS
    ============================================================ */
 function pill(tone, text) { return `<span class="pill ${tone || ''}">${esc(text)}</span>`; }
-function stat(v, unit, label, extra) { return `<div class="stat"><b>${v}${unit ? `<small>${esc(unit)}</small>` : ''}</b><span>${esc(label)}</span>${extra || ''}</div>`; }
+function stat(v, unit, label, extra) { return `<div class="stat" data-live="${esc(label)}"><b>${v}${unit ? `<small>${esc(unit)}</small>` : ''}</b><span>${esc(label)}</span>${extra || ''}</div>`; }
 function deltaTxt(v, base, d = 0, unit = '', invert = false) {
   if (v == null || base == null) return '';
   const diff = v - base; if (Math.abs(diff) < 10 ** -d / 2) return `<span class="delta">= 30-day avg</span>`;
@@ -1467,7 +1518,7 @@ function doneHero(w, idx, o) { // today after Done: a summary, with the log one 
     ${w.cardio?.done ? `<p class="small dim">${esc(w.cardio.name)} · ${w.cardio.min || 0} min</p>` : ''}
     <div class="btnrow" style="justify-content:space-between"><button class="btn sm ghost" data-act="edittoday">${w.cardio?.done || w.note ? 'Edit day' : 'Log cardio or notes'}</button><button class="link dim" data-act="unrest">Undo rest day</button></div></section>`;
   const st = wStats(w), dur = sessDur(w), prs = prsIn(w);
-  return `<section class="card hero"><div class="card-h"><span class="eyebrow">Logged today · ${idx + 1} of ${o.length}</span>${pill('good', 'Done')}</div>
+  return `<section class="card hero${ui.justDone ? ' just' : ''}"><div class="card-h"><span class="eyebrow">Logged today · ${idx + 1} of ${o.length}</span>${pill('good', 'Done')}</div>
     <div class="rot">${o.map((id, i) => `<i class="${i === idx ? 'on' : i < idx ? 'done' : ''}"></i>`).join('')}</div>
     <div><h1>${esc(sessName(w))}</h1><p class="focus">${esc(sessDef(w.s)?.focus || '')}</p></div>
     <div class="stats">${stat(st.sets, '', 'sets')}${stat(dur ? fmtDur(dur) : '–', '', dur && whoopLiftMin(w.date) != null ? 'duration · WHOOP' : 'duration')}${stat(st.cardio || '–', st.cardio ? 'min' : '', w.cardio?.name || 'Cardio')}</div>
@@ -1478,9 +1529,9 @@ function stripHTML() { // the next days; tap one to plan it as a rest day (or un
   const up = upcoming(Math.max(5, order().length + 1)), t = today(), pick = up.find((u, i) => i > 0 && u.date === ui.restPick);
   const later = (S().restPlan || []).filter(d => d >= t).sort(), lab = d => `${fmtDow(d)} ${fmtDate(d)}`;
   let h = `<section class="sec"><div class="sec-h"><span class="eyebrow">Coming up</span><button class="link" data-act="restplan">${ui.restPlanOpen ? 'Done' : `Plan rest${later.length ? ` (${later.length})` : ''}`}</button></div><div class="strip">${up.map((u, i) => {
-    const cls = `sd ${i === 0 ? (u.done ? 'done' : pick ? '' : 'now') : ''} ${u.s === '_rest' || isRestSlot(u.s) ? 'rest' : ''} ${u.planned ? 'planned' : ''} ${pick && pick.date === u.date ? 'pick' : ''}`;
+    const cls = `sd ${i === 0 ? (pick ? '' : 'now') + (u.done ? ' done' : '') : ''} ${u.s === '_rest' || isRestSlot(u.s) ? 'rest' : ''} ${u.planned ? 'planned' : ''} ${pick && pick.date === u.date ? 'pick' : ''}`;
     const inner = `<small>${i === 0 ? 'Today' : i === 1 ? 'Tmrw' : esc(fmtDow(u.date))}</small><b>${esc(slotName(u.s))}</b>`;
-    return i > 0 ? `<button class="${cls}" data-act="strippick" data-date="${u.date}" aria-label="${esc(lab(u.date))}: ${esc(slotName(u.s))}">${inner}</button>` : `<div class="${cls}"${u.done ? '' : ' data-now="1"'}>${inner}</div>`; }).join('')}</div>`;
+    return i > 0 ? `<button class="${cls}" data-act="strippick" data-date="${u.date}" aria-label="${esc(lab(u.date))}: ${esc(slotName(u.s))}">${inner}</button>` : `<div class="${cls}" data-now="1">${inner}</div>`; }).join('')}</div>`;
   if (pick) h += `<div class="pickrow"><span><b>${esc(lab(pick.date))}</b> · ${pick.planned ? 'planned rest' : isRestSlot(pick.s) ? 'rest from your rotation' : esc(slotName(pick.s))}</span>${pick.planned ? `<button class="btn sm ghost" data-act="restoff" data-date="${pick.date}">Train this day</button>` : isRestSlot(pick.s) ? '' : `<button class="btn sm" data-act="reston" data-date="${pick.date}">Rest this day</button>`}</div>`;
   if (ui.restPlanOpen) h += `<section class="card"><div class="card-h"><h2>Planned rest days</h2></div>
     ${later.length ? `<div class="chips">${later.map(d => `<span class="pill plain restchip">${esc(lab(d))}<button class="ed-x sm" data-act="restoff" data-date="${d}" aria-label="Remove rest on ${esc(lab(d))}">${ICON.x}</button></span>`).join('')}</div>` : '<p class="xs muted">None yet.</p>'}
@@ -1516,7 +1567,7 @@ function weekCard() {
 function ring(v, tone, strain) { // inner ring: recovery (0–100%); outer ring: today's strain so far (0–21) in WHOOP blue, as on the WHOOP home screen
   const arc = (r, f, col, w) => { const c = 2 * Math.PI * r; return `<circle cx="56" cy="56" r="${r}" fill="none" stroke="var(--surface-3)" stroke-width="${w}"/>` + (f > 0 ? `<circle cx="56" cy="56" r="${r}" fill="none" stroke="${col}" stroke-width="${w}" stroke-linecap="round" stroke-dasharray="${(c * Math.min(1, f)).toFixed(1)} ${c.toFixed(1)}"/>` : ''); };
   const col = { good: 'var(--good)', warn: 'var(--warn)', bad: 'var(--bad)' }[tone] || 'var(--ink-3)';
-  return `<div class="ring" role="img" aria-label="Recovery ${v == null ? 'unknown' : Math.round(v) + '%'}${strain != null ? `, strain ${fmt(strain, 1)}` : ''}"><svg viewBox="0 0 112 112">${arc(51, strain != null ? strain / 21 : 0, 'var(--strain)', 6)}${arc(40, Math.max(0, Math.min(100, v || 0)) / 100, col, 6)}</svg><b style="color:${col}">${v == null ? '–' : Math.round(v)}<small style="color:inherit;opacity:.75">%</small></b></div>`;
+  return `<div class="ring" data-live="ring" role="img" aria-label="Recovery ${v == null ? 'unknown' : Math.round(v) + '%'}${strain != null ? `, strain ${fmt(strain, 1)}` : ''}"><svg viewBox="0 0 112 112">${arc(51, strain != null ? strain / 21 : 0, 'var(--strain)', 6)}${arc(40, Math.max(0, Math.min(100, v || 0)) / 100, col, 6)}</svg><b style="color:${col}">${v == null ? '–' : Math.round(v)}<small style="color:inherit;opacity:.75">%</small></b></div>`;
 }
 function whoopCard() {
   const t = today(), x = STATE.d[t];
@@ -1610,17 +1661,17 @@ function exMoreHTML(w, e, i) { // swap keeps the slot and set count; same muscle
 }
 function exCard(w, e, i, prSet) {
   const def = exDef(e.id), u = UNITS[def.u] || UNITS.kg, open = ui.exHist === i;
-  const ph = (v, dflt) => v != null ? fmt(v, 2).replace(/,/g, '') : dflt, sg = suggest(e.id, w.date);
+  const ph = (v, dflt) => v != null ? fmt(v, 2).replace(/,/g, '') : dflt, sg = suggest(e.id, w.date), back = e.sets.length > 1 ? setAim(e.id, w.date, 1, sg) : null;
   return `<section class="card ex" id="ex${i}"><div class="ex-h"><button class="ex-name" data-act="exhist" data-e="${i}" aria-expanded="${open}"><h3>${esc(def.name)}</h3><span class="chev">${ICON.down}</span></button><span class="rx">${def.lo}${def.hi > def.lo ? '–' + def.hi : ''} reps</span></div>
     ${open ? exHistHTML(e.id, w.date) : ''}
-    ${sg ? `<p class="aim"><b>Aim ${esc(suggestTxt(e.id, sg))}</b> · ${sg.rir} rep${sg.rir === 1 ? '' : 's'} in reserve${S().goal === 'grow' ? ' · overload' : ''}</p>` : ''}
+    ${sg ? `<p class="aim"><b>Aim ${esc(suggestTxt(e.id, sg))}</b>${back?.back ? `, then ${esc(fmtLoad(e.id, back.w))}${def.u === 'kg' ? ' kg' : ''}` : ''} · ${sg.rir} rep${sg.rir === 1 ? '' : 's'} in reserve${S().goal === 'grow' ? ' · overload' : ''}</p>` : ''}
     <p class="ex-meta">${esc(lastLine(e.id, w.date))}${def.note ? ` · ${esc(def.note)}` : ''}</p>
     ${(() => { const ln = e.note == null ? lastExerciseNote(e.id, w.date) : null; return ln ? `<p class="ex-lastnote">Note from ${esc(fmtDate(ln.date))}: ${esc(ln.note)}</p>` : ''; })()}
     <div class="sets"><div class="set hdr"><span>Set</span><span>${esc(u.col)}</span><span>Reps</span><span></span></div>
-    ${e.sets.map((s, j) => `<div class="set ${s.done ? 'done' : ''} ${prSet.has(s) ? 'pr' : ''}" id="row${i}_${j}"><span class="sn">${j + 1}</span>
-      <input class="in" id="w${i}_${j}" inputmode="decimal" enterkeyhint="next" data-in="w" data-e="${i}" data-s="${j}" value="${s.w ?? ''}" placeholder="${ph(sg ? sg.w : s.pw, def.u === 'bw' ? '0' : '–')}" aria-label="Set ${j + 1} ${esc(u.label)}">
-      <input class="in" id="r${i}_${j}" inputmode="numeric" enterkeyhint="next" data-in="r" data-e="${i}" data-s="${j}" value="${s.r ?? ''}" placeholder="${ph(sg ? sg.r : s.pr, '–')}" aria-label="Set ${j + 1} reps">
-      <span class="mark" aria-hidden="true">${ICON.tick}</span></div>`).join('')}</div>
+    ${e.sets.map((s, j) => { const a = setAim(e.id, w.date, j, sg); return `<div class="set ${s.done ? 'done' : ''} ${prSet.has(s) ? 'pr' : ''}" id="row${i}_${j}"><span class="sn">${j + 1}</span>
+      <input class="in" id="w${i}_${j}" inputmode="decimal" enterkeyhint="next" data-in="w" data-e="${i}" data-s="${j}" value="${s.w ?? ''}" placeholder="${ph(a ? a.w : s.pw, def.u === 'bw' ? '0' : '–')}" aria-label="Set ${j + 1} ${esc(u.label)}">
+      <input class="in" id="r${i}_${j}" inputmode="numeric" enterkeyhint="next" data-in="r" data-e="${i}" data-s="${j}" value="${s.r ?? ''}" placeholder="${ph(a ? a.r : s.pr, '–')}" aria-label="Set ${j + 1} reps">
+      <span class="mark" aria-hidden="true">${ICON.tick}</span></div>`; }).join('')}</div>
     ${e.note != null || ui.exNote === i ? `<label class="fl">Exercise note<textarea class="in exnote" id="xn${i}" data-in="exnote" data-e="${i}" placeholder="Seat height, grip, how it felt">${esc(e.note || '')}</textarea></label>` : ''}
     <div class="ex-foot"><button class="link" data-act="addset" data-e="${i}">+ Set</button>${e.note == null && ui.exNote !== i ? `<button class="link dim" data-act="exnote" data-e="${i}">+ Note</button>` : ''}<button class="link dim more" data-act="exmore" data-e="${i}" aria-expanded="${ui.exMore === i}" aria-label="More for ${esc(def.name)}">${ui.exMore === i ? 'Close' : 'More'}</button></div>
     ${ui.exMore === i ? exMoreHTML(w, e, i) : ''}</section>`;
@@ -1655,10 +1706,10 @@ function vHistory() {
       wk = s; const inW = ws.filter(x => weekStart(x.date) === s && !x.rest);
       h += `<div class="sec-h"><span class="eyebrow">Week of ${esc(fmtDate(s))}</span><span class="xs muted">${inW.length} sessions · ${sum(inW.map(x => wStats(x).sets))} sets</span></div><div class="hist">`;
     }
-    const st = wStats(w), prs = prsIn(w).length, rec = dayVal(w.date, 'rec');
+    const st = wStats(w), prs = prsIn(w).length, rec = dayVal(w.date, 'rec'), str = dayVal(w.date, 'str');
     h += `<button class="hrow" data-act="openlog" data-d="${w.date}"><span class="hdate"><b>${esc(w.date.slice(8))}</b><small>${esc(fmtDow(w.date))}</small></span>
       <span class="hmain"><b${w.rest ? ' class="dim"' : ''}>${esc(sessName(w))}</b><small>${w.rest ? (st.cardio ? `${st.cardio} min ${esc(w.cardio.name.toLowerCase())}` : 'No training') : `${st.sets} sets`}${sessDur(w) ? ` · ${fmtDur(sessDur(w))}` : ''}${!w.rest && st.cardio ? ` · ${st.cardio} min ${esc(w.cardio.name.toLowerCase())}` : ''}${prs ? ` · ${prs} best${prs > 1 ? 's' : ''}` : ''}</small></span>
-      ${rec != null ? pill(recTone(rec), `${Math.round(rec)}%`) : '<span></span>'}${w.note && w.note.trim() ? `<span class="hnote">${esc(w.note.trim())}</span>` : ''}</button>`;
+      ${rec != null || str != null ? `<span class="hwh">${rec != null ? `<b class="tn-${recTone(rec)}" aria-label="Recovery ${Math.round(rec)}%">${Math.round(rec)}%</b>` : ''}${str != null ? `<b class="strain" aria-label="Strain ${fmt(str, 1)}">${fmt(str, 1)}</b>` : ''}</span>` : '<span></span>'}${w.note && w.note.trim() ? `<span class="hnote">${esc(w.note.trim())}</span>` : ''}</button>`;
   }
   return h + `</div>`;
 }
@@ -1675,49 +1726,69 @@ function vStrength() {
   if (!ids.length) return h + `<section class="card"><p class="dim small">Log a session, or add your maxes under Plan → Exercises, and your lifts show up here.</p></section>`;
   const pick = ui.lift && ids.includes(ui.lift) ? ui.lift : (ids.find(id => liftSeries(id).length) || ids[0]);
   const ser = liftSeries(pick), from = ser.length && diffDays(ser[0].date, t) > 27 ? ser[0].date : addDays(t, -27), ax = dateAxis(from, t), xi = d => diffDays(from, d), u = exDef(pick).u;
-  h += `<section class="card" id="liftchart"><label class="fl">Lift<select class="in" id="liftpick" data-in="lift">${ids.map(id => `<option value="${id}" ${id === pick ? 'selected' : ''}>${esc(exDef(id).name)}</option>`).join('')}</select></label>
-    <div class="card-h"><span class="small dim">${u === 'bw' && !bwScored(pick) ? 'Best reps per session' : `Estimated 1RM per session (${u === 'plates' ? 'plates / side' : u === 'bw' ? 'kg, body weight included' : 'kg'})`}</span>${maxScore(pick) ? `<div class="legend"><span><i class="ln" style="background:var(--ink-2)"></i>Stated max ${esc(fmtSet(pick, exDef(pick).base))}</span></div>` : ''}</div>
-    ${chartHTML({ h: 170, ...ax, refY: maxScore(pick) ? { v: maxScore(pick) } : null, yPad: u === 'plates' ? .1 : 1, yFmt: v => fmt(v, u === 'plates' ? 2 : 0), series: [{ color: 'var(--s1)', pts: ser.map(p => ({ x: xi(p.date), y: p.y })), dots: true, r: 3.5, end: true }], hoverXs: ser.map(p => xi(p.date)), tip: x => { const p = ser.find(q => xi(q.date) === x); return p ? `<b>${esc(fmtDate(p.date))}</b><br>${esc(fmtSet(pick, p.top))} · ${esc(scoreTxt(pick, p.y))}` : ''; }, empty: 'No sets logged for this lift yet', label: 'Lift trend' })}</section>`;
-  const when = c => c.date ? esc(fmtDMY(c.date)) : 'stated';
-  h += `<section class="card"><div class="tblwrap"><table class="tbl lifts"><thead><tr><th>Lift</th><th class="n">Best</th><th class="n">Last</th><th class="n">4 wk</th></tr></thead><tbody>
+  const cards = [];
+  cards.push({ k: 'chart', t: 'Lift chart', h: `<section class="card" id="liftchart"><label class="fl">Lift<select class="in" id="liftpick" data-in="lift">${ids.map(id => `<option value="${id}" ${id === pick ? 'selected' : ''}>${esc(exDef(id).name)}</option>`).join('')}</select></label>
+    <div class="card-h"><span class="small dim">${u === 'bw' && !bwScored(pick) ? 'Best reps per session' : `Estimated 1RM per session (${u === 'plates' ? 'plates / side' : u === 'bw' ? 'kg, body weight included' : 'kg'})`}</span></div>
+    ${chartHTML({ h: 170, ...ax, refY: null, yPad: u === 'plates' ? .1 : 1, yFmt: v => fmt(v, u === 'plates' ? 2 : 0), series: [{ color: 'var(--s1)', pts: ser.map(p => ({ x: xi(p.date), y: p.y })), dots: true, r: 3.5, end: true }], hoverXs: ser.map(p => xi(p.date)), tip: x => { const p = ser.find(q => xi(q.date) === x); return p ? `<b>${esc(fmtDate(p.date))}</b><br>${esc(fmtSet(pick, p.top))} · ${esc(scoreTxt(pick, p.y))}` : ''; }, empty: 'No sets logged for this lift yet', label: 'Lift trend' })}</section>` });
+  const bestLogged = id => lixEx(id).list.reduce((a, x) => !a || x.sc > a.sc ? x : a, null); // stated maxes are only a starting point for the Aim, so Best waits for real sets
+  cards.push({ k: 'lifts', t: 'Lifts table', h: `<section class="card"><div class="tblwrap"><table class="tbl lifts"><thead><tr><th>Lift</th><th class="n">Best</th><th class="n">Last</th><th class="n">4 wk</th></tr></thead><tbody>
     ${ids.map(id => { const r = records(id), m = maintenance(id), [tone, word] = MSTATE[m.state]; return `<tr class="${id === pick && ui.lift ? 'sel' : ''}" data-act="liftsel" data-id="${id}"><td>${esc(exDef(id).name)}</td>
-      <td class="n">${esc(fmtSet(id, r.best.s))}<br><span class="xs muted">${when(r.best)}</span></td>
+      <td class="n">${(b => b ? `${esc(fmtSet(id, b.top))}<br><span class="xs muted">${esc(fmtDMY(b.date))}</span>` : '<span class="muted">–</span>')(bestLogged(id))}</td>
       <td class="n">${m.last ? `${esc(fmtSet(id, m.last.top))}<br><span class="xs muted">${esc(fmtDate(m.last.date))}</span>` : '<span class="muted">–</span>'}</td>
       <td class="n">${tone ? `<span class="pill plain ${tone}" title="${word}">${(m.ch >= 0 ? '+' : '−') + fmt(Math.abs(m.ch), 1)}%</span>` : `<span class="xs muted">${m.state === 'new' ? 'New' : '–'}</span>`}</td></tr>`; }).join('')}
     </tbody></table></div>
-    <p class="xs muted">Tap a lift to chart it; tap it again or anywhere else to go back. Best is your strongest set ever, counting the max you entered in Plan ("stated"). Sets with different reps are compared by estimated 1RM (Epley), which gets less reliable above about 10 reps. 4 wk compares your typical session (the median of each session's best set) in the last 4 weeks with the 2 months before, so one standout day doesn't swing it: green is holding (within ±2.5%, about the size of day-to-day variation) or up, amber a dip of up to 5%, red a bigger drop.</p></section>`;
-  const plan = planWeekly(S().prog), done = doneByGroup(addDays(t, -6), t), gs = GROUP_ORDER.filter(g => plan[g] || done[g]);
-  const mx = Math.max(1, ...gs.map(g => Math.max(plan[g] || 0, done[g] || 0)));
-  h += `<section class="sec"><div class="sec-h"><span class="eyebrow">Volume · last 7 days</span></div><section class="card"><div class="legend"><span><i class="ln" style="background:var(--s1);height:8px;width:12px"></i>Sets done</span><span><i class="tk"></i>Plan, if trained daily</span></div>
-    <ul class="hbars">${gs.map(g => `<li><span class="lab">${esc(GROUPS[g])}</span><span class="trk"><span class="fill" style="width:${(done[g] || 0) / mx * 100}%"></span>${plan[g] ? `<span class="tgt" style="left:calc(${plan[g] / mx * 100}% - 1px)"></span>` : ''}</span><span class="v">${done[g] || 0} <span class="muted">/ ${fmt(plan[g] || 0, 0)}</span></span></li>`).join('')}</ul>
-    <p class="xs muted">Direct working sets only. Compounds also train other muscles (rows hit rear delts, presses hit triceps), so real totals run higher.</p></section></section>`;
-  return h;
+    <p class="xs muted">Tap a lift to chart it; tap it again or anywhere else to go back. Best is your strongest logged set; the maxes entered in Plan only seed the first Aims, so they aren't shown. Sets with different reps are compared by estimated 1RM (Epley), which gets less reliable above about 10 reps. 4 wk compares your typical session (the median of each session's best set) in the last 4 weeks with the 2 months before, so one standout day doesn't swing it: green is holding (within ±2.5%, about the size of day-to-day variation) or up, amber a dip of up to 5%, red a bigger drop.</p></section>` });
+  // Bands from research, not from the plan: ~3 hard sets a week held size and strength in younger adults (Bickel et al., 2011:
+  // a ninth of the training dose, one set of each of three exercises once a week); 10-20 a week is the usual growth range,
+  // with diminishing returns above it (Schoenfeld et al., 2017; Pelland et al., 2024).
+  const HOLD = 3, GLO = 10, GHI = 20, plan = planWeekly(S().prog), done = doneByGroup(addDays(t, -6), t), gs = GROUP_ORDER.filter(g => plan[g] || done[g]);
+  const mx = Math.max(GHI + 2, ...gs.map(g => done[g] || 0)), pc = v => v / mx * 100;
+  const tone = n => n < HOLD ? 'warn' : n >= GLO ? 'good' : '';
+  cards.push({ k: 'volume', t: 'Volume, last 7 days', h: `<section class="sec" data-card="volume"><div class="sec-h"><span class="eyebrow">Volume · last 7 days</span></div><section class="card"><div class="legend"><span><i class="ln" style="background:var(--s1);height:8px;width:12px"></i>Sets done</span><span><i class="tk"></i>Hold, ~${HOLD}</span><span><i class="bandk"></i>Grow, ${GLO}–${GHI}</span></div>
+    <ul class="hbars">${gs.map(g => { const n = done[g] || 0; return `<li><span class="lab">${esc(GROUPS[g])}</span><span class="trk"><span class="band" style="left:${pc(GLO)}%;width:${pc(GHI) - pc(GLO)}%"></span><span class="fill" style="width:${pc(Math.min(n, mx))}%"></span><span class="tgt" style="left:calc(${pc(HOLD)}% - 1px)"></span></span><span class="v ${tone(n) ? 'tn-' + tone(n) : ''}">${n}</span></li>`; }).join('')}</ul>
+    <p class="xs muted">Hard working sets per muscle in the last 7 days, against research rather than your plan. Holding: younger adults kept size and strength on about ${HOLD} hard sets a week per muscle, a ninth of what built it (Bickel et al., 2011), and one heavy set per exercise once a week kept strength (Spiering et al., 2021). Growing: most studies support ${GLO}–${GHI} sets a week, with smaller returns above that (Schoenfeld et al., 2017; Pelland et al., 2024). Direct sets only: rows also train rear delts and presses triceps, so real totals run higher.</p></section></section>` });
+  return h + arrange('strength', cards);
+}
+
+/* ---------- card order on Strength and Body (the reorder button left of the gear) ---------- */
+const WKCOLS = { sessions: 'Sessions', sets: 'Sets', cardio: 'Cardio', rec: 'Recovery', hrv: 'HRV', slp: 'Sleep', kcal: 'kcal', p: 'Protein', dtw: 'Weight Δ' };
+function wkCols() { const all = Object.keys(WKCOLS), saved = (S().layout?.wkcols || []).filter(k => WKCOLS[k]); return [...saved, ...all.filter(k => !saved.includes(k))]; }
+function cardOrder(tab, keys) { const saved = (S().layout?.[tab] || []).filter(k => keys.includes(k)); return [...saved, ...keys.filter(k => !saved.includes(k))]; }
+const CARD_KEYS = {};
+function arrange(tab, cards) { // cards: [{ k, t, h }] in default order; h is '' when a card has nothing to show
+  CARD_KEYS[tab] = cards.map(c => c.k);
+  if (ui.reo?.tab !== tab) return cardOrder(tab, CARD_KEYS[tab]).map(k => cards.find(c => c.k === k)?.h || '').join('');
+  const shown = ui.reo.cards.filter(k => cards.some(c => c.k === k && c.h));
+  return `<p class="xs muted">Drag the handles to change the order, then tap Done.</p><div class="dlist reo" data-list="cards">${shown.map(k => `<div class="reo-item" data-dragitem data-k="${k}"><div class="reo-h"><span class="grip" data-grip="card" aria-label="Drag to move ${esc(cards.find(c => c.k === k).t)}" role="button" tabindex="-1">${ICON.grip}</span><b>${esc(cards.find(c => c.k === k).t)}</b></div>
+    ${k === 'weekly' ? `<span class="xs muted">Columns, left to right</span><div class="dlist reo-cols" data-list="cols">${ui.reo.cols.map(col => `<div class="reo-item sm" data-dragitem data-k="${col}"><span class="grip" data-grip="col" aria-label="Drag to move ${esc(WKCOLS[col])}" role="button" tabindex="-1">${ICON.grip}</span><span>${esc(WKCOLS[col])}</span></div>`).join('')}</div>` : ''}</div>`).join('')}</div>
+    <div class="btnrow" style="justify-content:space-between"><button class="link dim" data-act="reoreset">Reset to default</button><button class="btn sm" data-act="reodone">Done</button></div>`;
 }
 
 /* ---------- Body: WHOOP and MacroFactor ---------- */
 function freshHTML() { // how current each source is, so lagging data is obvious
   const t = today(), wd = latestWith('rec') || latestWith('slp'), md = latestWith('kcal') || latestWith('tw') || latestWith('wt');
-  const one = (name, d) => { if (!d) return pill('', `${name} not imported`); const age = diffDays(d, t); return pill(age <= 1 ? 'good' : age <= 3 ? '' : 'warn', `${name} to ${fmtDate(d)}`); };
+  const one = (name, d) => { if (!d) return pill('', `${name} none`); const age = diffDays(d, t); return pill(age <= 1 ? 'good' : age <= 3 ? '' : 'warn', `${name} ${age <= 0 ? 'today' : age === 1 ? 'yesterday' : fmtDate(d)}`); };
   const hd = latestWith('stpi') || latestWith('hp');
-  return `<div class="chips">${one('WHOOP', wd)}${one('MacroFactor', md)}${hd ? one('iPhone', hd) : ''}</div>`;
+  return `<div class="chips one" aria-label="Latest data from each source">${one('WHOOP', wd)}${one('MacroFactor', md)}${hd ? one('iPhone', hd) : ''}</div>`;
 }
 function vBody() {
   let h = `<div class="page-h"><div><div class="eyebrow">WHOOP · MacroFactor · Apple Health</div><h1>Body</h1></div></div>`;
   h += freshHTML();
-  h += explorerHTML();
-  h += alcoholCard();
+  const cards = [{ k: 'trends', t: 'Trends', h: explorerHTML() }, { k: 'alcohol', t: 'Alcohol and recovery', h: alcoholCard() }];
   const ra = recoveryAfter().filter(r => r.n >= 2).sort((a, b) => b.avg - a.avg);
-  if (ra.length >= 2) h += `<section class="card"><div class="card-h"><h2>Recovery the morning after</h2><span class="eyebrow">all time</span></div><p class="xs muted">Average next-day WHOOP recovery after each session type. Small samples move a lot; read it as a hint.</p>
-    <ul class="hbars">${ra.map(r => `<li><span class="lab">${esc(r.k)}</span><span class="trk"><span class="fill" style="width:${Math.max(2, r.avg)}%;background:var(--${recTone(r.avg)})"></span></span><span class="v">${fmt(r.avg, 0)}% <span class="muted">n${r.n}</span></span></li>`).join('')}</ul></section>`;
+  if (ra.length >= 2) cards.push({ k: 'recafter', t: 'Recovery the morning after', h: `<section class="card"><div class="card-h"><h2>Recovery the morning after</h2><span class="eyebrow">all time</span></div><p class="xs muted">Average next-day WHOOP recovery after each session type. Small samples move a lot; read it as a hint.</p>
+    <ul class="hbars">${ra.map(r => `<li><span class="lab">${esc(r.k)}</span><span class="trk"><span class="fill" style="width:${Math.max(2, r.avg)}%;background:var(--${recTone(r.avg)})"></span></span><span class="v">${fmt(r.avg, 0)}% <span class="muted">n${r.n}</span></span></li>`).join('')}</ul></section>` });
   const nW = ui.weeksAll ? 26 : 8, wrows = weekRows(nW).filter(r => r.sessions || r.rec != null || r.kcal != null || r.tw != null);
   if (wrows.length) {
     const c = (v, d = 0, u = '') => v == null ? '<span class="muted">–</span>' : fmt(v, d) + u;
-    h += `<section class="sec"><div class="sec-h"><span class="eyebrow">Weekly summary</span><span class="xs muted">weeks start Monday</span></div><section class="card"><div class="tblwrap"><table class="tbl wk"><thead><tr><th>Week</th><th class="n">Sessions</th><th class="n">Sets</th><th class="n">Cardio</th><th class="n">Recovery</th><th class="n">HRV</th><th class="n">Sleep</th><th class="n">kcal</th><th class="n">Protein</th><th class="n">Weight Δ</th></tr></thead><tbody>
-      ${wrows.map(r => `<tr><td>${esc(fmtDate(r.ws))}${r.cur ? ' <span class="xs muted">so far</span>' : ''}</td><td class="n">${r.sessions || '<span class="muted">–</span>'}</td><td class="n">${r.sets || '<span class="muted">–</span>'}</td><td class="n">${r.cardio ? r.cardio + ' min' : '<span class="muted">–</span>'}</td>
-        <td class="n">${r.rec != null ? `<span style="color:var(--${recTone(r.rec)}-ink)">${fmt(r.rec, 0)}%</span>` : '<span class="muted">–</span>'}</td><td class="n">${c(r.hrv, 0)}</td><td class="n">${r.slp != null ? fmt(r.slp / 60, 1) + ' h' : '<span class="muted">–</span>'}</td><td class="n">${c(r.kcal, 0)}</td><td class="n">${c(r.p, 0, ' g')}</td><td class="n">${r.dtw != null ? (r.dtw >= 0 ? '+' : '−') + fmt(Math.abs(r.dtw), 2) : '<span class="muted">–</span>'}</td></tr>`).join('')}
-      </tbody></table></div><div class="btnrow" style="justify-content:space-between"><span class="xs muted">Daily averages, except sessions, sets and cardio (totals). Weight Δ is MacroFactor's trend weight change.</span><button class="link" data-act="weeksall">${ui.weeksAll ? 'Show 8 weeks' : 'Show 26 weeks'}</button></div></section></section>`;
+    const cols = ui.reo?.tab === 'body' ? ui.reo.cols : wkCols(), m = '<span class="muted">–</span>';
+    const cell = { sessions: r => r.sessions || m, sets: r => r.sets || m, cardio: r => r.cardio ? r.cardio + ' min' : m, rec: r => r.rec != null ? `<span style="color:var(--${recTone(r.rec)}-ink)">${fmt(r.rec, 0)}%</span>` : m,
+      hrv: r => c(r.hrv, 0), slp: r => r.slp != null ? fmt(r.slp / 60, 1) + ' h' : m, kcal: r => c(r.kcal, 0), p: r => c(r.p, 0, ' g'), dtw: r => r.dtw != null ? (r.dtw >= 0 ? '+' : '−') + fmt(Math.abs(r.dtw), 2) : m };
+    cards.push({ k: 'weekly', t: 'Weekly summary', h: `<section class="sec"><div class="sec-h"><span class="eyebrow">Weekly summary</span><span class="xs muted">weeks start Monday</span></div><section class="card"><div class="tblwrap"><table class="tbl wk"><thead><tr><th>Week</th>${cols.map(k => `<th class="n">${esc(WKCOLS[k])}</th>`).join('')}</tr></thead><tbody>
+      ${wrows.map(r => `<tr><td>${esc(fmtDate(r.ws))}${r.cur ? ' <span class="xs muted">so far</span>' : ''}</td>${cols.map(k => `<td class="n">${cell[k](r)}</td>`).join('')}</tr>`).join('')}
+      </tbody></table></div><div class="btnrow" style="justify-content:space-between"><span class="xs muted">Daily averages, except sessions, sets and cardio (totals). Weight Δ is MacroFactor's trend weight change.</span><button class="link" data-act="weeksall">${ui.weeksAll ? 'Show 8 weeks' : 'Show 26 weeks'}</button></div></section></section>` });
   }
-  return h;
+  return h + arrange('body', cards);
 }
 
 /* ---------- Plan ---------- */
@@ -1799,6 +1870,7 @@ function progressionCard() {
   return `<section class="sec"><div class="sec-h"><span class="eyebrow">Targets · next 8 weeks</span></div><section class="card">
     <div class="btnrow" style="justify-content:space-between"><span class="xs muted">Today's Aim follows</span><div class="seg" role="group" aria-label="Goal"><button class="${grow ? '' : 'on'}" data-act="goal" data-v="hold">Maintenance</button><button class="${grow ? 'on' : ''}" data-act="goal" data-v="grow">Overload</button></div></div>
     <div class="btnrow" style="justify-content:space-between"><span class="xs muted">Overload gain a week</span><div class="seg" role="group" aria-label="Weekly gain">${rates.map(([r, l]) => `<button class="${Math.abs(rate - r) < 1e-9 ? 'on' : ''}" data-act="prograte" data-v="${r}">${l}</button>`).join('')}</div></div>
+    ${grow && cutCheck() ? (() => { const c = cutCheck(); return `<p class="small warnnote">Your trend weight is falling about ${fmt(Math.abs(c.wk), 2)} kg a week (${fmt(Math.abs(c.pct), 1)}%). In a deficit like that strength usually holds but gains slow down (Murphy &amp; Koehler, 2022), so Overload at +${fmt(rate * 100, 2)}%/wk may outrun you. Maintenance, or the 0.25% rate, fits better until the cut ends.</p>`; })() : ''}
     <label class="fl">Lift<select class="in" id="proglift" data-in="proglift">${ids.map(id => `<option value="${id}" ${id === pick ? 'selected' : ''}>${esc(exDef(id).name)}</option>`).join('')}</select></label>
     ${plan ? `<div class="tblwrap"><table class="tbl goal"><thead><tr><th>Week</th><th class="n ${grow ? '' : 'act'}">Maintenance</th><th class="n ${grow ? 'act' : ''}">Overload</th><th class="n">Gain</th></tr></thead><tbody>
       ${plan.map(p => `<tr><td>Week ${p.k}</td><td class="n ${grow ? '' : 'act'}">${hold ? esc(suggestTxt(pick, hold)) : '–'}</td><td class="n ${grow ? 'act' : ''}">${esc(suggestTxt(pick, p))}</td><td class="n">+${fmt(p.g * 100, 1)}%</td></tr>`).join('')}
@@ -1827,7 +1899,7 @@ function vData() {
   const im = S().imports || {};
   const last = k => im[k] ? `Last import ${new Date(im[k].at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })} · ${im[k].n} days · ${esc(im[k].range)}` : 'Not imported yet';
   let h = `<div class="page-h"><div><div class="eyebrow">Imports, backups, storage</div><h1>Data</h1></div></div>`;
-  if (window.GH_SYNC) h += GH.card() + Helper.card(); else h += `<section class="card"><div class="card-h"><h2>Where your data lives</h2><span id="sync2">${Cloud.ready ? pill('good', 'Synced') : pill('', 'This browser')}</span></div><p class="small dim">${Cloud.ready ? 'Saved to your private storage for this app on claude.ai, so it follows you between phone and desktop. A copy is also kept in this browser.' : 'Saving in this browser only. Cloud sync starts when the app is opened from claude.ai while signed in.'}</p></section>`;
+  if (window.GH_SYNC) h += GH.card() + Helper.card() + Helper.explain(); else h += `<section class="card"><div class="card-h"><h2>Where your data lives</h2><span id="sync2">${Cloud.ready ? pill('good', 'Synced') : pill('', 'This browser')}</span></div><p class="small dim">${Cloud.ready ? 'Saved to your private storage for this app on claude.ai, so it follows you between phone and desktop. A copy is also kept in this browser.' : 'Saving in this browser only. Cloud sync starts when the app is opened from claude.ai while signed in.'}</p></section>`;
   const impBox = src => { const p = ui.imp[src]; if (!p) return '';
     return `<div class="prev" id="imp-${src}"><div class="card-h"><b>Ready to import</b></div><p><b>${esc(p.summary)}</b></p><p class="dim">${esc(previewRange(p.days))}</p><p class="xs muted">From ${esc(p.files.join(', '))}. Matching days are updated with these values; everything else stays.</p>
       <div class="btnrow"><button class="btn" data-act="doimport" data-v="${src}">Import</button><button class="link dim" data-act="cancelimp" data-v="${src}">Cancel</button></div></div>`; };
@@ -1867,6 +1939,8 @@ function migrateSettings(s) {
   out.ex = { ...(s?.ex || d.ex) };
   out.prog = s?.prog && s.prog.order && s.prog.sessions ? s.prog : d.prog;
   for (const sd of Object.values(out.prog.sessions)) for (const it of sd.items) if (!out.ex[it.ex] && EXLIB[it.ex]) out.ex[it.ex] = clone(EXLIB[it.ex]);
+  if (s && !s.sets2) { for (const sd of Object.values(out.prog.sessions)) for (const it of sd.items) it.sets = 2; ui.migSave = true; } // v1.24: 2 sets is the default, once
+  out.sets2 = 1;
   out.cardio = { ...d.cardio, ...(s?.cardio || {}) };
   if (!['Stairmaster', 'Treadmill'].includes(out.cardio.name)) out.cardio.name = /tread/i.test(out.cardio.name) ? 'Treadmill' : 'Stairmaster';
   return out;
@@ -2021,6 +2095,13 @@ const SBOX = document.documentElement.classList.contains('sbox');
 const scroller = () => SBOX ? $('#scroll') : window;
 const scrollY0 = () => SBOX ? $('#scroll').scrollTop : window.scrollY;
 const scrollToY = (top, smooth) => scroller().scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' });
+function reveal(sel, room = 0) { // bring something just added fully onto the screen, clear of the header and tab bar
+  setTimeout(() => {
+    const el = typeof sel === 'string' ? $(sel) : sel; if (!el) return;
+    const r = el.getBoundingClientRect(), top = ($('.top')?.getBoundingClientRect().bottom || 0) + 12, bot = ($('.tabs')?.getBoundingClientRect().top || innerHeight) - 12;
+    if (r.top < top || r.bottom + room > bot) scrollToY(Math.max(0, scrollY0() + r.top - top), true);
+  }, 30);
+}
 function resetScroll() { // to the top, and stop any momentum still running
   if (SBOX) { // swap in a fresh, empty-handed scroll box: the old one, and any fling it had, goes with it
     const old = $('#scroll'), box = old.cloneNode(false); while (old.firstChild) box.appendChild(old.firstChild); old.replaceWith(box); return;
@@ -2033,7 +2114,7 @@ function editingInView() { const a = document.activeElement; return a && $('#vie
 function render(force) {
   if (!force && editingInView()) { pendingRender = true; return; }
   pendingRender = false;
-  const v = $('#view'), y = scrollY0(); CHART_REG.clear();
+  const v = $('#view'), y = scrollY0(), snap = !force && ui.tab === render.tab ? liveSnap() : null; CHART_REG.clear(); render.tab = ui.tab;
   v.style.minHeight = v.offsetHeight + 'px'; // hold the page height while the view is swapped, so the scroll position can't be clamped
   v.innerHTML = (VIEWS[ui.tab] || vToday)();
   v.style.minHeight = '';
@@ -2041,8 +2122,41 @@ function render(force) {
   drawCharts(v);
   document.querySelectorAll('.tabs [data-tab]').forEach(b => b.setAttribute('aria-current', b.dataset.tab === (ui.tab === 'log' ? 'history' : ui.tab) ? 'page' : 'false'));
   const g = $('#gear'); g.setAttribute('aria-current', ui.tab === 'data' ? 'page' : 'false'); g.setAttribute('aria-label', ui.tab === 'data' ? 'Back' : 'Data, imports and backups');
-  renderSync(); renderMark(); renderUpdate();
+  renderSync(); renderMark(); renderUpdate(); renderFab(); renderReorder();
+  if (snap) flashChanged(snap);
+  if (ui.justDone) { ui.justDone = false; setTimeout(() => $('.hero.just')?.classList.remove('just'), 1400); }
 }
+/* Values that change while you're looking (a sync brought new WHOOP or Health numbers) flash once, so an update is visible. */
+function renderReorder() { // the reorder button sits left of the gear on Strength and Body; while reordering it reads Done
+  const b = $('#reorder'); if (!b) return; const on = ui.tab === 'strength' || ui.tab === 'body';
+  b.hidden = !on; if (!on) return; b.classList.toggle('txt', !!ui.reo);
+  b.setAttribute('aria-label', ui.reo ? 'Done reordering' : 'Reorder cards');
+  b.innerHTML = ui.reo ? 'Done' : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4v16M4.5 7.5 8 4l3.5 3.5M16 20V4M12.5 16.5 16 20l3.5-3.5"/></svg>';
+}
+function liveSnap() { const m = {}, n = {}; document.querySelectorAll('#view [data-live]').forEach(el => { const k = el.dataset.live, i = n[k] = (n[k] || 0) + 1; m[k + '#' + i] = el.getAttribute('aria-label') || el.textContent; }); return m; }
+function flashChanged(before) {
+  const n = {}; document.querySelectorAll('#view [data-live]').forEach(el => { const k = el.dataset.live, i = n[k] = (n[k] || 0) + 1, was = before[k + '#' + i];
+    if (was != null && was !== (el.getAttribute('aria-label') || el.textContent)) { el.classList.add('flash'); el.addEventListener('animationend', () => el.classList.remove('flash'), { once: true }); } });
+}
+function pulseMark() { const m = $('#mark'); if (!m) return; m.classList.remove('pulse'); void m.offsetWidth; m.classList.add('pulse'); m.addEventListener('animationend', () => m.classList.remove('pulse'), { once: true }); } // new data arrived
+/* Next empty set: a round button above the tab bar while a log is open; it scrolls to the first set without reps,
+   hides once tapped, and comes back when you scroll. */
+const logOpen = () => { if (ui.tab === 'log') return true; const w = ui.tab === 'today' && STATE.w[today()]; return !!w && !w.rest && (!w.fin || !!ui.editToday); };
+const firstEmptySet = () => $('#view .set:not(.hdr):not(.done)');
+let fabHid = false, fabQuiet = 0;
+function renderFab() {
+  let b = $('#nextset'); const left = logOpen() ? document.querySelectorAll('#view .set:not(.hdr):not(.done)').length : 0;
+  if (!left || fabHid) { if (b) b.classList.remove('on'); return; }
+  if (!b) {
+    b = document.createElement('button'); b.id = 'nextset'; b.className = 'fab'; b.dataset.act = 'nextset';
+    b.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v12M6 12l6 6 6-6"/></svg><i></i>';
+    document.body.appendChild(b);
+  }
+  b.setAttribute('aria-label', `Go to the next empty set, ${left} left`);
+  const n = b.querySelector('i'); if (n.textContent !== String(left)) n.textContent = left; // only the count changes: rebuilding the button mid-tap (a set saves on blur) would swallow the tap
+  b.classList.add('on');
+}
+document.addEventListener('scroll', () => { if (!fabHid || Date.now() < fabQuiet) return; fabHid = false; renderFab(); }, true);
 function renderUpdate() { // the update prompt floats above the tab bar on every screen
   let el = $('#updp'); const show = ui.update && ui.updLater !== ui.update;
   if (!show) { if (el) el.remove(); return; }
@@ -2072,7 +2186,7 @@ function go(tab) {
   if (ui.tab === 'strength' && tab !== 'strength') ui.lift = null; // a picked lift lasts while you stay on Strength
   if (ui.tab === 'log' && ui.logDate && tab !== 'log') dropEmpty(ui.logDate); // an empty past-day log isn't kept
   ui.exNote = null; ui.noteEdit = null; ui.exHist = null; ui.exMore = null;
-  if (tab !== ui.tab) ui.exQ = ''; ui.restPick = null; // exercise search lasts while you stay on Plan
+  if (tab !== ui.tab) { ui.exQ = ''; ui.reo = null; } // leaving a tab drops its search and an unfinished reorder ui.restPick = null; // exercise search lasts while you stay on Plan
   if (tab === 'body' && ui.tab !== 'body') { ui.metric = 'rec'; ui.per = 'M'; ui.off = 0; }
   if (tab === 'data' && ui.tab === 'data') tab = ui.prevTab || 'today'; else if (tab === 'data') ui.prevTab = ui.tab;
   if (tab === 'today') ui.logDate = null;
@@ -2088,6 +2202,15 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
    ACTIONS
    ============================================================ */
 const logW = () => STATE.w[ui.logDate || today()];
+function blankEx(id) { // a "New exercise" made by + Exercise and never filled in or used
+  const x = S().ex[id]; if (!x || !/^x/.test(id) || x.name !== 'New exercise' || x.g !== 'other' || (x.base && x.base.r) || x.note) return false;
+  return !Object.values(S().prog.sessions).some(sd => sd.items.some(it => it.ex === id)) && !Object.values(STATE.w).some(w => (w.ex || []).some(e => e.id === id));
+}
+function sweepSettings() { // one-off settings migrations to save, and blank exercises left behind (v1.24)
+  let ch = !!ui.migSave; ui.migSave = false;
+  for (const id of Object.keys(S().ex)) if (id !== ui.editEx && blankEx(id)) { delete S().ex[id]; ch = true; }
+  if (ch) saveSettings();
+}
 function sweepCardio() { // WHOOP's cardio often lands after a session is done (the sync helper brings it in later), so check recent days whenever data arrives
   const from = addDays(today(), -14);
   for (const w of Object.values(STATE.w)) if (w.date >= from && STATE.d[w.date]?.acts && autoCardio(w)) saveW(w.date);
@@ -2108,7 +2231,7 @@ const ACT = {
   },
   restday: () => { const date = ui.tab === 'log' ? (ui.logDate || today()) : today(); if (STATE.w[date]) return; STATE.w[date] = restRecord(date); if (ui.tab === 'today') STATE.w[date].fin = true; saveW(date); toast('Rest day logged'); render(true); },
   unrest: () => { const date = ui.tab === 'log' ? (ui.logDate || today()) : today(); if (STATE.w[date]?.rest) { delete STATE.w[date]; saveW(date); } render(true); },
-  addrest: () => { const id = 'r' + Date.now().toString(36); S().prog.sessions[id] = { name: 'Rest', focus: 'Recovery', items: [], rest: true }; S().prog.order.push(id); saveSettings(); toast('Rest day added to the end of the rotation'); render(true); },
+  addrest: () => { const id = 'r' + Date.now().toString(36); S().prog.sessions[id] = { name: 'Rest', focus: 'Recovery', items: [], rest: true }; S().prog.order.push(id); saveSettings(); toast('Rest day added to the end of the rotation'); render(true); reveal(`.sess[data-id="${id}"]`); },
   togglesess: el => { const id = el.dataset.id; ui.openSess.has(id) ? ui.openSess.delete(id) : ui.openSess.add(id); ui.confirm = null; render(true); },
   strippick: el => { ui.restPick = ui.restPick === el.dataset.date ? null : el.dataset.date; render(true); },
   reston: el => setRest(el.dataset.date, true),
@@ -2144,11 +2267,21 @@ const ACT = {
   delw: () => { const d = ui.logDate || today(); delete STATE.w[d]; ui.confirm = null; saveW(d); toast('Session deleted'); render(true); },
   per: el => { ui.per = el.dataset.v; ui.off = 0; render(true); },
   poff: el => { ui.off = Math.max(0, (ui.off || 0) + +el.dataset.n); render(true); },
+  reorder: () => { if (ui.reo) return ACT.reodone(); ui.reo = { tab: ui.tab, cards: cardOrder(ui.tab, CARD_KEYS[ui.tab] || []), cols: wkCols() }; resetScroll(); render(true); },
+  reodone: () => { const r = ui.reo; if (!r) return; S().layout = { ...(S().layout || {}), [r.tab]: r.cards, ...(r.tab === 'body' ? { wkcols: r.cols } : {}) }; ui.reo = null; saveSettings(); resetScroll(); render(true); toast('Order saved'); },
+  reoreset: () => { if (!ui.reo) return; ui.reo.cards = (CARD_KEYS[ui.reo.tab] || []).slice(); ui.reo.cols = Object.keys(WKCOLS); render(true); },
+  nextset: () => {
+    const r = firstEmptySet(); if (!r) return;
+    fabHid = true; fabQuiet = Date.now() + 900; renderFab(); // our own scroll doesn't bring it back
+    const box = r.getBoundingClientRect(), top = ($('.top')?.getBoundingClientRect().bottom || 0), bot = ($('.tabs')?.getBoundingClientRect().top || innerHeight);
+    scrollToY(Math.max(0, scrollY0() + box.top - (top + bot) / 2 + box.height / 2), true);
+    r.classList.remove('seek'); void r.offsetWidth; r.classList.add('seek'); setTimeout(() => r.classList.remove('seek'), 1600);
+  },
   logdone: () => {
     const a = document.activeElement; if (a && a.blur) a.blur(); // make sure the last edit is saved
     if (dropEmpty(ui.logDate || today())) { toast('Nothing logged, so the session wasn’t kept'); ui.editToday = false; if (ui.tab === 'today') { resetScroll(); render(true); } else go('history'); return; }
     const w = logW(); if (w && !w.rest) { const st = wStats(w); toast(`${esc(sessName(w))} saved · ${st.sets} set${st.sets === 1 ? '' : 's'}`); }
-    if (ui.tab === 'today') { if (w) { w.fin = true; saveW(w.date); } ui.editToday = false; resetScroll(); render(true); } else go('history');
+    if (ui.tab === 'today') { if (w) { w.fin = true; saveW(w.date); } ui.editToday = false; ui.justDone = true; resetScroll(); render(true); } else go('history');
   },
   histview: el => { ui.hist = el.dataset.v; ui.noteEdit = null; render(true); },
   notefilter: el => { ui.noteG = el.dataset.v; ui.noteEdit = null; render(true); },
@@ -2170,12 +2303,16 @@ const ACT = {
     for (const sd of Object.values(S().prog.sessions)) for (const it of sd.items) if (!S().ex[it.ex] && EXLIB[it.ex]) S().ex[it.ex] = clone(EXLIB[it.ex]);
     S().rotOverride = null; ui.confirm = null; saveSettings(); toast(`Switched to ${esc(p.name)}`); render(true);
   },
-  addsess: () => { const id = 's' + Date.now().toString(36); ui.openSess.add(id); S().prog.sessions[id] = { name: 'New session', focus: '', items: [] }; S().prog.order.push(id); saveSettings(); render(true); },
+  addsess: () => { const id = 's' + Date.now().toString(36); ui.openSess.add(id); S().prog.sessions[id] = { name: 'New session', focus: '', items: [] }; S().prog.order.push(id); saveSettings(); render(true); reveal(`.sess[data-id="${id}"]`); },
   delsess: el => { const id = el.dataset.id; S().prog.order = S().prog.order.filter(x => x !== id); delete S().prog.sessions[id]; ui.confirm = null; saveSettings(); render(true); },
   remitem: el => { sessDef(el.dataset.id).items.splice(+el.dataset.j, 1); saveSettings(); render(true); },
-  newex: () => { const id = 'x' + Date.now().toString(36); S().ex[id] = X('New exercise', 'other', 'kg', 90, 8, 12, null, null); ui.editEx = id; saveSettings(); render(true); },
+  newex: () => { // one blank at a time: a second tap goes back to the one already made
+    let id = Object.keys(S().ex).find(blankEx);
+    if (!id) { id = 'x' + Date.now().toString(36); S().ex[id] = X('New exercise', 'other', 'kg', 90, 8, 12, null, null); saveSettings(); }
+    ui.editEx = id; render(true); reveal('#exlist [data-edit]');
+  },
   exqclear: () => { ui.exQ = ''; const i = $('#exq'); if (i) { i.value = ''; i.focus(); } filterEx(); },
-  editex: el => { ui.editEx = el.dataset.id || null; render(true); },
+  editex: el => { const prev = ui.editEx; ui.editEx = el.dataset.id || null; if (prev && prev !== ui.editEx && blankEx(prev)) { delete S().ex[prev]; saveSettings(); } render(true); }, // Cancel on an untouched new exercise deletes it
   saveex: el => {
     const x = S().ex[el.dataset.id]; if (!x) return;
     x.name = ($('#xe_n').value || '').trim() || x.name; x.g = $('#xe_g').value; x.u = $('#xe_u').value;
@@ -2219,7 +2356,7 @@ const INP = {
   r: el => setInput(el, true),
   swapex: el => { const id = el.value, w = logW(), e = w?.ex[+el.dataset.e]; if (!id || !e) return; const from = exDef(e.id).name;
     w.ex[+el.dataset.e] = { id, sets: prefill(id, e.sets.length, w.date) }; ui.exMore = null; ui.exHist = null; saveW(w.date); toast(`Swapped ${esc(from)} for ${esc(exDef(id).name)}`); render(true); },
-  addex: el => { const id = el.value; if (!id) return; const w = logW(); w.ex.push({ id, sets: prefill(id, 3, w.date) }); saveW(w.date); render(true); setTimeout(() => $('#ex' + (w.ex.length - 1))?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50); },
+  addex: el => { const id = el.value; if (!id) return; const w = logW(); w.ex.push({ id, sets: prefill(id, 2, w.date) }); saveW(w.date); render(true); reveal('#ex' + (w.ex.length - 1)); },
   note: el => { const w = logW(); w.note = el.value; saveW(w.date); },
   exnote: el => { const w = logW(), e = w.ex[+el.dataset.e]; const v = el.value.trim(); if (v) e.note = el.value; else delete e.note; ui.exNote = null; saveW(w.date); },
   durmin: el => { const w = logW(), n = parseInt(el.value, 10); if (n > 0) w.durMin = n; else delete w.durMin; saveW(w.date); render(); },
@@ -2231,7 +2368,7 @@ const INP = {
   sname: el => { const sd = sessDef(el.dataset.id); sd.name = el.value.trim() || sd.name; saveSettings(); },
   sfocus: el => { sessDef(el.dataset.id).focus = el.value.trim(); saveSettings(); },
   isets: el => { const n = parseInt(el.value, 10); if (n >= 1 && n <= 12) { sessDef(el.dataset.id).items[+el.dataset.j].sets = n; saveSettings(); render(); } },
-  additem: el => { if (!el.value) return; sessDef(el.dataset.id).items.push({ ex: el.value, sets: 3 }); saveSettings(); render(true); },
+  additem: el => { if (!el.value) return; const sid = el.dataset.id; sessDef(sid).items.push({ ex: el.value, sets: 2 }); saveSettings(); render(true); reveal(`#sa_${sid}`, 0); },
   cname: el => { S().cardio.name = el.value; saveSettings(); },
   cmindef: el => { const n = parseInt(el.value, 10); if (n > 0) { S().cardio.min = n; saveSettings(); } },
   platekg: el => { const n = num(el.value); if (n > 0) { S().plateKg = n; saveSettings(); } },
@@ -2286,6 +2423,11 @@ function endDrag(ev) {
   requestAnimationFrame(keep); setTimeout(keep, 80); setTimeout(keep, 250); // iOS can jump to the top after the dragged row is replaced
   document.body.classList.remove('is-dragging'); sibs.forEach(s => { s.style.transform = ''; s.classList.remove('dragging'); });
   if (from === to || !ev || ev.type === 'pointercancel') { render(true); return; }
+  if (kind === 'card' || kind === 'col') { // reorder mode: a draft until Done
+    const keys = sibs.map(s => s.dataset.k), [m] = keys.splice(from, 1); keys.splice(to, 0, m);
+    if (kind === 'col') ui.reo.cols = keys; else ui.reo.cards = [...keys, ...ui.reo.cards.filter(k => !keys.includes(k))];
+    render(true); return;
+  }
   if (kind === 'sess') { const ids = sibs.map(s => s.dataset.id); const [m] = ids.splice(from, 1); ids.splice(to, 0, m); S().prog.order = ids; }
   else { const items = sessDef(list.dataset.id).items; const [m] = items.splice(from, 1); items.splice(to, 0, m); }
   saveSettings(); render(true);
@@ -2296,11 +2438,11 @@ document.addEventListener('pointerup', endDrag); document.addEventListener('poin
 function setInput(el, final) {
   const w = logW(); if (!w) return; const i = +el.dataset.e, j = +el.dataset.s, e = w.ex[i], s = e?.sets[j]; if (!s) return;
   const def = exDef(e.id), wasDone = s.done, prevBest = final ? Math.max(bestBefore(e.id, w.date), ...e.sets.filter((x, k) => k !== j && x.done && x.r > 0).map(x => setScore(e.id, x, w.date))) : 0;
-  setFromInputs(s, num($(`#w${i}_${j}`)?.value), parseInt($(`#r${i}_${j}`)?.value, 10), def.u, suggest(e.id, w.date)?.w);
+  setFromInputs(s, num($(`#w${i}_${j}`)?.value), parseInt($(`#r${i}_${j}`)?.value, 10), def.u, setAim(e.id, w.date, j)?.w);
   const row = $(`#row${i}_${j}`); if (row) row.classList.toggle('done', s.done);
   if (final && s.done && s.w != null && $(`#w${i}_${j}`) && $(`#w${i}_${j}`).value === '') $(`#w${i}_${j}`).value = fmt(s.w, 2).replace(/,/g, '');
   const st = wStats(w), sm = $('.sess-top .t small'); if (sm) sm.textContent = sm.textContent.replace(/\d+ sets?/, `${st.sets} set${st.sets === 1 ? '' : 's'}`);
-  saveW(w.date);
+  saveW(w.date); renderFab(); // the count of empty sets changes as you fill them
   if (final && s.done && hasRef(e.id, w.date) && setScore(e.id, s, w.date) > prevBest + 1e-9) { row?.classList.add('pr'); toast(`New best · ${esc(def.name)} ${esc(fmtSet(e.id, s))}`, 'pr'); }
   else if (final && row && !s.done) row.classList.remove('pr');
 }
@@ -2360,7 +2502,7 @@ document.addEventListener('keydown', ev => {
   const h = (location.hash || '').slice(1), hh = h === 'trends' ? 'body' : h; if (VIEWS[hh] && hh !== 'log') ui.tab = hh;
   render(true); top(); requestAnimationFrame(top);
   connectCloud();
-  setTimeout(() => { sweepEmpty(); sweepCardio(); render(); }, 0); // after sync code has loaded, so the deletes sync too
+  setTimeout(() => { sweepEmpty(); sweepCardio(); sweepSettings(); render(); }, 0); // after sync code has loaded, so the deletes sync too
 })();
 /* ============================================================
    GITHUB SYNC (GitHub Pages build only)
@@ -2424,8 +2566,18 @@ const GH = {
   repoUrl(rest) { return `/repos/${encodeURIComponent(this.cfg.owner)}/${encodeURIComponent(this.cfg.repo)}${rest}`; },
   branch() { return this.cfg.branch || 'main'; },
   async head() { // null when the repo has no commits yet
-    try { const r = await this.req('GET', this.repoUrl(`/git/ref/heads/${this.branch()}`)); return r.object.sha; }
-    catch (e) { if (e.status === 409 || e.status === 404) { if (e.status === 404) await this.req('GET', this.repoUrl('')); return null; } throw e; }
+    // Asked with the last ETag, so an unchanged repo answers 304, which GitHub doesn't count against the hourly rate limit (polled every 15 s)
+    const h = { Accept: 'application/vnd.github+json', Authorization: 'Bearer ' + this.cfg.token, 'X-GitHub-Api-Version': '2022-11-28' };
+    const url = GH_API + this.repoUrl(`/git/ref/heads/${this.branch()}`);
+    if (this.refTag && this.refSha && !this.noTag) h['If-None-Match'] = this.refTag;
+    let r; try { r = await fetch(url, { cache: 'no-store', headers: h }); }
+    catch (e) { if (!h['If-None-Match']) throw e; this.noTag = true; delete h['If-None-Match']; r = await fetch(url, { cache: 'no-store', headers: h }); } // header refused: plain requests from now on
+    if (r.status === 304) return this.refSha;
+    if (r.ok) { const j = await r.json(); this.refSha = j.object.sha; this.refTag = r.headers.get('etag'); return this.refSha; }
+    this.refTag = this.refSha = null;
+    if (r.status === 409 || r.status === 404) { if (r.status === 404) await this.req('GET', this.repoUrl('')); return null; }
+    let data = null; try { data = await r.json(); } catch (e) { }
+    const e = new Error(data?.message || 'HTTP ' + r.status); e.status = r.status; e.ratelimit = r.status === 403 && r.headers.get('x-ratelimit-remaining') === '0'; throw e;
   },
   async blobText(sha) { const b = await this.req('GET', this.repoUrl(`/git/blobs/${sha}`)); const bin = atob((b.content || '').replace(/\s/g, '')); return new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0))); },
   async gitSha(text) { const bytes = new TextEncoder().encode(text), hdr = new TextEncoder().encode(`blob ${bytes.length}\0`), all = new Uint8Array(hdr.length + bytes.length); all.set(hdr); all.set(bytes, hdr.length); const h = await crypto.subtle.digest('SHA-1', all); return [...new Uint8Array(h)].map(x => x.toString(16).padStart(2, '0')).join(''); },
@@ -2449,7 +2601,7 @@ const GH = {
     if (!m.first) for (const p in m.known) if (!remote[p] && this.removeRemote(p)) ch = true; // deleted on another device
     if (m.first) this.markLocalOnly(remote);
     m.head = head; m.tree = commit.tree.sha; m.known = remote; m.first = false;
-    if (ch) { sweepEmpty(); sweepCardio(); bump(); cacheLocal(); render(); }
+    if (ch) { sweepEmpty(); sweepCardio(); sweepSettings(); bump(); cacheLocal(); render(); pulseMark(); }
     return ch;
   },
   merge(p, o) {
@@ -2557,7 +2709,7 @@ const GH = {
   disconnect() { this.stop(); this.cfg = null; this.meta = this.freshMeta(); try { localStorage.removeItem(GH_CFG); localStorage.removeItem(GH_META); } catch (e) { } this.state = 'off'; },
   start() {
     this.stop();
-    this.poll = setInterval(() => { if (document.visibilityState === 'visible') this.sync(); }, 60000);
+    this.poll = setInterval(() => { if (document.visibilityState === 'visible') this.sync(); }, 15000); // only while the app is on screen; an unchanged check is one tiny request
   },
   stop() { clearInterval(this.poll); clearTimeout(this.timer); },
   boot() {
@@ -2631,8 +2783,16 @@ const Helper = {
       <ul class="rows"><li><span>WHOOP</span>${wPill}<span class="sub">${this.st ? (wAt ? `Last sync ${esc(wAt)}` : 'Not synced yet') : '&nbsp;'}${w && w.history && w.history !== 'complete' ? ` · history filling in, next ${esc(w.history)}` : ''}</span></li>
         <li><span>Apple Health</span>${hPill}<span class="sub">${this.st ? (hAt ? `Last received ${esc(hAt)}` : 'Nothing received yet') : '&nbsp;'}</span></li></ul>
       ${w?.error ? `<p class="small" style="color:var(--bad-ink)">${esc(w.error)}</p>` : ''}${this.err ? `<p class="small" style="color:var(--warn-ink)">${esc(this.err)}</p>` : ''}
-      <p class="xs muted">WHOOP is checked every 30 minutes, and right away when WHOOP reports new sleep, recovery or a workout.</p>
+      <p class="xs muted">New sleep, recovery and workouts arrive as soon as WHOOP has processed them; steps and strain are checked every 5 minutes.</p>
       <div class="btnrow"><button class="link" data-act="helperrefresh">Refresh</button><button class="link dim" data-act="helperedit" style="margin-left:auto">Change address</button></div></section>`;
+  },
+  explain() { // what arrives on its own, and what only comes from a file
+    const hae = !!this.st?.health?.at;
+    return `<section class="card"><div class="card-h"><h2>What syncs by itself</h2></div>
+      <ul class="rows">
+        <li><span><b>Automatic</b></span><span class="sub">WHOOP: recovery, HRV, sleep, strain, steps, workouts and calories burned, within a minute of WHOOP processing them (steps and strain every 5 min).<br>Apple Health${hae ? '' : ' (once Health Auto Export is set up)'}: steps, calories and macros, weight and headphone level, hourly while your phone is unlocked.<br>Your sessions, notes and settings: to every device as you go.</span></li>
+        <li><span><b>Needs a file</b></span><span class="sub">MacroFactor's own trend weight, expenditure and targets: Quick Export (.xlsx) from MacroFactor, imported here. Until then Orbit estimates trend weight and expenditure itself.<br>Headphone listening time: a full Apple Health export, converted for Orbit.<br>WHOOP journal answers (alcohol and the rest): WHOOP's data export (.zip). The WHOOP API doesn't share the journal.</span></li>
+      </ul></section>`;
   },
 };
 Object.assign(ACT, {

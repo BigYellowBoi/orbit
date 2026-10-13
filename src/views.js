@@ -2,7 +2,7 @@
    VIEWS
    ============================================================ */
 function pill(tone, text) { return `<span class="pill ${tone || ''}">${esc(text)}</span>`; }
-function stat(v, unit, label, extra) { return `<div class="stat"><b>${v}${unit ? `<small>${esc(unit)}</small>` : ''}</b><span>${esc(label)}</span>${extra || ''}</div>`; }
+function stat(v, unit, label, extra) { return `<div class="stat" data-live="${esc(label)}"><b>${v}${unit ? `<small>${esc(unit)}</small>` : ''}</b><span>${esc(label)}</span>${extra || ''}</div>`; }
 function deltaTxt(v, base, d = 0, unit = '', invert = false) {
   if (v == null || base == null) return '';
   const diff = v - base; if (Math.abs(diff) < 10 ** -d / 2) return `<span class="delta">= 30-day avg</span>`;
@@ -43,7 +43,7 @@ function doneHero(w, idx, o) { // today after Done: a summary, with the log one 
     ${w.cardio?.done ? `<p class="small dim">${esc(w.cardio.name)} · ${w.cardio.min || 0} min</p>` : ''}
     <div class="btnrow" style="justify-content:space-between"><button class="btn sm ghost" data-act="edittoday">${w.cardio?.done || w.note ? 'Edit day' : 'Log cardio or notes'}</button><button class="link dim" data-act="unrest">Undo rest day</button></div></section>`;
   const st = wStats(w), dur = sessDur(w), prs = prsIn(w);
-  return `<section class="card hero"><div class="card-h"><span class="eyebrow">Logged today · ${idx + 1} of ${o.length}</span>${pill('good', 'Done')}</div>
+  return `<section class="card hero${ui.justDone ? ' just' : ''}"><div class="card-h"><span class="eyebrow">Logged today · ${idx + 1} of ${o.length}</span>${pill('good', 'Done')}</div>
     <div class="rot">${o.map((id, i) => `<i class="${i === idx ? 'on' : i < idx ? 'done' : ''}"></i>`).join('')}</div>
     <div><h1>${esc(sessName(w))}</h1><p class="focus">${esc(sessDef(w.s)?.focus || '')}</p></div>
     <div class="stats">${stat(st.sets, '', 'sets')}${stat(dur ? fmtDur(dur) : '–', '', dur && whoopLiftMin(w.date) != null ? 'duration · WHOOP' : 'duration')}${stat(st.cardio || '–', st.cardio ? 'min' : '', w.cardio?.name || 'Cardio')}</div>
@@ -54,9 +54,9 @@ function stripHTML() { // the next days; tap one to plan it as a rest day (or un
   const up = upcoming(Math.max(5, order().length + 1)), t = today(), pick = up.find((u, i) => i > 0 && u.date === ui.restPick);
   const later = (S().restPlan || []).filter(d => d >= t).sort(), lab = d => `${fmtDow(d)} ${fmtDate(d)}`;
   let h = `<section class="sec"><div class="sec-h"><span class="eyebrow">Coming up</span><button class="link" data-act="restplan">${ui.restPlanOpen ? 'Done' : `Plan rest${later.length ? ` (${later.length})` : ''}`}</button></div><div class="strip">${up.map((u, i) => {
-    const cls = `sd ${i === 0 ? (u.done ? 'done' : pick ? '' : 'now') : ''} ${u.s === '_rest' || isRestSlot(u.s) ? 'rest' : ''} ${u.planned ? 'planned' : ''} ${pick && pick.date === u.date ? 'pick' : ''}`;
+    const cls = `sd ${i === 0 ? (pick ? '' : 'now') + (u.done ? ' done' : '') : ''} ${u.s === '_rest' || isRestSlot(u.s) ? 'rest' : ''} ${u.planned ? 'planned' : ''} ${pick && pick.date === u.date ? 'pick' : ''}`;
     const inner = `<small>${i === 0 ? 'Today' : i === 1 ? 'Tmrw' : esc(fmtDow(u.date))}</small><b>${esc(slotName(u.s))}</b>`;
-    return i > 0 ? `<button class="${cls}" data-act="strippick" data-date="${u.date}" aria-label="${esc(lab(u.date))}: ${esc(slotName(u.s))}">${inner}</button>` : `<div class="${cls}"${u.done ? '' : ' data-now="1"'}>${inner}</div>`; }).join('')}</div>`;
+    return i > 0 ? `<button class="${cls}" data-act="strippick" data-date="${u.date}" aria-label="${esc(lab(u.date))}: ${esc(slotName(u.s))}">${inner}</button>` : `<div class="${cls}" data-now="1">${inner}</div>`; }).join('')}</div>`;
   if (pick) h += `<div class="pickrow"><span><b>${esc(lab(pick.date))}</b> · ${pick.planned ? 'planned rest' : isRestSlot(pick.s) ? 'rest from your rotation' : esc(slotName(pick.s))}</span>${pick.planned ? `<button class="btn sm ghost" data-act="restoff" data-date="${pick.date}">Train this day</button>` : isRestSlot(pick.s) ? '' : `<button class="btn sm" data-act="reston" data-date="${pick.date}">Rest this day</button>`}</div>`;
   if (ui.restPlanOpen) h += `<section class="card"><div class="card-h"><h2>Planned rest days</h2></div>
     ${later.length ? `<div class="chips">${later.map(d => `<span class="pill plain restchip">${esc(lab(d))}<button class="ed-x sm" data-act="restoff" data-date="${d}" aria-label="Remove rest on ${esc(lab(d))}">${ICON.x}</button></span>`).join('')}</div>` : '<p class="xs muted">None yet.</p>'}
@@ -92,7 +92,7 @@ function weekCard() {
 function ring(v, tone, strain) { // inner ring: recovery (0–100%); outer ring: today's strain so far (0–21) in WHOOP blue, as on the WHOOP home screen
   const arc = (r, f, col, w) => { const c = 2 * Math.PI * r; return `<circle cx="56" cy="56" r="${r}" fill="none" stroke="var(--surface-3)" stroke-width="${w}"/>` + (f > 0 ? `<circle cx="56" cy="56" r="${r}" fill="none" stroke="${col}" stroke-width="${w}" stroke-linecap="round" stroke-dasharray="${(c * Math.min(1, f)).toFixed(1)} ${c.toFixed(1)}"/>` : ''); };
   const col = { good: 'var(--good)', warn: 'var(--warn)', bad: 'var(--bad)' }[tone] || 'var(--ink-3)';
-  return `<div class="ring" role="img" aria-label="Recovery ${v == null ? 'unknown' : Math.round(v) + '%'}${strain != null ? `, strain ${fmt(strain, 1)}` : ''}"><svg viewBox="0 0 112 112">${arc(51, strain != null ? strain / 21 : 0, 'var(--strain)', 6)}${arc(40, Math.max(0, Math.min(100, v || 0)) / 100, col, 6)}</svg><b style="color:${col}">${v == null ? '–' : Math.round(v)}<small style="color:inherit;opacity:.75">%</small></b></div>`;
+  return `<div class="ring" data-live="ring" role="img" aria-label="Recovery ${v == null ? 'unknown' : Math.round(v) + '%'}${strain != null ? `, strain ${fmt(strain, 1)}` : ''}"><svg viewBox="0 0 112 112">${arc(51, strain != null ? strain / 21 : 0, 'var(--strain)', 6)}${arc(40, Math.max(0, Math.min(100, v || 0)) / 100, col, 6)}</svg><b style="color:${col}">${v == null ? '–' : Math.round(v)}<small style="color:inherit;opacity:.75">%</small></b></div>`;
 }
 function whoopCard() {
   const t = today(), x = STATE.d[t];
@@ -186,17 +186,17 @@ function exMoreHTML(w, e, i) { // swap keeps the slot and set count; same muscle
 }
 function exCard(w, e, i, prSet) {
   const def = exDef(e.id), u = UNITS[def.u] || UNITS.kg, open = ui.exHist === i;
-  const ph = (v, dflt) => v != null ? fmt(v, 2).replace(/,/g, '') : dflt, sg = suggest(e.id, w.date);
+  const ph = (v, dflt) => v != null ? fmt(v, 2).replace(/,/g, '') : dflt, sg = suggest(e.id, w.date), back = e.sets.length > 1 ? setAim(e.id, w.date, 1, sg) : null;
   return `<section class="card ex" id="ex${i}"><div class="ex-h"><button class="ex-name" data-act="exhist" data-e="${i}" aria-expanded="${open}"><h3>${esc(def.name)}</h3><span class="chev">${ICON.down}</span></button><span class="rx">${def.lo}${def.hi > def.lo ? '–' + def.hi : ''} reps</span></div>
     ${open ? exHistHTML(e.id, w.date) : ''}
-    ${sg ? `<p class="aim"><b>Aim ${esc(suggestTxt(e.id, sg))}</b> · ${sg.rir} rep${sg.rir === 1 ? '' : 's'} in reserve${S().goal === 'grow' ? ' · overload' : ''}</p>` : ''}
+    ${sg ? `<p class="aim"><b>Aim ${esc(suggestTxt(e.id, sg))}</b>${back?.back ? `, then ${esc(fmtLoad(e.id, back.w))}${def.u === 'kg' ? ' kg' : ''}` : ''} · ${sg.rir} rep${sg.rir === 1 ? '' : 's'} in reserve${S().goal === 'grow' ? ' · overload' : ''}</p>` : ''}
     <p class="ex-meta">${esc(lastLine(e.id, w.date))}${def.note ? ` · ${esc(def.note)}` : ''}</p>
     ${(() => { const ln = e.note == null ? lastExerciseNote(e.id, w.date) : null; return ln ? `<p class="ex-lastnote">Note from ${esc(fmtDate(ln.date))}: ${esc(ln.note)}</p>` : ''; })()}
     <div class="sets"><div class="set hdr"><span>Set</span><span>${esc(u.col)}</span><span>Reps</span><span></span></div>
-    ${e.sets.map((s, j) => `<div class="set ${s.done ? 'done' : ''} ${prSet.has(s) ? 'pr' : ''}" id="row${i}_${j}"><span class="sn">${j + 1}</span>
-      <input class="in" id="w${i}_${j}" inputmode="decimal" enterkeyhint="next" data-in="w" data-e="${i}" data-s="${j}" value="${s.w ?? ''}" placeholder="${ph(sg ? sg.w : s.pw, def.u === 'bw' ? '0' : '–')}" aria-label="Set ${j + 1} ${esc(u.label)}">
-      <input class="in" id="r${i}_${j}" inputmode="numeric" enterkeyhint="next" data-in="r" data-e="${i}" data-s="${j}" value="${s.r ?? ''}" placeholder="${ph(sg ? sg.r : s.pr, '–')}" aria-label="Set ${j + 1} reps">
-      <span class="mark" aria-hidden="true">${ICON.tick}</span></div>`).join('')}</div>
+    ${e.sets.map((s, j) => { const a = setAim(e.id, w.date, j, sg); return `<div class="set ${s.done ? 'done' : ''} ${prSet.has(s) ? 'pr' : ''}" id="row${i}_${j}"><span class="sn">${j + 1}</span>
+      <input class="in" id="w${i}_${j}" inputmode="decimal" enterkeyhint="next" data-in="w" data-e="${i}" data-s="${j}" value="${s.w ?? ''}" placeholder="${ph(a ? a.w : s.pw, def.u === 'bw' ? '0' : '–')}" aria-label="Set ${j + 1} ${esc(u.label)}">
+      <input class="in" id="r${i}_${j}" inputmode="numeric" enterkeyhint="next" data-in="r" data-e="${i}" data-s="${j}" value="${s.r ?? ''}" placeholder="${ph(a ? a.r : s.pr, '–')}" aria-label="Set ${j + 1} reps">
+      <span class="mark" aria-hidden="true">${ICON.tick}</span></div>`; }).join('')}</div>
     ${e.note != null || ui.exNote === i ? `<label class="fl">Exercise note<textarea class="in exnote" id="xn${i}" data-in="exnote" data-e="${i}" placeholder="Seat height, grip, how it felt">${esc(e.note || '')}</textarea></label>` : ''}
     <div class="ex-foot"><button class="link" data-act="addset" data-e="${i}">+ Set</button>${e.note == null && ui.exNote !== i ? `<button class="link dim" data-act="exnote" data-e="${i}">+ Note</button>` : ''}<button class="link dim more" data-act="exmore" data-e="${i}" aria-expanded="${ui.exMore === i}" aria-label="More for ${esc(def.name)}">${ui.exMore === i ? 'Close' : 'More'}</button></div>
     ${ui.exMore === i ? exMoreHTML(w, e, i) : ''}</section>`;
@@ -231,10 +231,10 @@ function vHistory() {
       wk = s; const inW = ws.filter(x => weekStart(x.date) === s && !x.rest);
       h += `<div class="sec-h"><span class="eyebrow">Week of ${esc(fmtDate(s))}</span><span class="xs muted">${inW.length} sessions · ${sum(inW.map(x => wStats(x).sets))} sets</span></div><div class="hist">`;
     }
-    const st = wStats(w), prs = prsIn(w).length, rec = dayVal(w.date, 'rec');
+    const st = wStats(w), prs = prsIn(w).length, rec = dayVal(w.date, 'rec'), str = dayVal(w.date, 'str');
     h += `<button class="hrow" data-act="openlog" data-d="${w.date}"><span class="hdate"><b>${esc(w.date.slice(8))}</b><small>${esc(fmtDow(w.date))}</small></span>
       <span class="hmain"><b${w.rest ? ' class="dim"' : ''}>${esc(sessName(w))}</b><small>${w.rest ? (st.cardio ? `${st.cardio} min ${esc(w.cardio.name.toLowerCase())}` : 'No training') : `${st.sets} sets`}${sessDur(w) ? ` · ${fmtDur(sessDur(w))}` : ''}${!w.rest && st.cardio ? ` · ${st.cardio} min ${esc(w.cardio.name.toLowerCase())}` : ''}${prs ? ` · ${prs} best${prs > 1 ? 's' : ''}` : ''}</small></span>
-      ${rec != null ? pill(recTone(rec), `${Math.round(rec)}%`) : '<span></span>'}${w.note && w.note.trim() ? `<span class="hnote">${esc(w.note.trim())}</span>` : ''}</button>`;
+      ${rec != null || str != null ? `<span class="hwh">${rec != null ? `<b class="tn-${recTone(rec)}" aria-label="Recovery ${Math.round(rec)}%">${Math.round(rec)}%</b>` : ''}${str != null ? `<b class="strain" aria-label="Strain ${fmt(str, 1)}">${fmt(str, 1)}</b>` : ''}</span>` : '<span></span>'}${w.note && w.note.trim() ? `<span class="hnote">${esc(w.note.trim())}</span>` : ''}</button>`;
   }
   return h + `</div>`;
 }
@@ -251,49 +251,69 @@ function vStrength() {
   if (!ids.length) return h + `<section class="card"><p class="dim small">Log a session, or add your maxes under Plan → Exercises, and your lifts show up here.</p></section>`;
   const pick = ui.lift && ids.includes(ui.lift) ? ui.lift : (ids.find(id => liftSeries(id).length) || ids[0]);
   const ser = liftSeries(pick), from = ser.length && diffDays(ser[0].date, t) > 27 ? ser[0].date : addDays(t, -27), ax = dateAxis(from, t), xi = d => diffDays(from, d), u = exDef(pick).u;
-  h += `<section class="card" id="liftchart"><label class="fl">Lift<select class="in" id="liftpick" data-in="lift">${ids.map(id => `<option value="${id}" ${id === pick ? 'selected' : ''}>${esc(exDef(id).name)}</option>`).join('')}</select></label>
-    <div class="card-h"><span class="small dim">${u === 'bw' && !bwScored(pick) ? 'Best reps per session' : `Estimated 1RM per session (${u === 'plates' ? 'plates / side' : u === 'bw' ? 'kg, body weight included' : 'kg'})`}</span>${maxScore(pick) ? `<div class="legend"><span><i class="ln" style="background:var(--ink-2)"></i>Stated max ${esc(fmtSet(pick, exDef(pick).base))}</span></div>` : ''}</div>
-    ${chartHTML({ h: 170, ...ax, refY: maxScore(pick) ? { v: maxScore(pick) } : null, yPad: u === 'plates' ? .1 : 1, yFmt: v => fmt(v, u === 'plates' ? 2 : 0), series: [{ color: 'var(--s1)', pts: ser.map(p => ({ x: xi(p.date), y: p.y })), dots: true, r: 3.5, end: true }], hoverXs: ser.map(p => xi(p.date)), tip: x => { const p = ser.find(q => xi(q.date) === x); return p ? `<b>${esc(fmtDate(p.date))}</b><br>${esc(fmtSet(pick, p.top))} · ${esc(scoreTxt(pick, p.y))}` : ''; }, empty: 'No sets logged for this lift yet', label: 'Lift trend' })}</section>`;
-  const when = c => c.date ? esc(fmtDMY(c.date)) : 'stated';
-  h += `<section class="card"><div class="tblwrap"><table class="tbl lifts"><thead><tr><th>Lift</th><th class="n">Best</th><th class="n">Last</th><th class="n">4 wk</th></tr></thead><tbody>
+  const cards = [];
+  cards.push({ k: 'chart', t: 'Lift chart', h: `<section class="card" id="liftchart"><label class="fl">Lift<select class="in" id="liftpick" data-in="lift">${ids.map(id => `<option value="${id}" ${id === pick ? 'selected' : ''}>${esc(exDef(id).name)}</option>`).join('')}</select></label>
+    <div class="card-h"><span class="small dim">${u === 'bw' && !bwScored(pick) ? 'Best reps per session' : `Estimated 1RM per session (${u === 'plates' ? 'plates / side' : u === 'bw' ? 'kg, body weight included' : 'kg'})`}</span></div>
+    ${chartHTML({ h: 170, ...ax, refY: null, yPad: u === 'plates' ? .1 : 1, yFmt: v => fmt(v, u === 'plates' ? 2 : 0), series: [{ color: 'var(--s1)', pts: ser.map(p => ({ x: xi(p.date), y: p.y })), dots: true, r: 3.5, end: true }], hoverXs: ser.map(p => xi(p.date)), tip: x => { const p = ser.find(q => xi(q.date) === x); return p ? `<b>${esc(fmtDate(p.date))}</b><br>${esc(fmtSet(pick, p.top))} · ${esc(scoreTxt(pick, p.y))}` : ''; }, empty: 'No sets logged for this lift yet', label: 'Lift trend' })}</section>` });
+  const bestLogged = id => lixEx(id).list.reduce((a, x) => !a || x.sc > a.sc ? x : a, null); // stated maxes are only a starting point for the Aim, so Best waits for real sets
+  cards.push({ k: 'lifts', t: 'Lifts table', h: `<section class="card"><div class="tblwrap"><table class="tbl lifts"><thead><tr><th>Lift</th><th class="n">Best</th><th class="n">Last</th><th class="n">4 wk</th></tr></thead><tbody>
     ${ids.map(id => { const r = records(id), m = maintenance(id), [tone, word] = MSTATE[m.state]; return `<tr class="${id === pick && ui.lift ? 'sel' : ''}" data-act="liftsel" data-id="${id}"><td>${esc(exDef(id).name)}</td>
-      <td class="n">${esc(fmtSet(id, r.best.s))}<br><span class="xs muted">${when(r.best)}</span></td>
+      <td class="n">${(b => b ? `${esc(fmtSet(id, b.top))}<br><span class="xs muted">${esc(fmtDMY(b.date))}</span>` : '<span class="muted">–</span>')(bestLogged(id))}</td>
       <td class="n">${m.last ? `${esc(fmtSet(id, m.last.top))}<br><span class="xs muted">${esc(fmtDate(m.last.date))}</span>` : '<span class="muted">–</span>'}</td>
       <td class="n">${tone ? `<span class="pill plain ${tone}" title="${word}">${(m.ch >= 0 ? '+' : '−') + fmt(Math.abs(m.ch), 1)}%</span>` : `<span class="xs muted">${m.state === 'new' ? 'New' : '–'}</span>`}</td></tr>`; }).join('')}
     </tbody></table></div>
-    <p class="xs muted">Tap a lift to chart it; tap it again or anywhere else to go back. Best is your strongest set ever, counting the max you entered in Plan ("stated"). Sets with different reps are compared by estimated 1RM (Epley), which gets less reliable above about 10 reps. 4 wk compares your typical session (the median of each session's best set) in the last 4 weeks with the 2 months before, so one standout day doesn't swing it: green is holding (within ±2.5%, about the size of day-to-day variation) or up, amber a dip of up to 5%, red a bigger drop.</p></section>`;
-  const plan = planWeekly(S().prog), done = doneByGroup(addDays(t, -6), t), gs = GROUP_ORDER.filter(g => plan[g] || done[g]);
-  const mx = Math.max(1, ...gs.map(g => Math.max(plan[g] || 0, done[g] || 0)));
-  h += `<section class="sec"><div class="sec-h"><span class="eyebrow">Volume · last 7 days</span></div><section class="card"><div class="legend"><span><i class="ln" style="background:var(--s1);height:8px;width:12px"></i>Sets done</span><span><i class="tk"></i>Plan, if trained daily</span></div>
-    <ul class="hbars">${gs.map(g => `<li><span class="lab">${esc(GROUPS[g])}</span><span class="trk"><span class="fill" style="width:${(done[g] || 0) / mx * 100}%"></span>${plan[g] ? `<span class="tgt" style="left:calc(${plan[g] / mx * 100}% - 1px)"></span>` : ''}</span><span class="v">${done[g] || 0} <span class="muted">/ ${fmt(plan[g] || 0, 0)}</span></span></li>`).join('')}</ul>
-    <p class="xs muted">Direct working sets only. Compounds also train other muscles (rows hit rear delts, presses hit triceps), so real totals run higher.</p></section></section>`;
-  return h;
+    <p class="xs muted">Tap a lift to chart it; tap it again or anywhere else to go back. Best is your strongest logged set; the maxes entered in Plan only seed the first Aims, so they aren't shown. Sets with different reps are compared by estimated 1RM (Epley), which gets less reliable above about 10 reps. 4 wk compares your typical session (the median of each session's best set) in the last 4 weeks with the 2 months before, so one standout day doesn't swing it: green is holding (within ±2.5%, about the size of day-to-day variation) or up, amber a dip of up to 5%, red a bigger drop.</p></section>` });
+  // Bands from research, not from the plan: ~3 hard sets a week held size and strength in younger adults (Bickel et al., 2011:
+  // a ninth of the training dose, one set of each of three exercises once a week); 10-20 a week is the usual growth range,
+  // with diminishing returns above it (Schoenfeld et al., 2017; Pelland et al., 2024).
+  const HOLD = 3, GLO = 10, GHI = 20, plan = planWeekly(S().prog), done = doneByGroup(addDays(t, -6), t), gs = GROUP_ORDER.filter(g => plan[g] || done[g]);
+  const mx = Math.max(GHI + 2, ...gs.map(g => done[g] || 0)), pc = v => v / mx * 100;
+  const tone = n => n < HOLD ? 'warn' : n >= GLO ? 'good' : '';
+  cards.push({ k: 'volume', t: 'Volume, last 7 days', h: `<section class="sec" data-card="volume"><div class="sec-h"><span class="eyebrow">Volume · last 7 days</span></div><section class="card"><div class="legend"><span><i class="ln" style="background:var(--s1);height:8px;width:12px"></i>Sets done</span><span><i class="tk"></i>Hold, ~${HOLD}</span><span><i class="bandk"></i>Grow, ${GLO}–${GHI}</span></div>
+    <ul class="hbars">${gs.map(g => { const n = done[g] || 0; return `<li><span class="lab">${esc(GROUPS[g])}</span><span class="trk"><span class="band" style="left:${pc(GLO)}%;width:${pc(GHI) - pc(GLO)}%"></span><span class="fill" style="width:${pc(Math.min(n, mx))}%"></span><span class="tgt" style="left:calc(${pc(HOLD)}% - 1px)"></span></span><span class="v ${tone(n) ? 'tn-' + tone(n) : ''}">${n}</span></li>`; }).join('')}</ul>
+    <p class="xs muted">Hard working sets per muscle in the last 7 days, against research rather than your plan. Holding: younger adults kept size and strength on about ${HOLD} hard sets a week per muscle, a ninth of what built it (Bickel et al., 2011), and one heavy set per exercise once a week kept strength (Spiering et al., 2021). Growing: most studies support ${GLO}–${GHI} sets a week, with smaller returns above that (Schoenfeld et al., 2017; Pelland et al., 2024). Direct sets only: rows also train rear delts and presses triceps, so real totals run higher.</p></section></section>` });
+  return h + arrange('strength', cards);
+}
+
+/* ---------- card order on Strength and Body (the reorder button left of the gear) ---------- */
+const WKCOLS = { sessions: 'Sessions', sets: 'Sets', cardio: 'Cardio', rec: 'Recovery', hrv: 'HRV', slp: 'Sleep', kcal: 'kcal', p: 'Protein', dtw: 'Weight Δ' };
+function wkCols() { const all = Object.keys(WKCOLS), saved = (S().layout?.wkcols || []).filter(k => WKCOLS[k]); return [...saved, ...all.filter(k => !saved.includes(k))]; }
+function cardOrder(tab, keys) { const saved = (S().layout?.[tab] || []).filter(k => keys.includes(k)); return [...saved, ...keys.filter(k => !saved.includes(k))]; }
+const CARD_KEYS = {};
+function arrange(tab, cards) { // cards: [{ k, t, h }] in default order; h is '' when a card has nothing to show
+  CARD_KEYS[tab] = cards.map(c => c.k);
+  if (ui.reo?.tab !== tab) return cardOrder(tab, CARD_KEYS[tab]).map(k => cards.find(c => c.k === k)?.h || '').join('');
+  const shown = ui.reo.cards.filter(k => cards.some(c => c.k === k && c.h));
+  return `<p class="xs muted">Drag the handles to change the order, then tap Done.</p><div class="dlist reo" data-list="cards">${shown.map(k => `<div class="reo-item" data-dragitem data-k="${k}"><div class="reo-h"><span class="grip" data-grip="card" aria-label="Drag to move ${esc(cards.find(c => c.k === k).t)}" role="button" tabindex="-1">${ICON.grip}</span><b>${esc(cards.find(c => c.k === k).t)}</b></div>
+    ${k === 'weekly' ? `<span class="xs muted">Columns, left to right</span><div class="dlist reo-cols" data-list="cols">${ui.reo.cols.map(col => `<div class="reo-item sm" data-dragitem data-k="${col}"><span class="grip" data-grip="col" aria-label="Drag to move ${esc(WKCOLS[col])}" role="button" tabindex="-1">${ICON.grip}</span><span>${esc(WKCOLS[col])}</span></div>`).join('')}</div>` : ''}</div>`).join('')}</div>
+    <div class="btnrow" style="justify-content:space-between"><button class="link dim" data-act="reoreset">Reset to default</button><button class="btn sm" data-act="reodone">Done</button></div>`;
 }
 
 /* ---------- Body: WHOOP and MacroFactor ---------- */
 function freshHTML() { // how current each source is, so lagging data is obvious
   const t = today(), wd = latestWith('rec') || latestWith('slp'), md = latestWith('kcal') || latestWith('tw') || latestWith('wt');
-  const one = (name, d) => { if (!d) return pill('', `${name} not imported`); const age = diffDays(d, t); return pill(age <= 1 ? 'good' : age <= 3 ? '' : 'warn', `${name} to ${fmtDate(d)}`); };
+  const one = (name, d) => { if (!d) return pill('', `${name} none`); const age = diffDays(d, t); return pill(age <= 1 ? 'good' : age <= 3 ? '' : 'warn', `${name} ${age <= 0 ? 'today' : age === 1 ? 'yesterday' : fmtDate(d)}`); };
   const hd = latestWith('stpi') || latestWith('hp');
-  return `<div class="chips">${one('WHOOP', wd)}${one('MacroFactor', md)}${hd ? one('iPhone', hd) : ''}</div>`;
+  return `<div class="chips one" aria-label="Latest data from each source">${one('WHOOP', wd)}${one('MacroFactor', md)}${hd ? one('iPhone', hd) : ''}</div>`;
 }
 function vBody() {
   let h = `<div class="page-h"><div><div class="eyebrow">WHOOP · MacroFactor · Apple Health</div><h1>Body</h1></div></div>`;
   h += freshHTML();
-  h += explorerHTML();
-  h += alcoholCard();
+  const cards = [{ k: 'trends', t: 'Trends', h: explorerHTML() }, { k: 'alcohol', t: 'Alcohol and recovery', h: alcoholCard() }];
   const ra = recoveryAfter().filter(r => r.n >= 2).sort((a, b) => b.avg - a.avg);
-  if (ra.length >= 2) h += `<section class="card"><div class="card-h"><h2>Recovery the morning after</h2><span class="eyebrow">all time</span></div><p class="xs muted">Average next-day WHOOP recovery after each session type. Small samples move a lot; read it as a hint.</p>
-    <ul class="hbars">${ra.map(r => `<li><span class="lab">${esc(r.k)}</span><span class="trk"><span class="fill" style="width:${Math.max(2, r.avg)}%;background:var(--${recTone(r.avg)})"></span></span><span class="v">${fmt(r.avg, 0)}% <span class="muted">n${r.n}</span></span></li>`).join('')}</ul></section>`;
+  if (ra.length >= 2) cards.push({ k: 'recafter', t: 'Recovery the morning after', h: `<section class="card"><div class="card-h"><h2>Recovery the morning after</h2><span class="eyebrow">all time</span></div><p class="xs muted">Average next-day WHOOP recovery after each session type. Small samples move a lot; read it as a hint.</p>
+    <ul class="hbars">${ra.map(r => `<li><span class="lab">${esc(r.k)}</span><span class="trk"><span class="fill" style="width:${Math.max(2, r.avg)}%;background:var(--${recTone(r.avg)})"></span></span><span class="v">${fmt(r.avg, 0)}% <span class="muted">n${r.n}</span></span></li>`).join('')}</ul></section>` });
   const nW = ui.weeksAll ? 26 : 8, wrows = weekRows(nW).filter(r => r.sessions || r.rec != null || r.kcal != null || r.tw != null);
   if (wrows.length) {
     const c = (v, d = 0, u = '') => v == null ? '<span class="muted">–</span>' : fmt(v, d) + u;
-    h += `<section class="sec"><div class="sec-h"><span class="eyebrow">Weekly summary</span><span class="xs muted">weeks start Monday</span></div><section class="card"><div class="tblwrap"><table class="tbl wk"><thead><tr><th>Week</th><th class="n">Sessions</th><th class="n">Sets</th><th class="n">Cardio</th><th class="n">Recovery</th><th class="n">HRV</th><th class="n">Sleep</th><th class="n">kcal</th><th class="n">Protein</th><th class="n">Weight Δ</th></tr></thead><tbody>
-      ${wrows.map(r => `<tr><td>${esc(fmtDate(r.ws))}${r.cur ? ' <span class="xs muted">so far</span>' : ''}</td><td class="n">${r.sessions || '<span class="muted">–</span>'}</td><td class="n">${r.sets || '<span class="muted">–</span>'}</td><td class="n">${r.cardio ? r.cardio + ' min' : '<span class="muted">–</span>'}</td>
-        <td class="n">${r.rec != null ? `<span style="color:var(--${recTone(r.rec)}-ink)">${fmt(r.rec, 0)}%</span>` : '<span class="muted">–</span>'}</td><td class="n">${c(r.hrv, 0)}</td><td class="n">${r.slp != null ? fmt(r.slp / 60, 1) + ' h' : '<span class="muted">–</span>'}</td><td class="n">${c(r.kcal, 0)}</td><td class="n">${c(r.p, 0, ' g')}</td><td class="n">${r.dtw != null ? (r.dtw >= 0 ? '+' : '−') + fmt(Math.abs(r.dtw), 2) : '<span class="muted">–</span>'}</td></tr>`).join('')}
-      </tbody></table></div><div class="btnrow" style="justify-content:space-between"><span class="xs muted">Daily averages, except sessions, sets and cardio (totals). Weight Δ is MacroFactor's trend weight change.</span><button class="link" data-act="weeksall">${ui.weeksAll ? 'Show 8 weeks' : 'Show 26 weeks'}</button></div></section></section>`;
+    const cols = ui.reo?.tab === 'body' ? ui.reo.cols : wkCols(), m = '<span class="muted">–</span>';
+    const cell = { sessions: r => r.sessions || m, sets: r => r.sets || m, cardio: r => r.cardio ? r.cardio + ' min' : m, rec: r => r.rec != null ? `<span style="color:var(--${recTone(r.rec)}-ink)">${fmt(r.rec, 0)}%</span>` : m,
+      hrv: r => c(r.hrv, 0), slp: r => r.slp != null ? fmt(r.slp / 60, 1) + ' h' : m, kcal: r => c(r.kcal, 0), p: r => c(r.p, 0, ' g'), dtw: r => r.dtw != null ? (r.dtw >= 0 ? '+' : '−') + fmt(Math.abs(r.dtw), 2) : m };
+    cards.push({ k: 'weekly', t: 'Weekly summary', h: `<section class="sec"><div class="sec-h"><span class="eyebrow">Weekly summary</span><span class="xs muted">weeks start Monday</span></div><section class="card"><div class="tblwrap"><table class="tbl wk"><thead><tr><th>Week</th>${cols.map(k => `<th class="n">${esc(WKCOLS[k])}</th>`).join('')}</tr></thead><tbody>
+      ${wrows.map(r => `<tr><td>${esc(fmtDate(r.ws))}${r.cur ? ' <span class="xs muted">so far</span>' : ''}</td>${cols.map(k => `<td class="n">${cell[k](r)}</td>`).join('')}</tr>`).join('')}
+      </tbody></table></div><div class="btnrow" style="justify-content:space-between"><span class="xs muted">Daily averages, except sessions, sets and cardio (totals). Weight Δ is MacroFactor's trend weight change.</span><button class="link" data-act="weeksall">${ui.weeksAll ? 'Show 8 weeks' : 'Show 26 weeks'}</button></div></section></section>` });
   }
-  return h;
+  return h + arrange('body', cards);
 }
 
 /* ---------- Plan ---------- */
@@ -375,6 +395,7 @@ function progressionCard() {
   return `<section class="sec"><div class="sec-h"><span class="eyebrow">Targets · next 8 weeks</span></div><section class="card">
     <div class="btnrow" style="justify-content:space-between"><span class="xs muted">Today's Aim follows</span><div class="seg" role="group" aria-label="Goal"><button class="${grow ? '' : 'on'}" data-act="goal" data-v="hold">Maintenance</button><button class="${grow ? 'on' : ''}" data-act="goal" data-v="grow">Overload</button></div></div>
     <div class="btnrow" style="justify-content:space-between"><span class="xs muted">Overload gain a week</span><div class="seg" role="group" aria-label="Weekly gain">${rates.map(([r, l]) => `<button class="${Math.abs(rate - r) < 1e-9 ? 'on' : ''}" data-act="prograte" data-v="${r}">${l}</button>`).join('')}</div></div>
+    ${grow && cutCheck() ? (() => { const c = cutCheck(); return `<p class="small warnnote">Your trend weight is falling about ${fmt(Math.abs(c.wk), 2)} kg a week (${fmt(Math.abs(c.pct), 1)}%). In a deficit like that strength usually holds but gains slow down (Murphy &amp; Koehler, 2022), so Overload at +${fmt(rate * 100, 2)}%/wk may outrun you. Maintenance, or the 0.25% rate, fits better until the cut ends.</p>`; })() : ''}
     <label class="fl">Lift<select class="in" id="proglift" data-in="proglift">${ids.map(id => `<option value="${id}" ${id === pick ? 'selected' : ''}>${esc(exDef(id).name)}</option>`).join('')}</select></label>
     ${plan ? `<div class="tblwrap"><table class="tbl goal"><thead><tr><th>Week</th><th class="n ${grow ? '' : 'act'}">Maintenance</th><th class="n ${grow ? 'act' : ''}">Overload</th><th class="n">Gain</th></tr></thead><tbody>
       ${plan.map(p => `<tr><td>Week ${p.k}</td><td class="n ${grow ? '' : 'act'}">${hold ? esc(suggestTxt(pick, hold)) : '–'}</td><td class="n ${grow ? 'act' : ''}">${esc(suggestTxt(pick, p))}</td><td class="n">+${fmt(p.g * 100, 1)}%</td></tr>`).join('')}
@@ -403,7 +424,7 @@ function vData() {
   const im = S().imports || {};
   const last = k => im[k] ? `Last import ${new Date(im[k].at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })} · ${im[k].n} days · ${esc(im[k].range)}` : 'Not imported yet';
   let h = `<div class="page-h"><div><div class="eyebrow">Imports, backups, storage</div><h1>Data</h1></div></div>`;
-  if (window.GH_SYNC) h += GH.card() + Helper.card(); else h += `<section class="card"><div class="card-h"><h2>Where your data lives</h2><span id="sync2">${Cloud.ready ? pill('good', 'Synced') : pill('', 'This browser')}</span></div><p class="small dim">${Cloud.ready ? 'Saved to your private storage for this app on claude.ai, so it follows you between phone and desktop. A copy is also kept in this browser.' : 'Saving in this browser only. Cloud sync starts when the app is opened from claude.ai while signed in.'}</p></section>`;
+  if (window.GH_SYNC) h += GH.card() + Helper.card() + Helper.explain(); else h += `<section class="card"><div class="card-h"><h2>Where your data lives</h2><span id="sync2">${Cloud.ready ? pill('good', 'Synced') : pill('', 'This browser')}</span></div><p class="small dim">${Cloud.ready ? 'Saved to your private storage for this app on claude.ai, so it follows you between phone and desktop. A copy is also kept in this browser.' : 'Saving in this browser only. Cloud sync starts when the app is opened from claude.ai while signed in.'}</p></section>`;
   const impBox = src => { const p = ui.imp[src]; if (!p) return '';
     return `<div class="prev" id="imp-${src}"><div class="card-h"><b>Ready to import</b></div><p><b>${esc(p.summary)}</b></p><p class="dim">${esc(previewRange(p.days))}</p><p class="xs muted">From ${esc(p.files.join(', '))}. Matching days are updated with these values; everything else stays.</p>
       <div class="btnrow"><button class="btn" data-act="doimport" data-v="${src}">Import</button><button class="link dim" data-act="cancelimp" data-v="${src}">Cancel</button></div></div>`; };

@@ -21,7 +21,12 @@ async function api(route) {
   if (!u.pathname.startsWith('/repos/BigYellowBoi/orbit-data')) return send(404, { message: 'Not Found' });
   if (G.fail) { const f = G.fail; G.fail = null; return send(f, { message: 'boom' }); }
   if (m === 'GET' && path === '') return send(200, { private: G.private, default_branch: 'main', permissions: { push: true } });
-  if (m === 'GET' && path === '/git/ref/heads/main') return G.head ? send(200, { object: { sha: G.head } }) : send(409, { message: 'Git Repository is empty.' });
+  if (m === 'GET' && path === '/git/ref/heads/main') { // with ETags, like GitHub: an unchanged ref answers 304
+    if (!G.head) return send(409, { message: 'Git Repository is empty.' });
+    const tag = '"' + G.head + '"'; G.refAsks = (G.refAsks || 0) + 1;
+    if (req.headers()['if-none-match'] === tag) { G.ref304 = (G.ref304 || 0) + 1; return route.fulfill({ status: 304, headers: { 'access-control-allow-origin': '*', etag: tag, 'access-control-expose-headers': 'ETag' } }); }
+    return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*', etag: tag, 'access-control-expose-headers': 'ETag' }, body: JSON.stringify({ object: { sha: G.head } }) });
+  }
   let mm;
   if (m === 'GET' && (mm = /^\/git\/commits\/(\w+)$/.exec(path))) return send(200, { sha: mm[1], tree: { sha: G.commits[mm[1]].tree } });
   if (m === 'GET' && (mm = /^\/git\/trees\/(\w+)$/.exec(path))) return send(200, { tree: Object.entries(G.trees[mm[1]]).map(([p, s]) => ({ path: p, type: 'blob', sha: s })) });
@@ -151,6 +156,13 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   check((await A.evaluate(() => document.querySelector('.hero .stats')?.textContent || '')).includes('31'), 'Today’s done card shows the minutes');
   await wait(2800); check(read('orbit/wk/' + td.slice(0, 7) + '.json')?.items[td]?.cardio?.min === 31, 'and the updated session is pushed back to the repo');
   await A.evaluate(t => { delete STATE.w[t]; saveW(t); }, td); await wait(2800);
+
+  console.log('6d. Polling an unchanged repo uses conditional requests');
+  await A.evaluate(() => GH.sync()); await wait(500); G.ref304 = 0; const callsBefore = G.calls.length;
+  for (let i = 0; i < 3; i++) { await A.evaluate(() => GH.sync()); await wait(300); }
+  check(G.ref304 === 3 && G.calls.length - callsBefore === 3, `three checks of an unchanged repo: ${G.ref304} answered 304 (free), no other calls`);
+  helperWrite({ ...read('orbit/dy/2026-10.json').items, '2026-10-02': { stp: 1234 } }); await A.evaluate(() => GH.sync()); await wait(800);
+  check(await A.evaluate(() => STATE.d['2026-10-02']?.stp) === 1234, 'a change after 304s is still picked up');
 
   console.log('7. Restore on A replaces data everywhere');
   await A.evaluate(() => { restoreBackup({ app: 'orbit', settings: S(), workouts: { '2026-08-08': { date: '2026-08-08', s: order()[0], ex: [] } }, days: {} }); }); await wait(2600);

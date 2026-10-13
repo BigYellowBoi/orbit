@@ -213,6 +213,18 @@ function progression(exId, weeks, rate, before = today()) {
   for (let k = 1; k <= weeks; k++) { const e = e1 * (1 + rate) ** (k - 1), p = fitLoad(exId, e, w, before); if (!p) return null; w = p.w; out.push({ k, ...p, g: e / ref.v - 1 }); }
   return out;
 }
+/* Sets after the first: one weight step lighter for the same reps. Repeating set 1's load would need long rests, growth is
+   similar across loads when sets end near failure (Schoenfeld et al., 2017), and rest beyond ~90 s adds little (Singer et al., 2024).
+   strengthRef() reads each session's best set, so lighter later sets don't pull future Aims down. */
+function setAim(exId, before, j, sg = suggest(exId, before)) {
+  if (!sg || !j) return sg;
+  const d = exDef(exId); if (d.u === 'bw' && !bwScored(exId)) return sg; // reps-only bodyweight lifts have no load to drop
+  const w = +(sg.w - exStep(exId)).toFixed(3);
+  return (d.u === 'bw' ? w < 0 : w <= 0) ? sg : { ...sg, w, back: true };
+}
+/* Overload during a cut: a deficit of ~500 kcal a day blunts muscle gain though strength mostly holds (Murphy & Koehler, 2022);
+   at Louis's size that is roughly 0.5% of body weight a week, so faster loss flags the Overload setting. */
+function cutCheck() { const r = weightRate(); return r && r.pct <= -0.5 ? r : null; }
 function suggestTxt(exId, sg) { const u = exDef(exId).u, w = fmt(sg.w, 2); return u === 'bw' ? (sg.w ? `BW+${w} × ${sg.r}` : `${sg.r} reps`) : `${w} ${u === 'plates' ? 'pl' : 'kg'} × ${sg.r}`; }
 
 /* ============================================================

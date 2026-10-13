@@ -122,27 +122,31 @@ ok(!repo['orbit/dy/2026-04.json'], 'the month before the backfill start is left 
 
 /* ---------- 3. idle runs ---------- */
 console.log('idle');
-kvPuts = 0; const c0 = await cron(); ok(c0 === 0 && kvPuts === 0, 'nothing due: no requests, no KV writes');
+kvPuts = 0; const c0 = await cron(); ok(c0 === 1 && kvPuts === 0, 'nothing new: one WHOOP look at today, no GitHub calls, no KV writes');
 
-/* ---------- 3b. 30-minute look at today's steps and strain ---------- */
+/* ---------- 3b. every run looks at today's steps and strain ---------- */
 console.log('today refresh');
 const ago = m => { const s = JSON.parse(kv.get('status')); s.todayAt = Date.now() - m * 60e3; kv.set('status', JSON.stringify(s)); };
 const tc = H.cycle.find(c => c.end === utc(today, '22:30')); tc.step_count = 4321; tc.score.strain = 6.78;
-ago(31); const cq = await cron(); ok(day(today).stp === 4321 && day(today).str === 6.8, `today's steps and strain refreshed (${cq} requests)`);
+const cq = await cron(); ok(day(today).stp === 4321 && day(today).str === 6.8, `today's steps and strain refreshed (${cq} requests)`);
 ok(cq <= 4, 'refresh is cheap (one WHOOP list, one GitHub read and write)');
 ok(day(today).rec != null && day(today).slp != null, "today's other fields kept");
-ago(31); const cq2 = await cron(); ok(cq2 === 1, 'unchanged steps: one WHOOP call, no GitHub calls');
-ago(10); const cq3 = await cron(); ok(cq3 === 0, 'within 30 minutes: nothing');
+kvPuts = 0; const cq2 = await cron(); ok(cq2 === 1 && kvPuts === 0, 'unchanged steps: one WHOOP call, no GitHub calls, no KV writes');
+tc.step_count = 4400; const cq3 = await cron(); ok(cq3 <= 4 && day(today).stp === 4400, 'next run (5 min later) picks up new steps');
+ago(26); kvPuts = 0; await cron(); ok(kvPuts === 1 && Date.now() - JSON.parse(kv.get('status')).todayAt < 5e3, 'status refreshed every 25 min even with nothing new');
+// budget: one WHOOP call per 5-minute run all day, plus full syncs, stays far inside 10,000 a day
+ok(288 * 1 + 8 * 8 + 30 * 8 < 10000, 'daily WHOOP calls ~600 worst case vs 10,000 limit');
 
 /* ---------- 4. webhook ---------- */
 console.log('webhook');
 const body = JSON.stringify({ user_id: 1, id: 'x', type: 'recovery.updated', trace_id: 't' }), ts = String(Date.now());
 const sig = crypto.createHmac('sha256', 'csecret').update(ts + body).digest('base64');
 r = await req('/webhook', { method: 'POST', body, headers: { 'x-whoop-signature': 'AAAA', 'x-whoop-signature-timestamp': ts } }); ok(r.status === 401, 'bad signature refused');
-r = await req('/webhook', { method: 'POST', body, headers: { 'x-whoop-signature': sig, 'x-whoop-signature-timestamp': ts } }); ok(r.status === 200 && kv.get('dirty') === '1', 'good signature marks a change');
 H.rec.find(x => x.sleep_id === 'S' + y).score.recovery_score = 99;
 const delW = H.wo.find(w => w.id === 'W' + wd); H.wo = H.wo.filter(w => w !== delW);
-const c1 = await cron(); ok(c1 > 0 && !kv.has('dirty'), 'next run syncs and clears the flag');
+calls = 0; r = await req('/webhook', { method: 'POST', body, headers: { 'x-whoop-signature': sig, 'x-whoop-signature-timestamp': ts } });
+ok(r.status === 200 && waits.length === 1, 'good signature: answers WHOOP at once and syncs in the background');
+await settle(); const c1 = calls; ok(c1 > 0 && c1 <= 45 && !kv.has('dirty'), `notification sync ran straight away (${c1} requests) and cleared the retry flag`);
 ok(day(y).rec === 99, 'changed recovery picked up');
 ok(!day(wd).acts, 'deleted workout removed');
 
@@ -162,6 +166,12 @@ r = await req('/auth?key=k3y'); const s2 = new URL(r.headers.get('location')).se
 r = await req(`/callback?code=good&state=${s2}`); await settle(); ok(r.status === 200 && !JSON.parse(kv.get('status')).lastError, 'reconnecting clears it');
 ok(!JSON.parse(kv.get('status')).bf.done, 'reconnect restarts history (harmless: rewrites only what changed)');
 while (!JSON.parse(kv.get('status')).bf.done) await cron();
+// renewals: the 5-minute run renews 15 min early; a notification sync with 10 min left doesn't renew (no race with the cron)
+const setExp = ms => { const x = JSON.parse(kv.get('tok')); x.exp = Date.now() + ms; kv.set('tok', JSON.stringify(x)); return x.refresh; };
+let rBefore = setExp(10 * 60e3);
+await req('/webhook', { method: 'POST', body, headers: { 'x-whoop-signature': crypto.createHmac('sha256', 'csecret').update(ts + body).digest('base64'), 'x-whoop-signature-timestamp': ts } }); await settle();
+ok(JSON.parse(kv.get('tok')).refresh === rBefore, 'notification sync with 10 min left on the token leaves renewal to the scheduled run');
+await cron(); ok(JSON.parse(kv.get('tok')).refresh !== rBefore, 'scheduled run renews it 15 min early');
 
 /* ---------- 6. GitHub conflict ---------- */
 console.log('github');

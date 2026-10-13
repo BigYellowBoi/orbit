@@ -11,7 +11,7 @@ const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const core = fs.readFileSync(path.join(root, 'src/core.js'), 'utf8');
 const engineSrc = fs.readFileSync(path.join(root, 'src/engine.js'), 'utf8');
 const EXPOSE = `globalThis.E = { STATE, S, today, addDays, diffDays, sessionFor, upcoming, lastFor, bestBefore, bestSet, records, hasHistory, hasRef,
-  liftSeries, maintenance, strengthRef, suggest, progression, prsIn, setScore, e1rm, exRir, exStep, derived, dayVal, scoreTxt, newWorkout, restRecord,
+  liftSeries, maintenance, strengthRef, suggest, setAim, cutCheck, progression, prsIn, setScore, e1rm, exRir, exStep, derived, dayVal, scoreTxt, newWorkout, restRecord,
   bump: () => { STATE.v++; } };`;
 
 function load(engine = engineSrc) {
@@ -60,7 +60,7 @@ function follow(goal, rate, weeks = 26, exId = 'shoulder_press') {
   for (let d = 0; d <= weeks * 7; d += 4) {
     const date = E.addDays(t0, d); E.setNow(Date.UTC(...date.split('-').map((x, i) => i === 1 ? x - 1 : +x), 2));
     const a = E.suggest(exId, date); if (!a) return { fail: true };
-    E.STATE.w[date] = { date, s: 'push2', ex: [{ id: exId, sets: [0, 1, 2].map(() => ({ w: a.w, r: a.r, done: true })) }] };
+    E.STATE.w[date] = { date, s: 'push2', ex: [{ id: exId, sets: [0, 1].map(j => { const x = E.setAim(exId, date, j); return { w: x.w, r: x.r, done: true }; }) }] }; // set 2 one step lighter, as the Aim now says
     E.bump(); last = { date, a };
   }
   return { E, start, end: E.strengthRef(exId, E.addDays(last.date, 1)).v, last, days: diffDays(t0, last.date) };
@@ -76,6 +76,15 @@ function follow(goal, rate, weeks = 26, exId = 'shoulder_press') {
   }
   const g = follow('grow', 0.005, 26, 'lat_raise'); // 2 kg dumbbell steps
   ok(g.end > g.start * 1.05, 'overload on 2 kg dumbbell steps still climbs');
+}
+
+/* ---------- later sets one step lighter ---------- */
+{
+  const E = load(), t = E.today(), a0 = E.setAim('incline_db', t, 0), a1 = E.setAim('incline_db', t, 1);
+  ok(a1.back && Math.abs(a0.w - a1.w - 2) < 1e-9 && a1.r === a0.r, `set 2 one dumbbell step (2 kg) lighter, same reps: ${a0.w}×${a0.r} then ${a1.w}×${a1.r}`);
+  const p0 = E.setAim('hack', t, 0), p1 = E.setAim('hack', t, 1); ok(Math.abs(p0.w - p1.w - 0.25) < 1e-9, 'plates: a quarter plate (5 kg a side) lighter');
+  ok(E.setAim('ab_roller', t, 1).w === E.setAim('ab_roller', t, 0).w, 'reps-only bodyweight lift: no load to drop');
+  ok(E.S().prog.sessions.push1.items.every(it => it.sets === 2), 'new programmes default to 2 sets');
 }
 
 /* ---------- maintenance badge: one standout day doesn't decide it ---------- */

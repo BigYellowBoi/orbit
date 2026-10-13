@@ -60,8 +60,18 @@ const GH = {
   repoUrl(rest) { return `/repos/${encodeURIComponent(this.cfg.owner)}/${encodeURIComponent(this.cfg.repo)}${rest}`; },
   branch() { return this.cfg.branch || 'main'; },
   async head() { // null when the repo has no commits yet
-    try { const r = await this.req('GET', this.repoUrl(`/git/ref/heads/${this.branch()}`)); return r.object.sha; }
-    catch (e) { if (e.status === 409 || e.status === 404) { if (e.status === 404) await this.req('GET', this.repoUrl('')); return null; } throw e; }
+    // Asked with the last ETag, so an unchanged repo answers 304, which GitHub doesn't count against the hourly rate limit (polled every 15 s)
+    const h = { Accept: 'application/vnd.github+json', Authorization: 'Bearer ' + this.cfg.token, 'X-GitHub-Api-Version': '2022-11-28' };
+    const url = GH_API + this.repoUrl(`/git/ref/heads/${this.branch()}`);
+    if (this.refTag && this.refSha && !this.noTag) h['If-None-Match'] = this.refTag;
+    let r; try { r = await fetch(url, { cache: 'no-store', headers: h }); }
+    catch (e) { if (!h['If-None-Match']) throw e; this.noTag = true; delete h['If-None-Match']; r = await fetch(url, { cache: 'no-store', headers: h }); } // header refused: plain requests from now on
+    if (r.status === 304) return this.refSha;
+    if (r.ok) { const j = await r.json(); this.refSha = j.object.sha; this.refTag = r.headers.get('etag'); return this.refSha; }
+    this.refTag = this.refSha = null;
+    if (r.status === 409 || r.status === 404) { if (r.status === 404) await this.req('GET', this.repoUrl('')); return null; }
+    let data = null; try { data = await r.json(); } catch (e) { }
+    const e = new Error(data?.message || 'HTTP ' + r.status); e.status = r.status; e.ratelimit = r.status === 403 && r.headers.get('x-ratelimit-remaining') === '0'; throw e;
   },
   async blobText(sha) { const b = await this.req('GET', this.repoUrl(`/git/blobs/${sha}`)); const bin = atob((b.content || '').replace(/\s/g, '')); return new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0))); },
   async gitSha(text) { const bytes = new TextEncoder().encode(text), hdr = new TextEncoder().encode(`blob ${bytes.length}\0`), all = new Uint8Array(hdr.length + bytes.length); all.set(hdr); all.set(bytes, hdr.length); const h = await crypto.subtle.digest('SHA-1', all); return [...new Uint8Array(h)].map(x => x.toString(16).padStart(2, '0')).join(''); },
@@ -85,7 +95,7 @@ const GH = {
     if (!m.first) for (const p in m.known) if (!remote[p] && this.removeRemote(p)) ch = true; // deleted on another device
     if (m.first) this.markLocalOnly(remote);
     m.head = head; m.tree = commit.tree.sha; m.known = remote; m.first = false;
-    if (ch) { sweepEmpty(); sweepCardio(); bump(); cacheLocal(); render(); }
+    if (ch) { sweepEmpty(); sweepCardio(); sweepSettings(); bump(); cacheLocal(); render(); pulseMark(); }
     return ch;
   },
   merge(p, o) {
@@ -193,7 +203,7 @@ const GH = {
   disconnect() { this.stop(); this.cfg = null; this.meta = this.freshMeta(); try { localStorage.removeItem(GH_CFG); localStorage.removeItem(GH_META); } catch (e) { } this.state = 'off'; },
   start() {
     this.stop();
-    this.poll = setInterval(() => { if (document.visibilityState === 'visible') this.sync(); }, 60000);
+    this.poll = setInterval(() => { if (document.visibilityState === 'visible') this.sync(); }, 15000); // only while the app is on screen; an unchanged check is one tiny request
   },
   stop() { clearInterval(this.poll); clearTimeout(this.timer); },
   boot() {
@@ -267,8 +277,16 @@ const Helper = {
       <ul class="rows"><li><span>WHOOP</span>${wPill}<span class="sub">${this.st ? (wAt ? `Last sync ${esc(wAt)}` : 'Not synced yet') : '&nbsp;'}${w && w.history && w.history !== 'complete' ? ` · history filling in, next ${esc(w.history)}` : ''}</span></li>
         <li><span>Apple Health</span>${hPill}<span class="sub">${this.st ? (hAt ? `Last received ${esc(hAt)}` : 'Nothing received yet') : '&nbsp;'}</span></li></ul>
       ${w?.error ? `<p class="small" style="color:var(--bad-ink)">${esc(w.error)}</p>` : ''}${this.err ? `<p class="small" style="color:var(--warn-ink)">${esc(this.err)}</p>` : ''}
-      <p class="xs muted">WHOOP is checked every 30 minutes, and right away when WHOOP reports new sleep, recovery or a workout.</p>
+      <p class="xs muted">New sleep, recovery and workouts arrive as soon as WHOOP has processed them; steps and strain are checked every 5 minutes.</p>
       <div class="btnrow"><button class="link" data-act="helperrefresh">Refresh</button><button class="link dim" data-act="helperedit" style="margin-left:auto">Change address</button></div></section>`;
+  },
+  explain() { // what arrives on its own, and what only comes from a file
+    const hae = !!this.st?.health?.at;
+    return `<section class="card"><div class="card-h"><h2>What syncs by itself</h2></div>
+      <ul class="rows">
+        <li><span><b>Automatic</b></span><span class="sub">WHOOP: recovery, HRV, sleep, strain, steps, workouts and calories burned, within a minute of WHOOP processing them (steps and strain every 5 min).<br>Apple Health${hae ? '' : ' (once Health Auto Export is set up)'}: steps, calories and macros, weight and headphone level, hourly while your phone is unlocked.<br>Your sessions, notes and settings: to every device as you go.</span></li>
+        <li><span><b>Needs a file</b></span><span class="sub">MacroFactor's own trend weight, expenditure and targets: Quick Export (.xlsx) from MacroFactor, imported here. Until then Orbit estimates trend weight and expenditure itself.<br>Headphone listening time: a full Apple Health export, converted for Orbit.<br>WHOOP journal answers (alcohol and the rest): WHOOP's data export (.zip). The WHOOP API doesn't share the journal.</span></li>
+      </ul></section>`;
   },
 };
 Object.assign(ACT, {

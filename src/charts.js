@@ -30,7 +30,9 @@ function drawChart(el, cfg) {
   const X = x => m.l + (cfg.x1 === cfg.x0 ? iw / 2 : (x - cfg.x0) / (cfg.x1 - cfg.x0) * iw);
   const Y = y => m.t + ih - (y - y0) / (y1 - y0 || 1) * ih;
   let s = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">`;
-  for (const t of nt.t) if (t >= y0 - 1e-9 && t <= y1 + 1e-9) s += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(t)}" y2="${Y(t)}" class="grid"/><text x="${m.l - 6}" y="${Y(t) + 3.5}" class="ax" text-anchor="end">${esc((cfg.yFmt || (v => fmt(v, 1)))(t))}</text>`;
+  let yf = cfg.yFmt || (v => fmt(v, 1));
+  if (new Set(nt.t.map(yf)).size < nt.t.length) { const st = nt.t.length > 1 ? Math.abs(nt.t[1] - nt.t[0]) : 1, d = Math.max(0, Math.min(3, -Math.floor(Math.log10(st) + 1e-9))); yf = v => fmt(v, d); } // close ticks would round to the same label: show the decimals
+  for (const t of nt.t) if (t >= y0 - 1e-9 && t <= y1 + 1e-9) s += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(t)}" y2="${Y(t)}" class="grid"/><text x="${m.l - 6}" y="${Y(t) + 3.5}" class="ax" text-anchor="end">${esc(yf(t))}</text>`;
   for (const x of cfg.xTicks || []) s += `<text x="${X(x)}" y="${H - 5}" class="ax" text-anchor="middle">${esc(cfg.xFmt(x))}</text>`;
   if (cfg.area?.length) {
     let seg = [], prev = null; const segsA = [];

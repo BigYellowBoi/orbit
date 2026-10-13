@@ -12,8 +12,11 @@
      GET  /sync?key=…       run a sync now
      GET  /backfill?key=…&from=YYYY-MM   redo the history backfill from a month
      POST /health?key=…     Apple Health numbers from the Shortcut or Health Auto Export (see worker/README.md)
-   Cron (every 10 min): sync the last 3 days when WHOOP reported a change or 3 h have passed; in between, refresh
-   today's steps and strain every 30 min (WHOOP has no webhook for those); otherwise fill in history a month or two at a time.
+   WHOOP notification (webhook): sync the last 3 days straight away.
+   Cron (every 5 min): sync the last 3 days if a notification sync failed or 3 h have passed; otherwise refresh today's
+   steps and strain (WHOOP has no webhook for those), and fill in history a month or two at a time.
+   Daily budget: ~288 cron runs x 1 WHOOP call + ~8 full syncs and a few notification syncs x ~6 calls, well inside
+   WHOOP's 10,000 a day and 100 a minute (one run uses at most 45). KV writes stay far below the free plan's 1,000 a day.
 
    Settings (Cloudflare → Worker → Settings)
      Variables: WHOOP_CLIENT_ID, GH_REPO (e.g. BigYellowBoi/orbit-data), optional GH_BRANCH (main),
@@ -33,12 +36,12 @@ export default {
       if (url.pathname === '/status.json' && req.method === 'GET') return statusJson(env);
       if (url.pathname === '/auth' && req.method === 'GET') { if (!authed) return text('Add ?key= with your SYNC_KEY.', 403); return startAuth(env, url); }
       if (url.pathname === '/callback' && req.method === 'GET') return finishAuth(env, url, ctx);
-      if (url.pathname === '/webhook' && req.method === 'POST') return webhook(env, req);
+      if (url.pathname === '/webhook' && req.method === 'POST') return webhook(env, req, ctx);
       if (url.pathname === '/sync' && req.method === 'GET') { if (!authed) return text('Forbidden', 403); const r = await run(env, { force: true }); return json(r); }
       if (url.pathname === '/backfill' && req.method === 'GET') {
         if (!authed) return text('Forbidden', 403);
         const st = await getJ(env, 'status') || {}, from = /^\d{4}-\d{2}$/.test(url.searchParams.get('from') || '') ? url.searchParams.get('from') : (env.BACKFILL_FROM || '2024-11');
-        st.bf = { next: from, done: false }; await putJ(env, 'status', st); return text(`History backfill restarts from ${from}; it runs a month or two every 10 minutes.`);
+        st.bf = { next: from, done: false }; await putJ(env, 'status', st); return text(`History backfill restarts from ${from}; it runs a month or two every 5 minutes.`);
       }
       if (url.pathname === '/health' && req.method === 'POST') { if (!authed) return text('Forbidden', 403); return health(env, req); }
       return text('Not found', 404);
@@ -108,7 +111,7 @@ async function refreshTok(env, t, b) {
 }
 async function accessToken(env, b, force) {
   let t = await getJ(env, 'tok'); if (!t) throw new Error('WHOOP is not connected yet');
-  if (force || Date.now() > t.exp - 300e3) t = await refreshTok(env, t, b);
+  if (force || Date.now() > t.exp - (b.hook ? 60e3 : 900e3)) t = await refreshTok(env, t, b); // scheduled runs (every 5 min) renew 15 min early, so syncs started by a WHOOP notification don't renew at the same moment (WHOOP refresh tokens work once)
   return t.access;
 }
 async function whoopList(env, b, path, start, end) {
@@ -235,24 +238,26 @@ async function backfillStep(env, b, st) {
   }
   return done;
 }
-async function run(env, { force }) {
-  const st = await getJ(env, 'status') || {}, b = budget();
+async function run(env, { force, hook } = {}) {
+  const st = await getJ(env, 'status') || {}, b = budget(); b.hook = !!hook;
   if (!(await env.ORBIT_KV.get('tok'))) return { ok: false, msg: 'WHOOP not connected' };
-  const dirty = await env.ORBIT_KV.get('dirty'), due = force || dirty || !st.lastSync || Date.now() - st.lastSync > 3 * 3600e3;
-  const quick = !due && Date.now() - (st.todayAt || 0) > 29 * 60e3; // 30-min look at today's steps and strain
-  const out = { ok: true };
+  const dirty = hook ? null : await env.ORBIT_KV.get('dirty'), due = force || dirty || !st.lastSync || Date.now() - st.lastSync > 3 * 3600e3;
+  const out = { ok: true }; let save = false;
   try {
-    if (due) { out.wrote = await syncRecent(env, b); st.lastSync = st.todayAt = Date.now(); st.today = null; if (dirty) await env.ORBIT_KV.delete('dirty'); }
-    else if (quick) { out.today = await pollToday(env, b, st); st.todayAt = Date.now(); }
-    if (st.bf && !st.bf.done && b.left() > 22) out.months = await backfillStep(env, b, st);
-    if (!due && !quick && !out.months) return { ok: true, idle: true }; // nothing done: don't spend a KV write
-    st.lastError = null;
-  } catch (e) { st.lastError = String(e.message || e); st.errAt = Date.now(); out.ok = false; out.error = st.lastError; }
+    if (due) { out.wrote = await syncRecent(env, b); st.lastSync = st.todayAt = Date.now(); st.today = null; if (dirty || hook) await env.ORBIT_KV.delete('dirty'); save = true; }
+    else { // every run looks at today's steps and strain (WHOOP sends no event for them); status is only rewritten on a change or every 25 min, to save KV writes
+      out.today = await pollToday(env, b, st);
+      if (out.today || Date.now() - (st.todayAt || 0) > 25 * 60e3) { st.todayAt = Date.now(); save = true; }
+    }
+    if (!hook && st.bf && !st.bf.done && b.left() > 22) { out.months = await backfillStep(env, b, st); if (out.months) save = true; }
+    if (st.lastError) { st.lastError = null; save = true; }
+    if (!save) return { ok: true, idle: true, requests: b.used };
+  } catch (e) { st.lastError = String(e.message || e); st.errAt = Date.now(); out.ok = false; out.error = st.lastError; save = true; }
   out.requests = b.used; await putJ(env, 'status', st); return out;
 }
 
-/* ---------- WHOOP webhook: verify, then let the next run pick it up ---------- */
-async function webhook(env, req) {
+/* ---------- WHOOP webhook: verify, then sync straight away (the flag lets the next scheduled run retry if this one fails) ---------- */
+async function webhook(env, req, ctx) {
   const raw = await req.text(), sig = req.headers.get('x-whoop-signature'), ts = req.headers.get('x-whoop-signature-timestamp');
   if (!sig || !ts) return text('missing signature', 401);
   const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(env.WHOOP_CLIENT_SECRET), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
@@ -260,6 +265,7 @@ async function webhook(env, req) {
   const want = btoa(String.fromCharCode(...mac));
   if (want !== sig) return text('bad signature', 401);
   await env.ORBIT_KV.put('dirty', '1');
+  ctx.waitUntil(run(env, { force: true, hook: true }));
   return text('ok');
 }
 

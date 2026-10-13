@@ -14,6 +14,8 @@ function migrateSettings(s) {
   out.ex = { ...(s?.ex || d.ex) };
   out.prog = s?.prog && s.prog.order && s.prog.sessions ? s.prog : d.prog;
   for (const sd of Object.values(out.prog.sessions)) for (const it of sd.items) if (!out.ex[it.ex] && EXLIB[it.ex]) out.ex[it.ex] = clone(EXLIB[it.ex]);
+  if (s && !s.sets2) { for (const sd of Object.values(out.prog.sessions)) for (const it of sd.items) it.sets = 2; ui.migSave = true; } // v1.24: 2 sets is the default, once
+  out.sets2 = 1;
   out.cardio = { ...d.cardio, ...(s?.cardio || {}) };
   if (!['Stairmaster', 'Treadmill'].includes(out.cardio.name)) out.cardio.name = /tread/i.test(out.cardio.name) ? 'Treadmill' : 'Stairmaster';
   return out;
@@ -168,6 +170,13 @@ const SBOX = document.documentElement.classList.contains('sbox');
 const scroller = () => SBOX ? $('#scroll') : window;
 const scrollY0 = () => SBOX ? $('#scroll').scrollTop : window.scrollY;
 const scrollToY = (top, smooth) => scroller().scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' });
+function reveal(sel, room = 0) { // bring something just added fully onto the screen, clear of the header and tab bar
+  setTimeout(() => {
+    const el = typeof sel === 'string' ? $(sel) : sel; if (!el) return;
+    const r = el.getBoundingClientRect(), top = ($('.top')?.getBoundingClientRect().bottom || 0) + 12, bot = ($('.tabs')?.getBoundingClientRect().top || innerHeight) - 12;
+    if (r.top < top || r.bottom + room > bot) scrollToY(Math.max(0, scrollY0() + r.top - top), true);
+  }, 30);
+}
 function resetScroll() { // to the top, and stop any momentum still running
   if (SBOX) { // swap in a fresh, empty-handed scroll box: the old one, and any fling it had, goes with it
     const old = $('#scroll'), box = old.cloneNode(false); while (old.firstChild) box.appendChild(old.firstChild); old.replaceWith(box); return;
@@ -180,7 +189,7 @@ function editingInView() { const a = document.activeElement; return a && $('#vie
 function render(force) {
   if (!force && editingInView()) { pendingRender = true; return; }
   pendingRender = false;
-  const v = $('#view'), y = scrollY0(); CHART_REG.clear();
+  const v = $('#view'), y = scrollY0(), snap = !force && ui.tab === render.tab ? liveSnap() : null; CHART_REG.clear(); render.tab = ui.tab;
   v.style.minHeight = v.offsetHeight + 'px'; // hold the page height while the view is swapped, so the scroll position can't be clamped
   v.innerHTML = (VIEWS[ui.tab] || vToday)();
   v.style.minHeight = '';
@@ -188,8 +197,41 @@ function render(force) {
   drawCharts(v);
   document.querySelectorAll('.tabs [data-tab]').forEach(b => b.setAttribute('aria-current', b.dataset.tab === (ui.tab === 'log' ? 'history' : ui.tab) ? 'page' : 'false'));
   const g = $('#gear'); g.setAttribute('aria-current', ui.tab === 'data' ? 'page' : 'false'); g.setAttribute('aria-label', ui.tab === 'data' ? 'Back' : 'Data, imports and backups');
-  renderSync(); renderMark(); renderUpdate();
+  renderSync(); renderMark(); renderUpdate(); renderFab(); renderReorder();
+  if (snap) flashChanged(snap);
+  if (ui.justDone) { ui.justDone = false; setTimeout(() => $('.hero.just')?.classList.remove('just'), 1400); }
 }
+/* Values that change while you're looking (a sync brought new WHOOP or Health numbers) flash once, so an update is visible. */
+function renderReorder() { // the reorder button sits left of the gear on Strength and Body; while reordering it reads Done
+  const b = $('#reorder'); if (!b) return; const on = ui.tab === 'strength' || ui.tab === 'body';
+  b.hidden = !on; if (!on) return; b.classList.toggle('txt', !!ui.reo);
+  b.setAttribute('aria-label', ui.reo ? 'Done reordering' : 'Reorder cards');
+  b.innerHTML = ui.reo ? 'Done' : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4v16M4.5 7.5 8 4l3.5 3.5M16 20V4M12.5 16.5 16 20l3.5-3.5"/></svg>';
+}
+function liveSnap() { const m = {}, n = {}; document.querySelectorAll('#view [data-live]').forEach(el => { const k = el.dataset.live, i = n[k] = (n[k] || 0) + 1; m[k + '#' + i] = el.getAttribute('aria-label') || el.textContent; }); return m; }
+function flashChanged(before) {
+  const n = {}; document.querySelectorAll('#view [data-live]').forEach(el => { const k = el.dataset.live, i = n[k] = (n[k] || 0) + 1, was = before[k + '#' + i];
+    if (was != null && was !== (el.getAttribute('aria-label') || el.textContent)) { el.classList.add('flash'); el.addEventListener('animationend', () => el.classList.remove('flash'), { once: true }); } });
+}
+function pulseMark() { const m = $('#mark'); if (!m) return; m.classList.remove('pulse'); void m.offsetWidth; m.classList.add('pulse'); m.addEventListener('animationend', () => m.classList.remove('pulse'), { once: true }); } // new data arrived
+/* Next empty set: a round button above the tab bar while a log is open; it scrolls to the first set without reps,
+   hides once tapped, and comes back when you scroll. */
+const logOpen = () => { if (ui.tab === 'log') return true; const w = ui.tab === 'today' && STATE.w[today()]; return !!w && !w.rest && (!w.fin || !!ui.editToday); };
+const firstEmptySet = () => $('#view .set:not(.hdr):not(.done)');
+let fabHid = false, fabQuiet = 0;
+function renderFab() {
+  let b = $('#nextset'); const left = logOpen() ? document.querySelectorAll('#view .set:not(.hdr):not(.done)').length : 0;
+  if (!left || fabHid) { if (b) b.classList.remove('on'); return; }
+  if (!b) {
+    b = document.createElement('button'); b.id = 'nextset'; b.className = 'fab'; b.dataset.act = 'nextset';
+    b.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v12M6 12l6 6 6-6"/></svg><i></i>';
+    document.body.appendChild(b);
+  }
+  b.setAttribute('aria-label', `Go to the next empty set, ${left} left`);
+  const n = b.querySelector('i'); if (n.textContent !== String(left)) n.textContent = left; // only the count changes: rebuilding the button mid-tap (a set saves on blur) would swallow the tap
+  b.classList.add('on');
+}
+document.addEventListener('scroll', () => { if (!fabHid || Date.now() < fabQuiet) return; fabHid = false; renderFab(); }, true);
 function renderUpdate() { // the update prompt floats above the tab bar on every screen
   let el = $('#updp'); const show = ui.update && ui.updLater !== ui.update;
   if (!show) { if (el) el.remove(); return; }
@@ -219,7 +261,7 @@ function go(tab) {
   if (ui.tab === 'strength' && tab !== 'strength') ui.lift = null; // a picked lift lasts while you stay on Strength
   if (ui.tab === 'log' && ui.logDate && tab !== 'log') dropEmpty(ui.logDate); // an empty past-day log isn't kept
   ui.exNote = null; ui.noteEdit = null; ui.exHist = null; ui.exMore = null;
-  if (tab !== ui.tab) ui.exQ = ''; ui.restPick = null; // exercise search lasts while you stay on Plan
+  if (tab !== ui.tab) { ui.exQ = ''; ui.reo = null; } // leaving a tab drops its search and an unfinished reorder ui.restPick = null; // exercise search lasts while you stay on Plan
   if (tab === 'body' && ui.tab !== 'body') { ui.metric = 'rec'; ui.per = 'M'; ui.off = 0; }
   if (tab === 'data' && ui.tab === 'data') tab = ui.prevTab || 'today'; else if (tab === 'data') ui.prevTab = ui.tab;
   if (tab === 'today') ui.logDate = null;
@@ -235,6 +277,15 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
    ACTIONS
    ============================================================ */
 const logW = () => STATE.w[ui.logDate || today()];
+function blankEx(id) { // a "New exercise" made by + Exercise and never filled in or used
+  const x = S().ex[id]; if (!x || !/^x/.test(id) || x.name !== 'New exercise' || x.g !== 'other' || (x.base && x.base.r) || x.note) return false;
+  return !Object.values(S().prog.sessions).some(sd => sd.items.some(it => it.ex === id)) && !Object.values(STATE.w).some(w => (w.ex || []).some(e => e.id === id));
+}
+function sweepSettings() { // one-off settings migrations to save, and blank exercises left behind (v1.24)
+  let ch = !!ui.migSave; ui.migSave = false;
+  for (const id of Object.keys(S().ex)) if (id !== ui.editEx && blankEx(id)) { delete S().ex[id]; ch = true; }
+  if (ch) saveSettings();
+}
 function sweepCardio() { // WHOOP's cardio often lands after a session is done (the sync helper brings it in later), so check recent days whenever data arrives
   const from = addDays(today(), -14);
   for (const w of Object.values(STATE.w)) if (w.date >= from && STATE.d[w.date]?.acts && autoCardio(w)) saveW(w.date);
@@ -255,7 +306,7 @@ const ACT = {
   },
   restday: () => { const date = ui.tab === 'log' ? (ui.logDate || today()) : today(); if (STATE.w[date]) return; STATE.w[date] = restRecord(date); if (ui.tab === 'today') STATE.w[date].fin = true; saveW(date); toast('Rest day logged'); render(true); },
   unrest: () => { const date = ui.tab === 'log' ? (ui.logDate || today()) : today(); if (STATE.w[date]?.rest) { delete STATE.w[date]; saveW(date); } render(true); },
-  addrest: () => { const id = 'r' + Date.now().toString(36); S().prog.sessions[id] = { name: 'Rest', focus: 'Recovery', items: [], rest: true }; S().prog.order.push(id); saveSettings(); toast('Rest day added to the end of the rotation'); render(true); },
+  addrest: () => { const id = 'r' + Date.now().toString(36); S().prog.sessions[id] = { name: 'Rest', focus: 'Recovery', items: [], rest: true }; S().prog.order.push(id); saveSettings(); toast('Rest day added to the end of the rotation'); render(true); reveal(`.sess[data-id="${id}"]`); },
   togglesess: el => { const id = el.dataset.id; ui.openSess.has(id) ? ui.openSess.delete(id) : ui.openSess.add(id); ui.confirm = null; render(true); },
   strippick: el => { ui.restPick = ui.restPick === el.dataset.date ? null : el.dataset.date; render(true); },
   reston: el => setRest(el.dataset.date, true),
@@ -291,11 +342,21 @@ const ACT = {
   delw: () => { const d = ui.logDate || today(); delete STATE.w[d]; ui.confirm = null; saveW(d); toast('Session deleted'); render(true); },
   per: el => { ui.per = el.dataset.v; ui.off = 0; render(true); },
   poff: el => { ui.off = Math.max(0, (ui.off || 0) + +el.dataset.n); render(true); },
+  reorder: () => { if (ui.reo) return ACT.reodone(); ui.reo = { tab: ui.tab, cards: cardOrder(ui.tab, CARD_KEYS[ui.tab] || []), cols: wkCols() }; resetScroll(); render(true); },
+  reodone: () => { const r = ui.reo; if (!r) return; S().layout = { ...(S().layout || {}), [r.tab]: r.cards, ...(r.tab === 'body' ? { wkcols: r.cols } : {}) }; ui.reo = null; saveSettings(); resetScroll(); render(true); toast('Order saved'); },
+  reoreset: () => { if (!ui.reo) return; ui.reo.cards = (CARD_KEYS[ui.reo.tab] || []).slice(); ui.reo.cols = Object.keys(WKCOLS); render(true); },
+  nextset: () => {
+    const r = firstEmptySet(); if (!r) return;
+    fabHid = true; fabQuiet = Date.now() + 900; renderFab(); // our own scroll doesn't bring it back
+    const box = r.getBoundingClientRect(), top = ($('.top')?.getBoundingClientRect().bottom || 0), bot = ($('.tabs')?.getBoundingClientRect().top || innerHeight);
+    scrollToY(Math.max(0, scrollY0() + box.top - (top + bot) / 2 + box.height / 2), true);
+    r.classList.remove('seek'); void r.offsetWidth; r.classList.add('seek'); setTimeout(() => r.classList.remove('seek'), 1600);
+  },
   logdone: () => {
     const a = document.activeElement; if (a && a.blur) a.blur(); // make sure the last edit is saved
     if (dropEmpty(ui.logDate || today())) { toast('Nothing logged, so the session wasn’t kept'); ui.editToday = false; if (ui.tab === 'today') { resetScroll(); render(true); } else go('history'); return; }
     const w = logW(); if (w && !w.rest) { const st = wStats(w); toast(`${esc(sessName(w))} saved · ${st.sets} set${st.sets === 1 ? '' : 's'}`); }
-    if (ui.tab === 'today') { if (w) { w.fin = true; saveW(w.date); } ui.editToday = false; resetScroll(); render(true); } else go('history');
+    if (ui.tab === 'today') { if (w) { w.fin = true; saveW(w.date); } ui.editToday = false; ui.justDone = true; resetScroll(); render(true); } else go('history');
   },
   histview: el => { ui.hist = el.dataset.v; ui.noteEdit = null; render(true); },
   notefilter: el => { ui.noteG = el.dataset.v; ui.noteEdit = null; render(true); },
@@ -317,12 +378,16 @@ const ACT = {
     for (const sd of Object.values(S().prog.sessions)) for (const it of sd.items) if (!S().ex[it.ex] && EXLIB[it.ex]) S().ex[it.ex] = clone(EXLIB[it.ex]);
     S().rotOverride = null; ui.confirm = null; saveSettings(); toast(`Switched to ${esc(p.name)}`); render(true);
   },
-  addsess: () => { const id = 's' + Date.now().toString(36); ui.openSess.add(id); S().prog.sessions[id] = { name: 'New session', focus: '', items: [] }; S().prog.order.push(id); saveSettings(); render(true); },
+  addsess: () => { const id = 's' + Date.now().toString(36); ui.openSess.add(id); S().prog.sessions[id] = { name: 'New session', focus: '', items: [] }; S().prog.order.push(id); saveSettings(); render(true); reveal(`.sess[data-id="${id}"]`); },
   delsess: el => { const id = el.dataset.id; S().prog.order = S().prog.order.filter(x => x !== id); delete S().prog.sessions[id]; ui.confirm = null; saveSettings(); render(true); },
   remitem: el => { sessDef(el.dataset.id).items.splice(+el.dataset.j, 1); saveSettings(); render(true); },
-  newex: () => { const id = 'x' + Date.now().toString(36); S().ex[id] = X('New exercise', 'other', 'kg', 90, 8, 12, null, null); ui.editEx = id; saveSettings(); render(true); },
+  newex: () => { // one blank at a time: a second tap goes back to the one already made
+    let id = Object.keys(S().ex).find(blankEx);
+    if (!id) { id = 'x' + Date.now().toString(36); S().ex[id] = X('New exercise', 'other', 'kg', 90, 8, 12, null, null); saveSettings(); }
+    ui.editEx = id; render(true); reveal('#exlist [data-edit]');
+  },
   exqclear: () => { ui.exQ = ''; const i = $('#exq'); if (i) { i.value = ''; i.focus(); } filterEx(); },
-  editex: el => { ui.editEx = el.dataset.id || null; render(true); },
+  editex: el => { const prev = ui.editEx; ui.editEx = el.dataset.id || null; if (prev && prev !== ui.editEx && blankEx(prev)) { delete S().ex[prev]; saveSettings(); } render(true); }, // Cancel on an untouched new exercise deletes it
   saveex: el => {
     const x = S().ex[el.dataset.id]; if (!x) return;
     x.name = ($('#xe_n').value || '').trim() || x.name; x.g = $('#xe_g').value; x.u = $('#xe_u').value;
@@ -366,7 +431,7 @@ const INP = {
   r: el => setInput(el, true),
   swapex: el => { const id = el.value, w = logW(), e = w?.ex[+el.dataset.e]; if (!id || !e) return; const from = exDef(e.id).name;
     w.ex[+el.dataset.e] = { id, sets: prefill(id, e.sets.length, w.date) }; ui.exMore = null; ui.exHist = null; saveW(w.date); toast(`Swapped ${esc(from)} for ${esc(exDef(id).name)}`); render(true); },
-  addex: el => { const id = el.value; if (!id) return; const w = logW(); w.ex.push({ id, sets: prefill(id, 3, w.date) }); saveW(w.date); render(true); setTimeout(() => $('#ex' + (w.ex.length - 1))?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50); },
+  addex: el => { const id = el.value; if (!id) return; const w = logW(); w.ex.push({ id, sets: prefill(id, 2, w.date) }); saveW(w.date); render(true); reveal('#ex' + (w.ex.length - 1)); },
   note: el => { const w = logW(); w.note = el.value; saveW(w.date); },
   exnote: el => { const w = logW(), e = w.ex[+el.dataset.e]; const v = el.value.trim(); if (v) e.note = el.value; else delete e.note; ui.exNote = null; saveW(w.date); },
   durmin: el => { const w = logW(), n = parseInt(el.value, 10); if (n > 0) w.durMin = n; else delete w.durMin; saveW(w.date); render(); },
@@ -378,7 +443,7 @@ const INP = {
   sname: el => { const sd = sessDef(el.dataset.id); sd.name = el.value.trim() || sd.name; saveSettings(); },
   sfocus: el => { sessDef(el.dataset.id).focus = el.value.trim(); saveSettings(); },
   isets: el => { const n = parseInt(el.value, 10); if (n >= 1 && n <= 12) { sessDef(el.dataset.id).items[+el.dataset.j].sets = n; saveSettings(); render(); } },
-  additem: el => { if (!el.value) return; sessDef(el.dataset.id).items.push({ ex: el.value, sets: 3 }); saveSettings(); render(true); },
+  additem: el => { if (!el.value) return; const sid = el.dataset.id; sessDef(sid).items.push({ ex: el.value, sets: 2 }); saveSettings(); render(true); reveal(`#sa_${sid}`, 0); },
   cname: el => { S().cardio.name = el.value; saveSettings(); },
   cmindef: el => { const n = parseInt(el.value, 10); if (n > 0) { S().cardio.min = n; saveSettings(); } },
   platekg: el => { const n = num(el.value); if (n > 0) { S().plateKg = n; saveSettings(); } },
@@ -433,6 +498,11 @@ function endDrag(ev) {
   requestAnimationFrame(keep); setTimeout(keep, 80); setTimeout(keep, 250); // iOS can jump to the top after the dragged row is replaced
   document.body.classList.remove('is-dragging'); sibs.forEach(s => { s.style.transform = ''; s.classList.remove('dragging'); });
   if (from === to || !ev || ev.type === 'pointercancel') { render(true); return; }
+  if (kind === 'card' || kind === 'col') { // reorder mode: a draft until Done
+    const keys = sibs.map(s => s.dataset.k), [m] = keys.splice(from, 1); keys.splice(to, 0, m);
+    if (kind === 'col') ui.reo.cols = keys; else ui.reo.cards = [...keys, ...ui.reo.cards.filter(k => !keys.includes(k))];
+    render(true); return;
+  }
   if (kind === 'sess') { const ids = sibs.map(s => s.dataset.id); const [m] = ids.splice(from, 1); ids.splice(to, 0, m); S().prog.order = ids; }
   else { const items = sessDef(list.dataset.id).items; const [m] = items.splice(from, 1); items.splice(to, 0, m); }
   saveSettings(); render(true);
@@ -443,11 +513,11 @@ document.addEventListener('pointerup', endDrag); document.addEventListener('poin
 function setInput(el, final) {
   const w = logW(); if (!w) return; const i = +el.dataset.e, j = +el.dataset.s, e = w.ex[i], s = e?.sets[j]; if (!s) return;
   const def = exDef(e.id), wasDone = s.done, prevBest = final ? Math.max(bestBefore(e.id, w.date), ...e.sets.filter((x, k) => k !== j && x.done && x.r > 0).map(x => setScore(e.id, x, w.date))) : 0;
-  setFromInputs(s, num($(`#w${i}_${j}`)?.value), parseInt($(`#r${i}_${j}`)?.value, 10), def.u, suggest(e.id, w.date)?.w);
+  setFromInputs(s, num($(`#w${i}_${j}`)?.value), parseInt($(`#r${i}_${j}`)?.value, 10), def.u, setAim(e.id, w.date, j)?.w);
   const row = $(`#row${i}_${j}`); if (row) row.classList.toggle('done', s.done);
   if (final && s.done && s.w != null && $(`#w${i}_${j}`) && $(`#w${i}_${j}`).value === '') $(`#w${i}_${j}`).value = fmt(s.w, 2).replace(/,/g, '');
   const st = wStats(w), sm = $('.sess-top .t small'); if (sm) sm.textContent = sm.textContent.replace(/\d+ sets?/, `${st.sets} set${st.sets === 1 ? '' : 's'}`);
-  saveW(w.date);
+  saveW(w.date); renderFab(); // the count of empty sets changes as you fill them
   if (final && s.done && hasRef(e.id, w.date) && setScore(e.id, s, w.date) > prevBest + 1e-9) { row?.classList.add('pr'); toast(`New best · ${esc(def.name)} ${esc(fmtSet(e.id, s))}`, 'pr'); }
   else if (final && row && !s.done) row.classList.remove('pr');
 }
@@ -507,5 +577,5 @@ document.addEventListener('keydown', ev => {
   const h = (location.hash || '').slice(1), hh = h === 'trends' ? 'body' : h; if (VIEWS[hh] && hh !== 'log') ui.tab = hh;
   render(true); top(); requestAnimationFrame(top);
   connectCloud();
-  setTimeout(() => { sweepEmpty(); sweepCardio(); render(); }, 0); // after sync code has loaded, so the deletes sync too
+  setTimeout(() => { sweepEmpty(); sweepCardio(); sweepSettings(); render(); }, 0); // after sync code has loaded, so the deletes sync too
 })();

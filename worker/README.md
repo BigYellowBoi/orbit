@@ -2,7 +2,7 @@
 
 A small Cloudflare Worker (free plan) that fills Orbit's day data in by itself:
 
-- **WHOOP**: recovery, HRV, resting HR, sleep, strain, calories, steps and workouts through the WHOOP API. WHOOP pings the helper when something changes, and it also checks every 3 hours. Today's steps and strain (which WHOOP doesn't ping about) are refreshed every 30 minutes. Your WHOOP history fills in a month or two every 10 minutes after you connect.
+- **WHOOP**: recovery, HRV, resting HR, sleep, strain, calories, steps and workouts through the WHOOP API. WHOOP pings the helper when something changes and it syncs straight away; it also does a full check every 3 hours. Today's steps and strain (which WHOOP doesn't ping about) are refreshed every 5 minutes. Your WHOOP history fills in a month or two every 5 minutes after you connect.
 - **Apple Health**: MacroFactor's calories and macros, scale weight, iPhone steps and headphone levels, posted by an iPhone Shortcut.
 
 Everything lands in `orbit/dy/YYYY-MM.json` in your private `orbit-data` repo, and Orbit (the home-screen app) picks it up on its next sync. The claude.ai artifact keeps its own data and isn't touched.
@@ -35,7 +35,7 @@ GitHub → Settings → Developer settings → Fine-grained tokens → Generate 
    | `GH_TOKEN` | Secret | the token from step 1 |
    | `SYNC_KEY` | Secret | make up a long random password (letters and numbers only) |
 
-6. **Settings → Trigger Events → Add → Cron Triggers**: `*/10 * * * *`.
+6. **Settings → Trigger Events → Add → Cron Triggers**: `*/5 * * * *`.
 
 Your helper's address is shown on the Worker's page, like `https://orbit-sync.yourname.workers.dev`.
 
