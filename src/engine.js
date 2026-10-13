@@ -46,6 +46,9 @@ function rotationCount() { // completed full rotations (training sessions only)
    Every lookup goes through one index of logged sets per lift (lix), rebuilt only when the data
    changes (STATE.v, bumped on every save, import and sync) or the day turns over.
    ============================================================ */
+function emptyW(w) { // a session started here (w.nw, set by Log) with nothing in it yet: no sets, cardio, notes or duration
+  return !!w && !!w.nw && !w.rest && !(w.ex || []).some(e => doneSets(e).length || (e.note || '').trim()) && !w.cardio?.done && !(w.note || '').trim() && !w.durMin;
+}
 function doneSets(ex) { return (ex.sets || []).filter(s => s.done && s.r > 0); }
 let LIX = { key: null };
 function lix() {

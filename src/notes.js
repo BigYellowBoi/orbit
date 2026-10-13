@@ -39,7 +39,7 @@ function vNotes() {
     h += `<section class="sec"><div class="sec-h"><span class="eyebrow">${esc(NOTE_GROUPS[g])}</span><span class="xs muted">${list.length} note${list.length === 1 ? '' : 's'}</span></div><section class="card"><ul class="notes">`;
     for (const n of list) {
       const id = noteId(n.k + '_' + g), editing = ui.noteEdit === n.k + '#' + g;
-      h += `<li><div class="note-m">${esc(fmtDate(n.date, { year: '2-digit' }))} · ${esc(n.src)}${n.edited ? ' · edited here' : ''}</div>
+      h += `<li><div class="note-m">${esc(fmtDMY(n.date))} · ${esc(n.src)}${n.edited ? ' · edited here' : ''}</div>
         ${editing ? `<textarea class="in" id="ne_${id}">${esc(n.text)}</textarea>${n.general ? '' : '<p class="xs muted">Edits here only change this list. The session keeps its original note.</p>'}
           <div class="btnrow"><button class="btn sm" data-act="notesave" data-k="${esc(n.k)}" data-g="${g}" data-id="${id}">Save</button><button class="link dim" data-act="noteedit" data-k="">Cancel</button>
           <button class="link danger" data-act="notedel" data-k="${esc(n.k)}" style="margin-left:auto">${n.general ? 'Delete note' : 'Remove from list'}</button></div>`

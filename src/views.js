@@ -30,9 +30,9 @@ function vToday() {
   h += `<section class="card hero"><div class="card-h"><span class="eyebrow">Next up · ${idx + 1} of ${o.length}</span>${S().suggest !== false ? `<button class="pill ${S().goal === 'grow' ? 'acc' : ''}" data-act="goalflip" aria-label="Targets: ${esc(goalLabel())}. Tap to switch">${esc(goalLabel())}</button>` : ''}</div>
     <div class="rot">${o.map((id, i) => `<i class="${i === idx ? 'on' : i < idx ? 'done' : ''}"></i>`).join('')}</div>
     <div><h1>${esc(sd.name)}</h1><p class="focus">${esc(sd.focus || '')}</p></div>
+    <button class="btn wide" data-act="start" data-id="${sid}">Log ${esc(sd.name)}</button>
     <ul class="exlist">${sd.items.filter(it => S().ex[it.ex]).map(it => `<li><span>${esc(exDef(it.ex).name)}</span><span class="rx">${rxTxt(it)}</span><span class="lt">${prevLine(it.ex, t)}</span></li>`).join('')}
       <li><span>${esc(S().cardio.name)}</span><span class="rx">${S().cardio.min} min</span></li></ul>
-    <button class="btn wide" data-act="start" data-id="${sid}">Log ${esc(sd.name)}</button>
     ${ui.pickSess === 'today' ? `<div class="sec"><span class="xs muted">Do a different session today. The rotation carries on from whichever you log.</span><div class="chips">${trainIds().map(id => `<button class="chip ${id === sid ? 'on' : ''}" data-act="setnext" data-id="${id}">${esc(sessDef(id).name)}</button>`).join('')}</div></div>`
       : `<div class="btnrow" style="justify-content:space-between"><button class="link" data-act="picktoday">Change today's session</button><button class="link dim" data-act="restday">Rest day instead</button></div>`}</section>`;
   return h + tail();
@@ -79,7 +79,7 @@ function plannedRestHero(sid) {
 }
 function weekCard() {
   const t = today(), ws = weekStart(t);
-  const wk = Object.values(STATE.w).filter(w => w.date >= ws && w.date <= t && !w.rest);
+  const wk = Object.values(STATE.w).filter(w => w.date >= ws && w.date <= t && !w.rest && !emptyW(w));
   const sets = sum(wk.map(w => wStats(w).sets)), card = sum(wk.map(w => wStats(w).cardio));
   const kg = sum(wk.map(w => wStats(w).kg));
   const prs = wk.flatMap(w => prsIn(w));
@@ -148,8 +148,10 @@ function logBody(d) {
     return h;
   }
   const sd = sessDef(w.s), st = wStats(w), dur = sessDur(w), wl = whoopLiftMin(w.date);
-  h += `<div class="sess-top"><div class="t"><b>${esc(sessName(w))}</b><small>${esc(sd?.focus || '')} · ${st.sets} set${st.sets === 1 ? '' : 's'}${st.kg ? ` · ${fmt(st.kg / 1000, 1)} t moved` : ''}</small></div>
+  const nPlan = sum((w.ex || []).map(e => e.sets.length)), empty = emptyW(w);
+  h += `<div class="sess-top"><div class="t"><b>${esc(sessName(w))}</b><small>${esc(sd?.focus || '')}${sd?.focus ? ' · ' : ''}${st.sets} / ${nPlan} sets${st.kg ? ` · ${fmt(st.kg / 1000, 1)} t moved` : ''}</small></div>
     ${dur ? pill('acc', fmtDur(dur)) : ''}</div>`;
+  if (empty) h += `<div class="btnrow" style="justify-content:space-between"><span class="xs muted">Nothing logged yet.</span><button class="link dim" data-act="cancelw">Not training? Cancel session</button></div>`;
   const ln = lastSessionNote(w);
   if (ln) h += `<section class="card flat lastnote"><span class="eyebrow">Last ${esc(sessName(ln))} · ${esc(fmtDate(ln.date))}</span><p class="small">${esc(ln.note.trim())}</p></section>`;
   const lifts = whoopActs(w.date, LIFT_RE);
@@ -175,6 +177,13 @@ function exHistHTML(exId, before) { // the last few sessions of a lift, for a qu
   return `<div class="exhist"><ul>${rows.map(r => `<li><span class="mono xs">${esc(fmtDate(r.date))}</span><span>${esc(setsTxt(exId, r.sets))}${r.note && r.note.trim() ? `<small>${esc(r.note.trim())}</small>` : ''}</span></li>`).join('')}</ul>
     <button class="link" data-act="liftgo" data-id="${exId}">Strength trend</button></div>`;
 }
+function exMoreHTML(w, e, i) { // swap keeps the slot and set count; same muscle group listed first
+  const inW = new Set(w.ex.map(x => x.id)), g = exDef(e.id).g, all = Object.entries(S().ex).filter(([id]) => !inW.has(id)).sort((a, b) => a[1].name.localeCompare(b[1].name));
+  const same = all.filter(([, x]) => x.g === g), rest = all.filter(([, x]) => x.g !== g), opt = ([id, x]) => `<option value="${id}">${esc(x.name)}</option>`;
+  return `<div class="ex-more"><label class="fl">Swap for<select class="in" id="swap${i}" data-in="swapex" data-e="${i}"><option value="">Choose…</option>${same.length ? `<optgroup label="${esc(GROUPS[g] || 'Same group')}">${same.map(opt).join('')}</optgroup>` : ''}<optgroup label="Everything else">${rest.map(opt).join('')}</optgroup></select></label>
+    ${doneSets(e).length ? `<p class="xs muted">Swapping clears the sets logged for ${esc(exDef(e.id).name)}.</p>` : ''}
+    <div class="btnrow" style="justify-content:space-between">${e.sets.length > 1 ? `<button class="link dim" data-act="remset" data-e="${i}">Remove last set</button>` : '<span></span>'}<button class="link danger" data-act="remex" data-e="${i}">Remove exercise</button></div></div>`;
+}
 function exCard(w, e, i, prSet) {
   const def = exDef(e.id), u = UNITS[def.u] || UNITS.kg, open = ui.exHist === i;
   const ph = (v, dflt) => v != null ? fmt(v, 2).replace(/,/g, '') : dflt, sg = suggest(e.id, w.date);
@@ -189,7 +198,8 @@ function exCard(w, e, i, prSet) {
       <input class="in" id="r${i}_${j}" inputmode="numeric" enterkeyhint="next" data-in="r" data-e="${i}" data-s="${j}" value="${s.r ?? ''}" placeholder="${ph(sg ? sg.r : s.pr, '–')}" aria-label="Set ${j + 1} reps">
       <span class="mark" aria-hidden="true">${ICON.tick}</span></div>`).join('')}</div>
     ${e.note != null || ui.exNote === i ? `<label class="fl">Exercise note<textarea class="in exnote" id="xn${i}" data-in="exnote" data-e="${i}" placeholder="Seat height, grip, how it felt">${esc(e.note || '')}</textarea></label>` : ''}
-    <div class="ex-foot"><button class="link" data-act="addset" data-e="${i}">+ Set</button>${e.note == null && ui.exNote !== i ? `<button class="link dim" data-act="exnote" data-e="${i}">+ Note</button>` : ''}${e.sets.length > 1 ? `<button class="link dim" data-act="remset" data-e="${i}">Remove last set</button>` : ''}<button class="link dim" data-act="remex" data-e="${i}" style="margin-left:auto">Remove</button></div></section>`;
+    <div class="ex-foot"><button class="link" data-act="addset" data-e="${i}">+ Set</button>${e.note == null && ui.exNote !== i ? `<button class="link dim" data-act="exnote" data-e="${i}">+ Note</button>` : ''}<button class="link dim more" data-act="exmore" data-e="${i}" aria-expanded="${ui.exMore === i}" aria-label="More for ${esc(def.name)}">${ui.exMore === i ? 'Close' : 'More'}</button></div>
+    ${ui.exMore === i ? exMoreHTML(w, e, i) : ''}</section>`;
 }
 function cardioTypes() { return Object.keys(CARDIO_RE); }
 function cardioCard(w) {
@@ -207,7 +217,7 @@ function cardioCard(w) {
 
 /* ---------- History ---------- */
 function vHistory() {
-  const ws = workoutsSorted().reverse(), nNotes = noteEntries().length;
+  const ws = workoutsSorted().reverse().filter(w => !emptyW(w)), nNotes = noteEntries().length;
   let h = `<div class="page-h"><div><div class="eyebrow">${ws.filter(w => !w.rest).length} sessions logged</div><h1>History</h1></div>
     <div class="seg" role="group" aria-label="View"><button class="${ui.hist !== 'notes' ? 'on' : ''}" data-act="histview" data-v="sessions">Sessions</button><button class="${ui.hist === 'notes' ? 'on' : ''}" data-act="histview" data-v="notes">Notes${nNotes ? ` ${nNotes}` : ''}</button></div></div>`;
   if (ui.hist === 'notes') return h + vNotes();
@@ -244,7 +254,7 @@ function vStrength() {
   h += `<section class="card" id="liftchart"><label class="fl">Lift<select class="in" id="liftpick" data-in="lift">${ids.map(id => `<option value="${id}" ${id === pick ? 'selected' : ''}>${esc(exDef(id).name)}</option>`).join('')}</select></label>
     <div class="card-h"><span class="small dim">${u === 'bw' && !bwScored(pick) ? 'Best reps per session' : `Estimated 1RM per session (${u === 'plates' ? 'plates / side' : u === 'bw' ? 'kg, body weight included' : 'kg'})`}</span>${maxScore(pick) ? `<div class="legend"><span><i class="ln" style="background:var(--ink-2)"></i>Stated max ${esc(fmtSet(pick, exDef(pick).base))}</span></div>` : ''}</div>
     ${chartHTML({ h: 170, ...ax, refY: maxScore(pick) ? { v: maxScore(pick) } : null, yPad: u === 'plates' ? .1 : 1, yFmt: v => fmt(v, u === 'plates' ? 2 : 0), series: [{ color: 'var(--s1)', pts: ser.map(p => ({ x: xi(p.date), y: p.y })), dots: true, r: 3.5, end: true }], hoverXs: ser.map(p => xi(p.date)), tip: x => { const p = ser.find(q => xi(q.date) === x); return p ? `<b>${esc(fmtDate(p.date))}</b><br>${esc(fmtSet(pick, p.top))} · ${esc(scoreTxt(pick, p.y))}` : ''; }, empty: 'No sets logged for this lift yet', label: 'Lift trend' })}</section>`;
-  const when = c => c.date ? esc(fmtDate(c.date, { year: '2-digit' })) : 'stated';
+  const when = c => c.date ? esc(fmtDMY(c.date)) : 'stated';
   h += `<section class="card"><div class="tblwrap"><table class="tbl lifts"><thead><tr><th>Lift</th><th class="n">Best</th><th class="n">Last</th><th class="n">4 wk</th></tr></thead><tbody>
     ${ids.map(id => { const r = records(id), m = maintenance(id), [tone, word] = MSTATE[m.state]; return `<tr class="${id === pick ? 'sel' : ''}" data-act="liftsel" data-id="${id}"><td>${esc(exDef(id).name)}</td>
       <td class="n">${esc(fmtSet(id, r.best.s))}<br><span class="xs muted">${when(r.best)}</span></td>

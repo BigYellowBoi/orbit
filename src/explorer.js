@@ -90,7 +90,7 @@ function explorerHTML() {
     <select class="in metric" id="metric" data-in="metric">${[...new Set(METRICS.map(x => x.g))].map(g => `<optgroup label="${esc(g)}">${METRICS.filter(x => x.g === g).map(x => `<option value="${x.id}" ${x.id === m.id ? 'selected' : ''}>${esc(x.label)}</option>`).join('')}</optgroup>`).join('')}</select>
     <div class="ex-top"><div class="stats ex-head"><div class="stat"><span>${m.weekly ? 'Avg. weekly total' : 'Average'}</span><b>${fmtH(cur)}<small>${esc(unitTxt)}</small></b></div>${extra}</div>
       <div class="ex-ctl"><div class="seg" role="group" aria-label="Period">${Object.keys(PERIODS).map(k => `<button class="${(ui.per || 'M') === k ? 'on' : ''}" data-act="per" data-v="${k}">${k}</button>`).join('')}</div>
-      <div class="ex-nav"><button class="iconbtn sm" data-act="poff" data-n="1" aria-label="Previous period">‹</button><span class="mono xs">${esc(fmtDate(start))} – ${esc(fmtDate(end, { year: '2-digit' }))}</span><button class="iconbtn sm" data-act="poff" data-n="-1" aria-label="Next period" ${ui.off ? '' : 'disabled style="opacity:.3"'}>›</button></div></div></div>
+      <div class="ex-nav"><button class="iconbtn sm" data-act="poff" data-n="1" aria-label="Previous period">‹</button><span class="mono xs rng">${esc(fmtDMY(start))} – ${esc(fmtDMY(end))}</span><button class="iconbtn sm" data-act="poff" data-n="-1" aria-label="Next period" ${ui.off ? '' : 'disabled style="opacity:.3"'}>›</button></div></div></div>
     ${delta ? `<div>${delta}</div>` : ''}${sentence}`;
   h += explorerChart(m, days, start, n);
   if (m.partial && end === t) h += `<p class="xs muted">Average leaves out today, which isn't finished yet.</p>`;
@@ -119,7 +119,7 @@ function explorerChart(m, days, start, n) {
   if (n <= 7) { ax.xTicks = days.map(xi); ax.xFmt = i => fmtDow(addDays(start, i)); ax.x0 = -0.5; ax.x1 = n - 0.5; }
   else { ax.x0 = -0.5; ax.x1 = n - 0.5; }
   const has = days.filter(d => m.v(d) != null), lab = n <= 7;
-  const tipBase = d => `<b>${esc(fmtDate(d, { weekday: 'short' }))}</b>`;
+  const tipBase = d => `<b>${esc(fmtDow(d))} ${esc(fmtDMY(d))}</b>`;
   const tip = x => { const d = addDays(start, x), v = m.v(d); if (v == null) return ''; return `${tipBase(d)}<br>${esc(m.label)}: ${m.f(v)}${m.unit && m.unit !== 'hr' ? ' ' + esc(m.unit) : ''}${STATE.w[d] && !STATE.w[d].rest ? `<br>${esc(sessName(STATE.w[d]))}` : ''}${dayVal(d, 'alc') ? '<br>Alcohol logged the night before' : ''}`; };
   const empty = `No ${m.src} data for ${m.label.toLowerCase()} in this period.`;
   const base = { h: 200, ...ax, hoverXs: has.map(xi), tip, empty, label: m.label };
@@ -132,11 +132,11 @@ function explorerChart(m, days, start, n) {
       if (m.chart === 'zones') { const z = [0, 0, 0, 0, 0, 0]; ds.forEach(d => { const q = zoneMin(d); if (q) q.forEach((v, k) => z[k] += v); }); return { x: i, segs: m.zones.map(k => ({ v: z[k] / 60, color: ZCOL[k] })), tot: sum(m.zones.map(k => z[k])) }; }
       const v = sum(ds.map(m.v).filter(x => x != null)); return { x: i, v: m.unit === 'hr' ? v / 60 : v, tot: v, color: 'var(--s1)' };
     });
-    const wl = i => { const ws = weeks[i], we = addDays(ws, 6); return weeks.length > 6 ? fmtDate(we) : `${+ws.slice(8)}–${+we.slice(8)}`; };
+    const wl = i => { const ws = weeks[i], we = addDays(ws, 6); return weeks.length > 17 ? monYr(we) : weeks.length > 6 ? fmtDate(we) : `${+ws.slice(8)}–${+we.slice(8)}`; };
     const step = Math.ceil(weeks.length / 4);
     return chartHTML({ ...base, x0: -0.5, x1: weeks.length - 0.5, xTicks: weeks.map((_, i) => i).filter(i => (weeks.length - 1 - i) % step === 0), xFmt: wl, barMax: 48, yMin: 0,
       yFmt: v => m.unit === 'hr' ? hm(v * 60) : fmt(v, 1), bars: bars.filter(b => b.tot), hoverXs: bars.filter(b => b.tot).map(b => b.x),
-      tip: i => { const b = bars[i]; return b && b.tot ? `<b>Week of ${esc(fmtDate(weeks[i]))}</b><br>${m.unit === 'hr' ? hm(b.tot) : fmt(b.tot, 1) + ' ' + esc(m.unit)}` : ''; },
+      tip: i => { const b = bars[i]; return b && b.tot ? `<b>Week of ${esc(fmtDMY(weeks[i]))}</b><br>${m.unit === 'hr' ? hm(b.tot) : fmt(b.tot, 1) + ' ' + esc(m.unit)}` : ''; },
       barLabel: weeks.length <= 6 ? b => m.unit === 'hr' ? hm(b.tot) : fmt(b.tot, 1) : null });
   }
   switch (m.chart) {

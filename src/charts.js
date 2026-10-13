@@ -80,9 +80,10 @@ function drawChart(el, cfg) {
   svg.addEventListener('pointerleave', () => { tip.hidden = true; xh.setAttribute('visibility', 'hidden'); });
 }
 let resizeT; window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(() => drawCharts(), 150); });
+function monYr(s) { return `${new Date(toUTC(s)).toLocaleDateString('en-AU', { timeZone: 'UTC', month: 'short' })} ’${s.slice(2, 4)}`; } // Oct ’25
 function dateAxis(from, to) { // x = day index from `from`
-  const n = diffDays(from, to); const k = n <= 14 ? 3 : n <= 45 ? 7 : n <= 120 ? 21 : n <= 400 ? 60 : 120; const ticks = [];
+  const n = diffDays(from, to); const k = n <= 14 ? 3 : n <= 45 ? 7 : n <= 120 ? 21 : n <= 200 ? 60 : n <= 400 ? 91 : 120; const ticks = [];
   for (let i = n; i >= 0; i -= k) ticks.unshift(i);
   if (ticks.length > 1 && ticks[1] - ticks[0] < k * 0.6) ticks.shift();
-  return { x0: 0, x1: Math.max(1, n), xTicks: ticks, xFmt: i => fmtDate(addDays(from, i)) };
+  return { x0: 0, x1: Math.max(1, n), xTicks: ticks, xFmt: i => n > 120 ? monYr(addDays(from, i)) : fmtDate(addDays(from, i)) }; // long ranges label month and year, so going back a year stays readable
 }

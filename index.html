@@ -226,6 +226,9 @@ textarea.in { text-align: left; font-size: 15px; min-height: 76px; padding: 10px
 .set.pr .mark { color: var(--accent); }
 .set.pr .in { border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
 .ex-foot { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.ex-foot .more { margin-left: auto; }
+.ex-more { display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
+.ex-nav .rng { white-space: nowrap; flex: 1; text-align: center; }
 .whoopact { font-size: 13px; color: var(--ink-2); background: var(--surface-2); border-radius: 9px; padding: 8px 10px; }
 
 /* lists */
@@ -405,6 +408,7 @@ function toUTC(s) { const [y, m, d] = s.split('-').map(Number); return Date.UTC(
 function addDays(s, n) { const t = new Date(toUTC(s) + n * 864e5); return `${t.getUTCFullYear()}-${pad(t.getUTCMonth() + 1)}-${pad(t.getUTCDate())}`; }
 function diffDays(a, b) { return Math.round((toUTC(b) - toUTC(a)) / 864e5); }
 function fmtDate(s, o) { return new Date(toUTC(s)).toLocaleDateString('en-AU', { timeZone: 'UTC', day: 'numeric', month: 'short', ...(o || {}) }); }
+function fmtDMY(s) { const [y, m, d] = s.split('-'); return `${+d}/${+m}/${y.slice(2)}`; } // 19/9/26
 function fmtDow(s) { return new Date(toUTC(s)).toLocaleDateString('en-AU', { timeZone: 'UTC', weekday: 'short' }); }
 function dowMon(s) { return (new Date(toUTC(s)).getUTCDay() + 6) % 7; } // Mon = 0
 function weekStart(s) { return addDays(s, -dowMon(s)); }
@@ -488,7 +492,7 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.20'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.21'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
@@ -548,6 +552,9 @@ function rotationCount() { // completed full rotations (training sessions only)
    Every lookup goes through one index of logged sets per lift (lix), rebuilt only when the data
    changes (STATE.v, bumped on every save, import and sync) or the day turns over.
    ============================================================ */
+function emptyW(w) { // a session started here (w.nw, set by Log) with nothing in it yet: no sets, cardio, notes or duration
+  return !!w && !!w.nw && !w.rest && !(w.ex || []).some(e => doneSets(e).length || (e.note || '').trim()) && !w.cardio?.done && !(w.note || '').trim() && !w.durMin;
+}
 function doneSets(ex) { return (ex.sets || []).filter(s => s.done && s.r > 0); }
 let LIX = { key: null };
 function lix() {
@@ -1152,11 +1159,12 @@ function drawChart(el, cfg) {
   svg.addEventListener('pointerleave', () => { tip.hidden = true; xh.setAttribute('visibility', 'hidden'); });
 }
 let resizeT; window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(() => drawCharts(), 150); });
+function monYr(s) { return `${new Date(toUTC(s)).toLocaleDateString('en-AU', { timeZone: 'UTC', month: 'short' })} ’${s.slice(2, 4)}`; } // Oct ’25
 function dateAxis(from, to) { // x = day index from `from`
-  const n = diffDays(from, to); const k = n <= 14 ? 3 : n <= 45 ? 7 : n <= 120 ? 21 : n <= 400 ? 60 : 120; const ticks = [];
+  const n = diffDays(from, to); const k = n <= 14 ? 3 : n <= 45 ? 7 : n <= 120 ? 21 : n <= 200 ? 60 : n <= 400 ? 91 : 120; const ticks = [];
   for (let i = n; i >= 0; i -= k) ticks.unshift(i);
   if (ticks.length > 1 && ticks[1] - ticks[0] < k * 0.6) ticks.shift();
-  return { x0: 0, x1: Math.max(1, n), xTicks: ticks, xFmt: i => fmtDate(addDays(from, i)) };
+  return { x0: 0, x1: Math.max(1, n), xTicks: ticks, xFmt: i => n > 120 ? monYr(addDays(from, i)) : fmtDate(addDays(from, i)) }; // long ranges label month and year, so going back a year stays readable
 }
 /* ============================================================
    TRENDS EXPLORER — one metric at a time, WHOOP Trend View style:
@@ -1250,7 +1258,7 @@ function explorerHTML() {
     <select class="in metric" id="metric" data-in="metric">${[...new Set(METRICS.map(x => x.g))].map(g => `<optgroup label="${esc(g)}">${METRICS.filter(x => x.g === g).map(x => `<option value="${x.id}" ${x.id === m.id ? 'selected' : ''}>${esc(x.label)}</option>`).join('')}</optgroup>`).join('')}</select>
     <div class="ex-top"><div class="stats ex-head"><div class="stat"><span>${m.weekly ? 'Avg. weekly total' : 'Average'}</span><b>${fmtH(cur)}<small>${esc(unitTxt)}</small></b></div>${extra}</div>
       <div class="ex-ctl"><div class="seg" role="group" aria-label="Period">${Object.keys(PERIODS).map(k => `<button class="${(ui.per || 'M') === k ? 'on' : ''}" data-act="per" data-v="${k}">${k}</button>`).join('')}</div>
-      <div class="ex-nav"><button class="iconbtn sm" data-act="poff" data-n="1" aria-label="Previous period">‹</button><span class="mono xs">${esc(fmtDate(start))} – ${esc(fmtDate(end, { year: '2-digit' }))}</span><button class="iconbtn sm" data-act="poff" data-n="-1" aria-label="Next period" ${ui.off ? '' : 'disabled style="opacity:.3"'}>›</button></div></div></div>
+      <div class="ex-nav"><button class="iconbtn sm" data-act="poff" data-n="1" aria-label="Previous period">‹</button><span class="mono xs rng">${esc(fmtDMY(start))} – ${esc(fmtDMY(end))}</span><button class="iconbtn sm" data-act="poff" data-n="-1" aria-label="Next period" ${ui.off ? '' : 'disabled style="opacity:.3"'}>›</button></div></div></div>
     ${delta ? `<div>${delta}</div>` : ''}${sentence}`;
   h += explorerChart(m, days, start, n);
   if (m.partial && end === t) h += `<p class="xs muted">Average leaves out today, which isn't finished yet.</p>`;
@@ -1279,7 +1287,7 @@ function explorerChart(m, days, start, n) {
   if (n <= 7) { ax.xTicks = days.map(xi); ax.xFmt = i => fmtDow(addDays(start, i)); ax.x0 = -0.5; ax.x1 = n - 0.5; }
   else { ax.x0 = -0.5; ax.x1 = n - 0.5; }
   const has = days.filter(d => m.v(d) != null), lab = n <= 7;
-  const tipBase = d => `<b>${esc(fmtDate(d, { weekday: 'short' }))}</b>`;
+  const tipBase = d => `<b>${esc(fmtDow(d))} ${esc(fmtDMY(d))}</b>`;
   const tip = x => { const d = addDays(start, x), v = m.v(d); if (v == null) return ''; return `${tipBase(d)}<br>${esc(m.label)}: ${m.f(v)}${m.unit && m.unit !== 'hr' ? ' ' + esc(m.unit) : ''}${STATE.w[d] && !STATE.w[d].rest ? `<br>${esc(sessName(STATE.w[d]))}` : ''}${dayVal(d, 'alc') ? '<br>Alcohol logged the night before' : ''}`; };
   const empty = `No ${m.src} data for ${m.label.toLowerCase()} in this period.`;
   const base = { h: 200, ...ax, hoverXs: has.map(xi), tip, empty, label: m.label };
@@ -1292,11 +1300,11 @@ function explorerChart(m, days, start, n) {
       if (m.chart === 'zones') { const z = [0, 0, 0, 0, 0, 0]; ds.forEach(d => { const q = zoneMin(d); if (q) q.forEach((v, k) => z[k] += v); }); return { x: i, segs: m.zones.map(k => ({ v: z[k] / 60, color: ZCOL[k] })), tot: sum(m.zones.map(k => z[k])) }; }
       const v = sum(ds.map(m.v).filter(x => x != null)); return { x: i, v: m.unit === 'hr' ? v / 60 : v, tot: v, color: 'var(--s1)' };
     });
-    const wl = i => { const ws = weeks[i], we = addDays(ws, 6); return weeks.length > 6 ? fmtDate(we) : `${+ws.slice(8)}–${+we.slice(8)}`; };
+    const wl = i => { const ws = weeks[i], we = addDays(ws, 6); return weeks.length > 17 ? monYr(we) : weeks.length > 6 ? fmtDate(we) : `${+ws.slice(8)}–${+we.slice(8)}`; };
     const step = Math.ceil(weeks.length / 4);
     return chartHTML({ ...base, x0: -0.5, x1: weeks.length - 0.5, xTicks: weeks.map((_, i) => i).filter(i => (weeks.length - 1 - i) % step === 0), xFmt: wl, barMax: 48, yMin: 0,
       yFmt: v => m.unit === 'hr' ? hm(v * 60) : fmt(v, 1), bars: bars.filter(b => b.tot), hoverXs: bars.filter(b => b.tot).map(b => b.x),
-      tip: i => { const b = bars[i]; return b && b.tot ? `<b>Week of ${esc(fmtDate(weeks[i]))}</b><br>${m.unit === 'hr' ? hm(b.tot) : fmt(b.tot, 1) + ' ' + esc(m.unit)}` : ''; },
+      tip: i => { const b = bars[i]; return b && b.tot ? `<b>Week of ${esc(fmtDMY(weeks[i]))}</b><br>${m.unit === 'hr' ? hm(b.tot) : fmt(b.tot, 1) + ' ' + esc(m.unit)}` : ''; },
       barLabel: weeks.length <= 6 ? b => m.unit === 'hr' ? hm(b.tot) : fmt(b.tot, 1) : null });
   }
   switch (m.chart) {
@@ -1404,7 +1412,7 @@ function vNotes() {
     h += `<section class="sec"><div class="sec-h"><span class="eyebrow">${esc(NOTE_GROUPS[g])}</span><span class="xs muted">${list.length} note${list.length === 1 ? '' : 's'}</span></div><section class="card"><ul class="notes">`;
     for (const n of list) {
       const id = noteId(n.k + '_' + g), editing = ui.noteEdit === n.k + '#' + g;
-      h += `<li><div class="note-m">${esc(fmtDate(n.date, { year: '2-digit' }))} · ${esc(n.src)}${n.edited ? ' · edited here' : ''}</div>
+      h += `<li><div class="note-m">${esc(fmtDMY(n.date))} · ${esc(n.src)}${n.edited ? ' · edited here' : ''}</div>
         ${editing ? `<textarea class="in" id="ne_${id}">${esc(n.text)}</textarea>${n.general ? '' : '<p class="xs muted">Edits here only change this list. The session keeps its original note.</p>'}
           <div class="btnrow"><button class="btn sm" data-act="notesave" data-k="${esc(n.k)}" data-g="${g}" data-id="${id}">Save</button><button class="link dim" data-act="noteedit" data-k="">Cancel</button>
           <button class="link danger" data-act="notedel" data-k="${esc(n.k)}" style="margin-left:auto">${n.general ? 'Delete note' : 'Remove from list'}</button></div>`
@@ -1446,9 +1454,9 @@ function vToday() {
   h += `<section class="card hero"><div class="card-h"><span class="eyebrow">Next up · ${idx + 1} of ${o.length}</span>${S().suggest !== false ? `<button class="pill ${S().goal === 'grow' ? 'acc' : ''}" data-act="goalflip" aria-label="Targets: ${esc(goalLabel())}. Tap to switch">${esc(goalLabel())}</button>` : ''}</div>
     <div class="rot">${o.map((id, i) => `<i class="${i === idx ? 'on' : i < idx ? 'done' : ''}"></i>`).join('')}</div>
     <div><h1>${esc(sd.name)}</h1><p class="focus">${esc(sd.focus || '')}</p></div>
+    <button class="btn wide" data-act="start" data-id="${sid}">Log ${esc(sd.name)}</button>
     <ul class="exlist">${sd.items.filter(it => S().ex[it.ex]).map(it => `<li><span>${esc(exDef(it.ex).name)}</span><span class="rx">${rxTxt(it)}</span><span class="lt">${prevLine(it.ex, t)}</span></li>`).join('')}
       <li><span>${esc(S().cardio.name)}</span><span class="rx">${S().cardio.min} min</span></li></ul>
-    <button class="btn wide" data-act="start" data-id="${sid}">Log ${esc(sd.name)}</button>
     ${ui.pickSess === 'today' ? `<div class="sec"><span class="xs muted">Do a different session today. The rotation carries on from whichever you log.</span><div class="chips">${trainIds().map(id => `<button class="chip ${id === sid ? 'on' : ''}" data-act="setnext" data-id="${id}">${esc(sessDef(id).name)}</button>`).join('')}</div></div>`
       : `<div class="btnrow" style="justify-content:space-between"><button class="link" data-act="picktoday">Change today's session</button><button class="link dim" data-act="restday">Rest day instead</button></div>`}</section>`;
   return h + tail();
@@ -1495,7 +1503,7 @@ function plannedRestHero(sid) {
 }
 function weekCard() {
   const t = today(), ws = weekStart(t);
-  const wk = Object.values(STATE.w).filter(w => w.date >= ws && w.date <= t && !w.rest);
+  const wk = Object.values(STATE.w).filter(w => w.date >= ws && w.date <= t && !w.rest && !emptyW(w));
   const sets = sum(wk.map(w => wStats(w).sets)), card = sum(wk.map(w => wStats(w).cardio));
   const kg = sum(wk.map(w => wStats(w).kg));
   const prs = wk.flatMap(w => prsIn(w));
@@ -1564,8 +1572,10 @@ function logBody(d) {
     return h;
   }
   const sd = sessDef(w.s), st = wStats(w), dur = sessDur(w), wl = whoopLiftMin(w.date);
-  h += `<div class="sess-top"><div class="t"><b>${esc(sessName(w))}</b><small>${esc(sd?.focus || '')} · ${st.sets} set${st.sets === 1 ? '' : 's'}${st.kg ? ` · ${fmt(st.kg / 1000, 1)} t moved` : ''}</small></div>
+  const nPlan = sum((w.ex || []).map(e => e.sets.length)), empty = emptyW(w);
+  h += `<div class="sess-top"><div class="t"><b>${esc(sessName(w))}</b><small>${esc(sd?.focus || '')}${sd?.focus ? ' · ' : ''}${st.sets} / ${nPlan} sets${st.kg ? ` · ${fmt(st.kg / 1000, 1)} t moved` : ''}</small></div>
     ${dur ? pill('acc', fmtDur(dur)) : ''}</div>`;
+  if (empty) h += `<div class="btnrow" style="justify-content:space-between"><span class="xs muted">Nothing logged yet.</span><button class="link dim" data-act="cancelw">Not training? Cancel session</button></div>`;
   const ln = lastSessionNote(w);
   if (ln) h += `<section class="card flat lastnote"><span class="eyebrow">Last ${esc(sessName(ln))} · ${esc(fmtDate(ln.date))}</span><p class="small">${esc(ln.note.trim())}</p></section>`;
   const lifts = whoopActs(w.date, LIFT_RE);
@@ -1591,6 +1601,13 @@ function exHistHTML(exId, before) { // the last few sessions of a lift, for a qu
   return `<div class="exhist"><ul>${rows.map(r => `<li><span class="mono xs">${esc(fmtDate(r.date))}</span><span>${esc(setsTxt(exId, r.sets))}${r.note && r.note.trim() ? `<small>${esc(r.note.trim())}</small>` : ''}</span></li>`).join('')}</ul>
     <button class="link" data-act="liftgo" data-id="${exId}">Strength trend</button></div>`;
 }
+function exMoreHTML(w, e, i) { // swap keeps the slot and set count; same muscle group listed first
+  const inW = new Set(w.ex.map(x => x.id)), g = exDef(e.id).g, all = Object.entries(S().ex).filter(([id]) => !inW.has(id)).sort((a, b) => a[1].name.localeCompare(b[1].name));
+  const same = all.filter(([, x]) => x.g === g), rest = all.filter(([, x]) => x.g !== g), opt = ([id, x]) => `<option value="${id}">${esc(x.name)}</option>`;
+  return `<div class="ex-more"><label class="fl">Swap for<select class="in" id="swap${i}" data-in="swapex" data-e="${i}"><option value="">Choose…</option>${same.length ? `<optgroup label="${esc(GROUPS[g] || 'Same group')}">${same.map(opt).join('')}</optgroup>` : ''}<optgroup label="Everything else">${rest.map(opt).join('')}</optgroup></select></label>
+    ${doneSets(e).length ? `<p class="xs muted">Swapping clears the sets logged for ${esc(exDef(e.id).name)}.</p>` : ''}
+    <div class="btnrow" style="justify-content:space-between">${e.sets.length > 1 ? `<button class="link dim" data-act="remset" data-e="${i}">Remove last set</button>` : '<span></span>'}<button class="link danger" data-act="remex" data-e="${i}">Remove exercise</button></div></div>`;
+}
 function exCard(w, e, i, prSet) {
   const def = exDef(e.id), u = UNITS[def.u] || UNITS.kg, open = ui.exHist === i;
   const ph = (v, dflt) => v != null ? fmt(v, 2).replace(/,/g, '') : dflt, sg = suggest(e.id, w.date);
@@ -1605,7 +1622,8 @@ function exCard(w, e, i, prSet) {
       <input class="in" id="r${i}_${j}" inputmode="numeric" enterkeyhint="next" data-in="r" data-e="${i}" data-s="${j}" value="${s.r ?? ''}" placeholder="${ph(sg ? sg.r : s.pr, '–')}" aria-label="Set ${j + 1} reps">
       <span class="mark" aria-hidden="true">${ICON.tick}</span></div>`).join('')}</div>
     ${e.note != null || ui.exNote === i ? `<label class="fl">Exercise note<textarea class="in exnote" id="xn${i}" data-in="exnote" data-e="${i}" placeholder="Seat height, grip, how it felt">${esc(e.note || '')}</textarea></label>` : ''}
-    <div class="ex-foot"><button class="link" data-act="addset" data-e="${i}">+ Set</button>${e.note == null && ui.exNote !== i ? `<button class="link dim" data-act="exnote" data-e="${i}">+ Note</button>` : ''}${e.sets.length > 1 ? `<button class="link dim" data-act="remset" data-e="${i}">Remove last set</button>` : ''}<button class="link dim" data-act="remex" data-e="${i}" style="margin-left:auto">Remove</button></div></section>`;
+    <div class="ex-foot"><button class="link" data-act="addset" data-e="${i}">+ Set</button>${e.note == null && ui.exNote !== i ? `<button class="link dim" data-act="exnote" data-e="${i}">+ Note</button>` : ''}<button class="link dim more" data-act="exmore" data-e="${i}" aria-expanded="${ui.exMore === i}" aria-label="More for ${esc(def.name)}">${ui.exMore === i ? 'Close' : 'More'}</button></div>
+    ${ui.exMore === i ? exMoreHTML(w, e, i) : ''}</section>`;
 }
 function cardioTypes() { return Object.keys(CARDIO_RE); }
 function cardioCard(w) {
@@ -1623,7 +1641,7 @@ function cardioCard(w) {
 
 /* ---------- History ---------- */
 function vHistory() {
-  const ws = workoutsSorted().reverse(), nNotes = noteEntries().length;
+  const ws = workoutsSorted().reverse().filter(w => !emptyW(w)), nNotes = noteEntries().length;
   let h = `<div class="page-h"><div><div class="eyebrow">${ws.filter(w => !w.rest).length} sessions logged</div><h1>History</h1></div>
     <div class="seg" role="group" aria-label="View"><button class="${ui.hist !== 'notes' ? 'on' : ''}" data-act="histview" data-v="sessions">Sessions</button><button class="${ui.hist === 'notes' ? 'on' : ''}" data-act="histview" data-v="notes">Notes${nNotes ? ` ${nNotes}` : ''}</button></div></div>`;
   if (ui.hist === 'notes') return h + vNotes();
@@ -1660,7 +1678,7 @@ function vStrength() {
   h += `<section class="card" id="liftchart"><label class="fl">Lift<select class="in" id="liftpick" data-in="lift">${ids.map(id => `<option value="${id}" ${id === pick ? 'selected' : ''}>${esc(exDef(id).name)}</option>`).join('')}</select></label>
     <div class="card-h"><span class="small dim">${u === 'bw' && !bwScored(pick) ? 'Best reps per session' : `Estimated 1RM per session (${u === 'plates' ? 'plates / side' : u === 'bw' ? 'kg, body weight included' : 'kg'})`}</span>${maxScore(pick) ? `<div class="legend"><span><i class="ln" style="background:var(--ink-2)"></i>Stated max ${esc(fmtSet(pick, exDef(pick).base))}</span></div>` : ''}</div>
     ${chartHTML({ h: 170, ...ax, refY: maxScore(pick) ? { v: maxScore(pick) } : null, yPad: u === 'plates' ? .1 : 1, yFmt: v => fmt(v, u === 'plates' ? 2 : 0), series: [{ color: 'var(--s1)', pts: ser.map(p => ({ x: xi(p.date), y: p.y })), dots: true, r: 3.5, end: true }], hoverXs: ser.map(p => xi(p.date)), tip: x => { const p = ser.find(q => xi(q.date) === x); return p ? `<b>${esc(fmtDate(p.date))}</b><br>${esc(fmtSet(pick, p.top))} · ${esc(scoreTxt(pick, p.y))}` : ''; }, empty: 'No sets logged for this lift yet', label: 'Lift trend' })}</section>`;
-  const when = c => c.date ? esc(fmtDate(c.date, { year: '2-digit' })) : 'stated';
+  const when = c => c.date ? esc(fmtDMY(c.date)) : 'stated';
   h += `<section class="card"><div class="tblwrap"><table class="tbl lifts"><thead><tr><th>Lift</th><th class="n">Best</th><th class="n">Last</th><th class="n">4 wk</th></tr></thead><tbody>
     ${ids.map(id => { const r = records(id), m = maintenance(id), [tone, word] = MSTATE[m.state]; return `<tr class="${id === pick ? 'sel' : ''}" data-act="liftsel" data-id="${id}"><td>${esc(exDef(id).name)}</td>
       <td class="n">${esc(fmtSet(id, r.best.s))}<br><span class="xs muted">${when(r.best)}</span></td>
@@ -2051,7 +2069,8 @@ function go(tab) {
   if (tab === 'trends') tab = 'body';
   if (tab === 'log' && (!ui.logDate || ui.logDate >= today())) { tab = 'today'; ui.editToday = true; } // today's log lives on Today
   if (ui.tab === 'today' && tab !== 'today') ui.editToday = false;
-  ui.exNote = null; ui.noteEdit = null; ui.exHist = null;
+  if (ui.tab === 'log' && ui.logDate && tab !== 'log') dropEmpty(ui.logDate); // an empty past-day log isn't kept
+  ui.exNote = null; ui.noteEdit = null; ui.exHist = null; ui.exMore = null;
   if (tab !== ui.tab) ui.exQ = ''; ui.restPick = null; // exercise search lasts while you stay on Plan
   if (tab === 'body' && ui.tab !== 'body') { ui.metric = 'rec'; ui.per = 'M'; ui.off = 0; }
   if (tab === 'data' && ui.tab === 'data') tab = ui.prevTab || 'today'; else if (tab === 'data') ui.prevTab = ui.tab;
@@ -2068,6 +2087,8 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
    ACTIONS
    ============================================================ */
 const logW = () => STATE.w[ui.logDate || today()];
+function sweepEmpty() { for (const d of Object.keys(STATE.w)) if (d < today()) dropEmpty(d); } // sessions started and never used on earlier days
+function dropEmpty(date) { if (emptyW(STATE.w[date])) { delete STATE.w[date]; saveW(date); return true; } return false; }
 const ACT = {
   go: el => go(el.dataset.tab),
   start: el => {
@@ -2075,7 +2096,7 @@ const ACT = {
     const open = () => { if (date === today()) { ui.editToday = true; go('today'); } else { ui.logDate = date; go('log'); } };
     if (STATE.w[date] && !STATE.w[date].rest) { open(); return; }
     if (!sessDef(sid) || isRestSlot(sid)) return;
-    const w = newWorkoutAuto(date, sid);
+    const w = newWorkoutAuto(date, sid); w.nw = 1; // marks a fresh start, so an untouched one can be dropped
     STATE.w[date] = w; const rp = (S().restPlan || []).filter(d => d !== date && d >= today());
     if (S().rotOverride || rp.length !== (S().restPlan || []).length) { S().rotOverride = null; S().restPlan = rp; saveSettings(); } // training on a planned rest day drops the plan
     saveW(date); open();
@@ -2091,7 +2112,7 @@ const ACT = {
   picktoday: () => { ui.pickSess = 'today'; render(true); },
   setnext: el => { S().rotOverride = { id: el.dataset.id, from: today() }; ui.pickSess = null; saveSettings(); render(true); },
   picksess: el => { ui.pickSess = el.dataset.id; render(true); },
-  logday: el => { const d = addDays(ui.logDate || today(), +el.dataset.n); if (d >= today()) { go('today'); return; } ui.logDate = d; ui.pickSess = null; ui.confirm = null; resetScroll(); render(true); },
+  logday: el => { if (ui.logDate) dropEmpty(ui.logDate); const d = addDays(ui.logDate || today(), +el.dataset.n); if (d >= today()) { go('today'); return; } ui.logDate = d; ui.pickSess = null; ui.confirm = null; resetScroll(); render(true); },
   openlog: el => { ui.logDate = el.dataset.d; go('log'); },
   goal: el => { if (el.dataset.v === 'grow' && S().goal !== 'grow') S().growFrom = today(); S().goal = el.dataset.v; saveSettings(); render(true); },
   goalflip: () => { S().goal = S().goal === 'grow' ? 'hold' : 'grow'; if (S().goal === 'grow') S().growFrom = today(); saveSettings(); toast(S().goal === 'grow' ? `Aim set to overload, +${fmt((S().progRate ?? 0.005) * 100, 2)}% a week` : 'Aim set to maintenance'); render(true); },
@@ -2105,7 +2126,7 @@ const ACT = {
   liftgo: el => { ui.lift = el.dataset.id; go('strength'); },
   addset: el => { const w = logW(), e = w.ex[+el.dataset.e]; const l = e.sets[e.sets.length - 1]; e.sets.push({ w: null, r: null, pw: l ? (l.w ?? l.pw) : null, pr: l ? (l.r ?? l.pr) : null, done: false }); saveW(w.date); render(true); setTimeout(() => $(`#r${el.dataset.e}_${e.sets.length - 1}`)?.focus(), 30); },
   remset: el => { const w = logW(), e = w.ex[+el.dataset.e]; if (e.sets.length > 1) e.sets.pop(); saveW(w.date); render(true); },
-  remex: el => { const w = logW(), i = +el.dataset.e, e = w.ex[i]; if (doneSets(e).length && ui.confirm !== 'remex' + i) { ui.confirm = 'remex' + i; toast('Tap Remove again to drop logged sets'); return; } w.ex.splice(i, 1); ui.confirm = null; saveW(w.date); render(true); },
+  remex: el => { const w = logW(), i = +el.dataset.e, e = w.ex[i]; if (doneSets(e).length && ui.confirm !== 'remex' + i) { ui.confirm = 'remex' + i; toast('Tap Remove again to drop logged sets'); return; } w.ex.splice(i, 1); ui.confirm = null; ui.exMore = null; saveW(w.date); render(true); },
   cardiotype: el => { const w = logW(), name = el.dataset.v, wm = Math.round(sum(whoopCardio(w.date, name).map(a => a.min || 0)));
     w.cardioOff = false; w.cardio = { ...(w.cardio || { min: S().cardio.min, lvl: null, done: false }), name, manual: true }; if (wm) { w.cardio.min = wm; w.cardio.done = true; w.cardio.src = 'whoop'; }
     saveW(w.date); render(true); },
@@ -2113,11 +2134,14 @@ const ACT = {
   cardiowhoop: el => { const w = logW(); w.cardio = w.cardio || { name: S().cardio.name }; w.cardio.min = +el.dataset.v; w.cardio.done = true; w.cardio.src = 'whoop'; saveW(w.date); render(true); },
   cardio: () => { const w = logW(); w.cardio = w.cardio || { name: S().cardio.name, min: S().cardio.min }; w.cardio.min = num($('#cmin')?.value) ?? w.cardio.min; w.cardio.done = !w.cardio.done; w.cardio.manual = true; saveW(w.date); render(true); },
   confirm: el => { ui.confirm = el.dataset.v || null; render(true); },
+  cancelw: () => { const d = ui.logDate || today(); if (!emptyW(STATE.w[d])) return; delete STATE.w[d]; saveW(d); ui.editToday = false; toast('Session cancelled'); if (ui.tab === 'log') go('history'); else { resetScroll(); render(true); } },
+  exmore: el => { const i = +el.dataset.e; ui.exMore = ui.exMore === i ? null : i; ui.confirm = null; render(true); },
   delw: () => { const d = ui.logDate || today(); delete STATE.w[d]; ui.confirm = null; saveW(d); toast('Session deleted'); render(true); },
   per: el => { ui.per = el.dataset.v; ui.off = 0; render(true); },
   poff: el => { ui.off = Math.max(0, (ui.off || 0) + +el.dataset.n); render(true); },
   logdone: () => {
     const a = document.activeElement; if (a && a.blur) a.blur(); // make sure the last edit is saved
+    if (dropEmpty(ui.logDate || today())) { toast('Nothing logged, so the session wasn’t kept'); ui.editToday = false; if (ui.tab === 'today') { resetScroll(); render(true); } else go('history'); return; }
     const w = logW(); if (w && !w.rest) { const st = wStats(w); toast(`${esc(sessName(w))} saved · ${st.sets} set${st.sets === 1 ? '' : 's'}`); }
     if (ui.tab === 'today') { if (w) { w.fin = true; saveW(w.date); } ui.editToday = false; resetScroll(); render(true); } else go('history');
   },
@@ -2188,6 +2212,8 @@ const INP = {
   restadd: el => { if (el.value) setRest(el.value, true); },
   w: el => setInput(el, true),
   r: el => setInput(el, true),
+  swapex: el => { const id = el.value, w = logW(), e = w?.ex[+el.dataset.e]; if (!id || !e) return; const from = exDef(e.id).name;
+    w.ex[+el.dataset.e] = { id, sets: prefill(id, e.sets.length, w.date) }; ui.exMore = null; ui.exHist = null; saveW(w.date); toast(`Swapped ${esc(from)} for ${esc(exDef(id).name)}`); render(true); },
   addex: el => { const id = el.value; if (!id) return; const w = logW(); w.ex.push({ id, sets: prefill(id, 3, w.date) }); saveW(w.date); render(true); setTimeout(() => $('#ex' + (w.ex.length - 1))?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50); },
   note: el => { const w = logW(); w.note = el.value; saveW(w.date); },
   exnote: el => { const w = logW(), e = w.ex[+el.dataset.e]; const v = el.value.trim(); if (v) e.note = el.value; else delete e.note; ui.exNote = null; saveW(w.date); },
@@ -2319,6 +2345,7 @@ document.addEventListener('keydown', ev => {
   const h = (location.hash || '').slice(1), hh = h === 'trends' ? 'body' : h; if (VIEWS[hh] && hh !== 'log') ui.tab = hh;
   render(true); top(); requestAnimationFrame(top);
   connectCloud();
+  setTimeout(() => { sweepEmpty(); render(); }, 0); // after sync code has loaded, so the deletes sync too
 })();
 /* ============================================================
    GITHUB SYNC (GitHub Pages build only)
@@ -2407,7 +2434,7 @@ const GH = {
     if (!m.first) for (const p in m.known) if (!remote[p] && this.removeRemote(p)) ch = true; // deleted on another device
     if (m.first) this.markLocalOnly(remote);
     m.head = head; m.tree = commit.tree.sha; m.known = remote; m.first = false;
-    if (ch) { bump(); cacheLocal(); render(); }
+    if (ch) { sweepEmpty(); bump(); cacheLocal(); render(); }
     return ch;
   },
   merge(p, o) {
