@@ -13,7 +13,7 @@ function sessStats(w) {
   const top = s => hasStr ? (s && s.str != null ? `<em class="sstr">strain ${fmt(s.str, 1)}</em>` : '<em class="sstr" aria-hidden="true">&nbsp;</em>') : '';
   const under = s => hasT ? (s && s.from ? `<em class="stime">${esc(s.from)}${s.to ? ` – ${esc(s.to)}` : ''}</em>` : '<em class="stime" aria-hidden="true">&nbsp;</em>') : '';
   const cell = (v, unit, label, s) => `<div class="stat" data-live="${esc(label)}">${top(s)}<b>${v}${unit ? `<small>${esc(unit)}</small>` : ''}</b>${under(s)}<span>${esc(label)}</span></div>`;
-  return `<div class="stats">${cell(st.sets, '', 'sets')}${cell(dur ? fmtDur(dur) : '–', '', dur && wl ? 'duration · WHOOP' : 'duration', lift)}${cell(st.cardio || '–', st.cardio ? 'min' : '', w.cardio?.name || 'Cardio', car)}</div>`;
+  return `<div class="stats">${cell(st.sets, '', 'sets')}${cell(dur ? fmtDur(dur) : '–', '', dur && wl ? whoopActs(w.date, LIFT_RE)[0].n : 'duration', lift)}${cell(st.cardio || '–', st.cardio ? 'min' : '', w.cardio?.name || 'Cardio', car)}</div>`;
 }
 function deltaTxt(v, base, d = 0, unit = '', invert = false) {
   if (v == null || base == null) return '';
@@ -322,7 +322,7 @@ function exCard(w, e, i, prSet) {
     ${ui.exMore === i ? exMoreHTML(w, e, i) : ''}</section>`;
 }
 function actChips(a) { // a WHOOP activity as one line of chips (v1.36)
-  const c = [a.t && `from ${esc(a.t)}`, a.min && `${fmt(a.min, 0)} min`, a.str != null && `<span class="strain">strain ${fmt(a.str, 1)}</span>`, a.ahr && `avg ${fmt(a.ahr, 0)} bpm`, a.kcal && `${fmt(a.kcal, 0)} kcal`].filter(Boolean);
+  const c = [a.str != null && `<span class="strain">strain ${fmt(a.str, 1)}</span>`, a.ahr && `avg ${fmt(a.ahr, 0)} bpm`, a.kcal && `${fmt(a.kcal, 0)} kcal`].filter(Boolean);
   return `<div class="whoopact"><b>WHOOP · ${esc(a.n)}</b><span class="achips">${c.map(x => `<span>${x}</span>`).join('')}</span></div>`;
 }
 function cardioTypes() { return Object.keys(CARDIO_RE); }

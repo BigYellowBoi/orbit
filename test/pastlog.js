@@ -22,7 +22,7 @@ const shot = (p, n) => process.env.SHOTS ? p.screenshot({ path: path.join(proces
 
   /* Today's hero */
   const hero = await p.$$eval('.hero .stat', els => els.map(e => e.innerText.replace(/\s+/g, ' ').trim()));
-  ok(/strain 11\.5 1 h 22 07:49 – 09:11 duration · WHOOP/.test(hero[1]), 'duration: strain above, start – end below ' + hero[1]);
+  ok(/strain 11\.5 1 h 22 07:49 – 09:11 Weightlifting/.test(hero[1]), 'duration: strain above, start – end below ' + hero[1]);
   ok(/strain 13 30\s?min 09:18 – 09:48 Stairmaster/.test(hero[2]), 'cardio: strain above, times below ' + hero[2]);
   const tops = await p.$$eval('.hero .stat b', els => els.map(e => Math.round(e.getBoundingClientRect().top)));
   ok(new Set(tops).size === 1, 'big numbers stay level ' + tops);
