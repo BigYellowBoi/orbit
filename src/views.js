@@ -243,8 +243,11 @@ function readLogHTML(w) { // a past day's log to look at: nothing here can be ch
     ${w.cardio?.done ? sessStats(w) : '<p class="small dim">No cardio logged.</p>'}</section>` + noteCard + whoopCard(w.date);
   const prs = prsIn(w), prSet = new Set(prs.map(p => p.s)), acts = [...whoopActs(w.date, LIFT_RE), ...(w.cardio?.done && w.cardio.src === 'whoop' ? whoopCardio(w.date, w.cardio.name) : [])];
   const ex = (w.ex || []).filter(e => doneSets(e).length || (e.note || '').trim());
-  const row = e => { const ds = doneSets(e), nw = (e.sets || []).filter(s => s.done && s.t === 'w').length;
-    return `<li><span>${esc(exDef(e.id).name)}</span><span class="rx">${ds.map(s => `<span class="${prSet.has(s) ? 'rpr' : ''}">${esc(fmtSet(e.id, s))}${s.t === 'd' ? ' (drop)' : ''}</span>`).join(', ') || '–'}</span>${nw || (e.note || '').trim() ? `<span class="lt">${[nw ? `${nw} warm-up${nw > 1 ? 's' : ''}` : '', esc((e.note || '').trim())].filter(Boolean).join(' · ')}</span>` : ''}</li>`; };
+  const row = e => { // one set per line, tagged W (warm-up), D (drop) or its working-set number (v1.47)
+    let k = 0; const ls = (e.sets || []).filter(s => s.done && s.r > 0).map(s => { const tag = s.t === 'w' ? 'W' : s.t === 'd' ? 'D' : String(++k);
+      return `<span class="rs${prSet.has(s) ? ' rpr' : ''}${s.t === 'w' ? ' rw' : ''}"><i>${tag}</i><span>${esc(fmtSet(e.id, s))}</span></span>`; });
+    const nt = (e.note || '').trim();
+    return `<li><span>${esc(exDef(e.id).name)}</span><span class="rx">${ls.join('') || '–'}</span>${nt ? `<span class="lt">${esc(nt)}</span>` : ''}</li>`; };
   return `<section class="card hero"><div class="card-h"><span class="eyebrow">Logged${sessDef(w.s)?.focus ? ` · ${esc(sessDef(w.s).focus)}` : ''}</span>${edit}</div>
     <div><h1>${esc(sessName(w))}</h1></div>
     ${sessStats(w)}

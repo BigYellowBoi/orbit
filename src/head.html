@@ -168,7 +168,8 @@ button.sd { font: inherit; color: inherit; text-align: left; cursor: pointer; }
 .stat > span { font-size: 12px; color: var(--ink-3); }
 .stat .sstr, .stat .stime { font-style: normal; font-size: 12px; line-height: 1.3; font-variant-numeric: tabular-nums; white-space: nowrap; } /* v1.46: strain above, start and end below the time */
 .stat .sstr { color: var(--strain); } .stat .stime { color: var(--ink-2); margin-top: 1px; }
-.exlist.ro li .rx { white-space: normal; text-align: right; } .exlist.ro .rpr { color: var(--accent); }
+.exlist.ro li .rx { display: grid; grid-template-columns: auto auto; column-gap: 12px; row-gap: 3px; justify-content: end; text-align: right; } /* v1.47: sets stacked, tag then load × reps */
+.exlist.ro .rs { display: contents; } .exlist.ro .rs i { font-style: normal; color: var(--ink-3); } .exlist.ro .rw { color: var(--ink-3); } .exlist.ro .rpr { color: var(--accent); }
 .delta { font-family: var(--f-mono); font-size: 11.5px; color: var(--ink-2); line-height: 1.35; margin-top: 2px; }
 .stat > span { overflow-wrap: anywhere; }
 @container (min-width: 520px) { .stats.four { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
