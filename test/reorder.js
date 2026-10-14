@@ -82,6 +82,7 @@ const center = async (p, sel) => { await p.evaluate(sel => { const e = document.
     const { p, errs } = await open(b, { viewport: { width: 1280, height: 900 } });
     const d = await p.evaluate(() => { const d = addDays(today(), -3), w = newWorkout(d, 'pull'); w.ex.forEach(e => e.sets.forEach(s => { s.w = 40; s.r = 8; s.done = true; })); w.fin = true; w.ex[2].note = 'straps'; STATE.w[d] = w; saveW(d); go('history'); return d; });
     await p.click(`[data-act="openlog"][data-d="${d}"]`);
+    await p.click('[data-act="logedit"]'); // past logs open read-only (v1.46)
     ok(await p.evaluate(() => ui.tab) === 'log', 'past log is open');
     const ids = await order(p, d), todayLog = await p.evaluate(() => !!STATE.w[today()]);
     // ex 2 has its history and More open: they follow it

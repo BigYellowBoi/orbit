@@ -4,6 +4,17 @@
 const ordinal = n => n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th');
 function pill(tone, text) { return `<span class="pill ${tone || ''}">${esc(text)}</span>`; }
 function stat(v, unit, label, extra) { return `<div class="stat" data-live="${esc(label)}"><b>${v}${unit ? `<small>${esc(unit)}</small>` : ''}</b><span>${esc(label)}</span>${extra || ''}</div>`; }
+/* Sets · duration · cardio (v1.46): WHOOP strain above each time, start and end below it. Rows hold a blank line where
+   another stat has one, so the big numbers and labels stay level. */
+function sessStats(w) {
+  const st = wStats(w), dur = sessDur(w), wl = whoopLiftMin(w.date) != null;
+  const lift = wl ? actSpan(whoopActs(w.date, LIFT_RE)) : null, car = st.cardio && w.cardio?.src === 'whoop' ? actSpan(whoopCardio(w.date, w.cardio.name)) : null;
+  const hasStr = [lift, car].some(s => s && s.str != null), hasT = [lift, car].some(s => s && s.from);
+  const top = s => hasStr ? (s && s.str != null ? `<em class="sstr">strain ${fmt(s.str, 1)}</em>` : '<em class="sstr" aria-hidden="true">&nbsp;</em>') : '';
+  const under = s => hasT ? (s && s.from ? `<em class="stime">${esc(s.from)}${s.to ? ` – ${esc(s.to)}` : ''}</em>` : '<em class="stime" aria-hidden="true">&nbsp;</em>') : '';
+  const cell = (v, unit, label, s) => `<div class="stat" data-live="${esc(label)}">${top(s)}<b>${v}${unit ? `<small>${esc(unit)}</small>` : ''}</b>${under(s)}<span>${esc(label)}</span></div>`;
+  return `<div class="stats">${cell(st.sets, '', 'sets')}${cell(dur ? fmtDur(dur) : '–', '', dur && wl ? 'duration · WHOOP' : 'duration', lift)}${cell(st.cardio || '–', st.cardio ? 'min' : '', w.cardio?.name || 'Cardio', car)}</div>`;
+}
 function deltaTxt(v, base, d = 0, unit = '', invert = false) {
   if (v == null || base == null) return '';
   const diff = v - base; if (Math.abs(diff) < 10 ** -d / 2) return `<span class="delta">= 30-day avg</span>`;
@@ -40,7 +51,7 @@ function pastDayHTML(d) {
   const st = wStats(w), dur = sessDur(w), prs = prsIn(w), ex = (w.ex || []).filter(e => doneSets(e).length);
   return `<section class="card hero"><div class="card-h"><span class="eyebrow">Logged</span>${pill('good', 'Done')}</div>
     <div><h1>${esc(sessName(w))}</h1><p class="focus">${esc(sessDef(w.s)?.focus || '')}</p></div>
-    <div class="stats">${stat(st.sets, '', 'sets')}${stat(dur ? fmtDur(dur) : '–', '', 'duration')}${stat(st.cardio || '–', st.cardio ? 'min' : '', w.cardio?.name || 'Cardio')}</div>
+    ${sessStats(w)}
     ${ex.length ? `<ul class="exlist">${ex.map(e => `<li><span>${esc(exDef(e.id).name)}</span><span class="rx">${esc(setsTxt(e.id, doneSets(e)))}</span></li>`).join('')}</ul>` : ''}
     ${prs.length ? `<div class="chips">${prs.slice(0, 6).map(p => `<span class="pill acc">${esc(exDef(p.id).name)} ${esc(fmtSet(p.id, p.s))}</span>`).join('')}</div>` : ''}
     <button class="btn wide ghost" data-act="openlog" data-d="${d}">Open log</button></section>`;
@@ -87,7 +98,7 @@ function doneHero(w, idx, o) { // today after Done: a summary, with the log one 
   return `<section class="card hero${ui.justDone ? ' just' : ''}"><div class="card-h"><span class="eyebrow">Logged today · ${idx + 1} of ${o.length}</span>${pill('good', 'Done')}</div>
     <div class="rot">${o.map((id, i) => `<i class="${i === idx ? 'on' : i < idx ? 'done' : ''}"></i>`).join('')}</div>
     <div><h1>${esc(sessName(w))}</h1><p class="focus">${esc(sessDef(w.s)?.focus || '')}</p></div>
-    <div class="stats">${stat(st.sets, '', 'sets')}${stat(dur ? fmtDur(dur) : '–', '', dur && whoopLiftMin(w.date) != null ? 'duration · WHOOP' : 'duration')}${stat(st.cardio || '–', st.cardio ? 'min' : '', w.cardio?.name || 'Cardio')}</div>
+    ${sessStats(w)}
     ${(() => { // against the last time this session was done (v1.36)
       const prev = workoutsSorted().filter(x => x.s === w.s && x.date < w.date && !x.rest && wStats(x).sets).pop(); if (!prev) return '';
       const p = wStats(prev), ds = st.sets - p.sets, dt = (st.kg - p.kg) / 1000, sg = v => (v > 0 ? '+' : v < 0 ? '−' : '±') + fmt(Math.abs(v), 1);
@@ -182,15 +193,17 @@ function vLog() {
     <div class="dnav"><button class="iconbtn" data-act="logday" data-n="-1" aria-label="Previous day">‹</button><div class="dnav-c"><b>${esc(fmtDow(d) + ' ' + fmtDate(d))}</b><small>${esc(fmtDate(d, { weekday: 'long', year: 'numeric' }))}</small></div><button class="iconbtn" data-act="logday" data-n="1" aria-label="Next day">›</button></div>` + logBody(d);
 }
 function logBody(d) {
-  const w = STATE.w[d], t = today();
+  const w = STATE.w[d], t = today(), past = d < t;
   let h = '';
+  if (past && w && !emptyW(w) && ui.logEdit !== d) return readLogHTML(w); // v1.46: a past day opens read-only; Edit unlocks it
+  const saveBtn = `<button class="btn sm" data-act="logsave">Save</button>`, doneBtn = past ? `<button class="btn wide" data-act="logsave">Save</button>` : `<button class="btn wide" data-act="logdone">Done</button>`;
   if (w && w.rest) {
     if (autoCardio(w)) saveW(w.date);
-    h += `<section class="card"><div class="card-h"><h2>Rest day</h2>${isRestSlot(w.s) ? pill('', 'Planned') : pill('', 'Logged')}</div><p class="small dim">No lifting logged.${d === t ? ` ${isRestSlot(w.s) ? 'Planned rest from your rotation.' : 'The rotation waits.'} Tomorrow: ${esc(slotName(sessionFor(addDays(d, 1))))}.` : ''} Cardio and notes are optional.</p>
+    h += `<section class="card"><div class="card-h"><h2>Rest day</h2>${past ? saveBtn : isRestSlot(w.s) ? pill('', 'Planned') : pill('', 'Logged')}</div><p class="small dim">No lifting logged.${d === t ? ` ${isRestSlot(w.s) ? 'Planned rest from your rotation.' : 'The rotation waits.'} Tomorrow: ${esc(slotName(sessionFor(addDays(d, 1))))}.` : ''} Cardio and notes are optional.</p>
       <div class="btnrow"><button class="link" data-act="unrest">Undo rest day</button></div></section>`;
     h += cardioCard(w);
     h += `<section class="card"><label class="fl">Notes<textarea class="in" id="wnote" data-in="note" placeholder="Optional">${esc(w.note || '')}</textarea></label></section>`;
-    h += `<button class="btn wide" data-act="logdone">Done</button>`;
+    h += doneBtn;
     return h;
   }
   if (!w) {
@@ -206,7 +219,7 @@ function logBody(d) {
   const sd = sessDef(w.s), st = wStats(w), dur = sessDur(w), wl = whoopLiftMin(w.date);
   const nPlan = sum((w.ex || []).map(e => e.sets.length)), empty = emptyW(w);
   h += `<div class="sess-top"><div class="t"><b>${esc(sessName(w))}</b><small>${esc(sd?.focus || '')}${sd?.focus ? ' · ' : ''}${st.sets} / ${nPlan} sets${st.kg ? ` · ${fmt(st.kg / 1000, 1)} t moved` : ''}</small></div>
-    ${dur ? pill('acc', fmtDur(dur)) : ''}</div>`;
+    ${past && !empty ? saveBtn : dur ? pill('acc', fmtDur(dur)) : ''}</div>`;
   if (empty) h += `<div class="btnrow" style="justify-content:space-between"><span class="xs muted">Nothing logged yet.</span><button class="link dim" data-act="cancelw">Not training? Cancel session</button></div>`;
   const ln = lastSessionNote(w);
   if (ln) h += `<section class="card flat lastnote"><span class="eyebrow">Last ${esc(sessName(ln))} · ${esc(fmtDate(ln.date))}</span><p class="small">${esc(ln.note.trim())}</p></section>`;
@@ -219,9 +232,25 @@ function logBody(d) {
   h += cardioCard(w);
   h += `<section class="card">${wl != null ? `<div class="fl"><span>Workout duration</span><b class="roval">${esc(fmtDur(wl * 60))} <small>WHOOP</small></b></div>` : `<label class="fl">Workout duration (min)<input class="in" id="wdur" inputmode="numeric" data-in="durmin" value="${w.durMin ?? ''}" placeholder="optional"></label>`}
     <label class="fl">Session notes<textarea class="in" id="wnote" data-in="note" placeholder="Anything worth remembering next time">${esc(w.note || '')}</textarea></label></section>`;
-  h += `<button class="btn wide" data-act="logdone">Done</button>`;
+  h += empty ? `<button class="btn wide" data-act="logdone">Done</button>` : doneBtn;
   h += `<button class="link danger delw" data-act="delw1" style="align-self:flex-start">Delete this session</button>`; // two taps (v1.36)
   return h;
+}
+function readLogHTML(w) { // a past day's log to look at: nothing here can be changed until Edit
+  const edit = `<button class="btn sm ghost" data-act="logedit">Edit</button>`, note = (w.note || '').trim();
+  const noteCard = note ? `<section class="card flat"><span class="eyebrow">Session notes</span><p class="small">${esc(note)}</p></section>` : '';
+  if (w.rest) return `<section class="card hero"><div class="card-h"><span class="eyebrow">Rest day${isRestSlot(w.s) ? ' · planned' : ''}</span>${edit}</div><div><h1>Rest</h1></div>
+    ${w.cardio?.done ? sessStats(w) : '<p class="small dim">No cardio logged.</p>'}</section>` + noteCard + whoopCard(w.date);
+  const prs = prsIn(w), prSet = new Set(prs.map(p => p.s)), acts = [...whoopActs(w.date, LIFT_RE), ...(w.cardio?.done && w.cardio.src === 'whoop' ? whoopCardio(w.date, w.cardio.name) : [])];
+  const ex = (w.ex || []).filter(e => doneSets(e).length || (e.note || '').trim());
+  const row = e => { const ds = doneSets(e), nw = (e.sets || []).filter(s => s.done && s.t === 'w').length;
+    return `<li><span>${esc(exDef(e.id).name)}</span><span class="rx">${ds.map(s => `<span class="${prSet.has(s) ? 'rpr' : ''}">${esc(fmtSet(e.id, s))}${s.t === 'd' ? ' (drop)' : ''}</span>`).join(', ') || '–'}</span>${nw || (e.note || '').trim() ? `<span class="lt">${[nw ? `${nw} warm-up${nw > 1 ? 's' : ''}` : '', esc((e.note || '').trim())].filter(Boolean).join(' · ')}</span>` : ''}</li>`; };
+  return `<section class="card hero"><div class="card-h"><span class="eyebrow">Logged${sessDef(w.s)?.focus ? ` · ${esc(sessDef(w.s).focus)}` : ''}</span>${edit}</div>
+    <div><h1>${esc(sessName(w))}</h1></div>
+    ${sessStats(w)}
+    ${prs.length ? `<div class="chips">${prs.slice(0, 6).map(p => `<span class="pill acc">${esc(exDef(p.id).name)} ${esc(fmtSet(p.id, p.s))}</span>`).join('')}</div>` : ''}
+    ${acts.map(actChips).join('')}</section>
+    ${ex.length ? `<section class="card"><div class="card-h"><h2>Exercises</h2><span class="eyebrow">${ex.length}</span></div><ul class="exlist ro">${ex.map(row).join('')}</ul></section>` : ''}` + noteCard + whoopCard(w.date);
 }
 /* Add exercise (v1.36): a searchable list ranked for the day: the session's own muscles, then muscles its lifts also work
    and the same movement pattern (push, pull, legs), then abs, then the rest; most recently used first within each. */

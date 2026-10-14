@@ -302,6 +302,7 @@ function go(tab) {
   if (tab === 'body' && ui.tab !== 'body') { ui.metric = 'rec'; ui.per = 'M'; ui.off = 0; }
   if (tab === 'data' && ui.tab === 'data') tab = ui.prevTab || 'today'; else if (tab === 'data') ui.prevTab = ui.tab;
   if (tab === 'today') ui.logDate = null;
+  if (tab !== 'log') ui.logEdit = null; // a past log goes back to read-only once you leave it (v1.46)
   ui.tab = tab; ui.confirm = null; ui.pickSess = null; ui.editEx = null;
   resetScroll(); render(true); if (logging()) wakeLock();
 }
@@ -335,7 +336,7 @@ const ACT = {
   go: el => go(el.dataset.tab),
   start: el => {
     const date = ui.tab === 'log' ? (ui.logDate || today()) : today(), sid = el.dataset.id;
-    const open = () => { if (date === today()) { ui.editToday = true; go('today'); } else { ui.logDate = date; go('log'); } };
+    const open = () => { if (date === today()) { ui.editToday = true; go('today'); } else { ui.logDate = date; ui.logEdit = date; go('log'); } };
     if (STATE.w[date] && !STATE.w[date].rest) { open(); return; }
     if (!sessDef(sid) || isRestSlot(sid)) return;
     const w = newWorkoutAuto(date, sid); w.nw = 1; // marks a fresh start, so an untouched one can be dropped
@@ -343,7 +344,7 @@ const ACT = {
     if (S().rotOverride || rp.length !== (S().restPlan || []).length) { S().rotOverride = null; S().restPlan = rp; saveSettings(); } // training on a planned rest day drops the plan
     saveW(date); open();
   },
-  restday: () => { const date = ui.tab === 'log' ? (ui.logDate || today()) : today(); if (STATE.w[date]) return; STATE.w[date] = restRecord(date); if (ui.tab === 'today') STATE.w[date].fin = true; saveW(date); toast('Rest day logged'); render(true); },
+  restday: () => { const date = ui.tab === 'log' ? (ui.logDate || today()) : today(); if (STATE.w[date]) return; STATE.w[date] = restRecord(date); if (ui.tab === 'today') STATE.w[date].fin = true; else if (date < today()) ui.logEdit = date; saveW(date); toast('Rest day logged'); render(true); },
   unrest: () => { const date = ui.tab === 'log' ? (ui.logDate || today()) : today(); if (STATE.w[date]?.rest) { delete STATE.w[date]; saveW(date); } render(true); },
   addrest: () => { const id = 'r' + Date.now().toString(36); S().prog.sessions[id] = { name: 'Rest', focus: 'Recovery', items: [], rest: true }; S().prog.order.push(id); saveSettings(); toast('Rest day added to the end of the rotation'); render(true); reveal(`.sess[data-id="${id}"]`); },
   togglesess: el => { const id = el.dataset.id; ui.openSess.has(id) ? ui.openSess.delete(id) : ui.openSess.add(id); ui.confirm = null; render(true); },
@@ -355,8 +356,14 @@ const ACT = {
   picktoday: () => { ui.pickSess = 'today'; render(true); },
   setnext: el => { S().rotOverride = { id: el.dataset.id, from: today() }; ui.pickSess = null; saveSettings(); render(true); },
   picksess: el => { ui.pickSess = el.dataset.id; render(true); },
-  logday: el => { if (ui.logDate) dropEmpty(ui.logDate); const d = addDays(ui.logDate || today(), +el.dataset.n); if (d >= today()) { go('today'); return; } ui.logDate = d; ui.pickSess = null; ui.confirm = null; resetScroll(); render(true); },
-  openlog: el => { ui.logDate = el.dataset.d; go('log'); },
+  logday: el => { if (ui.logDate) dropEmpty(ui.logDate); const d = addDays(ui.logDate || today(), +el.dataset.n); if (d >= today()) { go('today'); return; } ui.logDate = d; ui.logEdit = null; ui.pickSess = null; ui.confirm = null; resetScroll(); render(true); },
+  openlog: el => { ui.logDate = el.dataset.d; ui.logEdit = null; go('log'); },
+  logedit: () => { ui.logEdit = ui.logDate; render(true); }, // v1.46: past logs open read-only; Edit unlocks, Save locks again
+  logsave: () => {
+    flushField();
+    const d = ui.logDate; if (dropEmpty(d)) { toast('Nothing logged, so the session wasn’t kept'); go('history'); return; }
+    ui.logEdit = null; ui.exNote = null; ui.exHist = null; ui.exMore = null; ui.pick = null; toast('Saved'); render(true);
+  },
   goal: el => { if (el.dataset.v === 'grow' && S().goal !== 'grow') S().growFrom = today(); S().goal = el.dataset.v; saveSettings(); render(true); },
   goalflip: () => { S().goal = S().goal === 'grow' ? 'hold' : 'grow'; if (S().goal === 'grow') S().growFrom = today(); saveSettings(); toast(S().goal === 'grow' ? `Aim set to overload, +${fmt((S().progRate ?? 0.005) * 100, 2)}% a week` : 'Aim set to maintenance'); render(true); },
   prograte: el => { S().progRate = +el.dataset.v; if (S().goal === 'grow') S().growFrom = today(); saveSettings(); render(true); },

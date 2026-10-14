@@ -414,6 +414,12 @@ function autoCardio(w) { // fill cardio from WHOOP unless you've set it yourself
   }
   return false;
 }
+function actSpan(acts) { // v1.46: WHOOP activities as one span: strain (highest if several), start and end as HH:MM
+  if (!acts.length) return null;
+  const m = t => { const x = /^(\d{1,2}):(\d{2})/.exec(t || ''); return x ? +x[1] * 60 + +x[2] : null; }, hm = v => { const r = Math.round(v); return `${pad(Math.floor(r / 60) % 24)}:${pad(r % 60)}`; };
+  const st = acts.map(a => m(a.t)).filter(v => v != null), en = acts.filter(a => m(a.t) != null).map(a => m(a.t) + (a.min || 0)), strs = acts.map(a => a.str).filter(v => v != null);
+  return { str: strs.length ? Math.max(...strs) : null, from: st.length ? hm(Math.min(...st)) : null, to: en.length ? hm(Math.max(...en)) : null };
+}
 function sessDur(w) { const m = whoopLiftMin(w.date); return m != null ? m * 60 : w.durMin ? w.durMin * 60 : (w.dur || null); } // seconds; WHOOP first, then minutes entered by hand, then old timer logs
 
 /* ============================================================
