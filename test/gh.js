@@ -164,6 +164,19 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   helperWrite({ ...read('orbit/dy/2026-10.json').items, '2026-10-02': { stp: 1234 } }); await A.evaluate(() => GH.sync()); await wait(800);
   check(await A.evaluate(() => STATE.d['2026-10-02']?.stp) === 1234, 'a change after 304s is still picked up');
 
+  console.log('6e. Settings edited on two devices merge (v1.49)');
+  await A.evaluate(() => GH.sync()); await B2.evaluate(() => GH.sync()); await wait(800);
+  const gone = await A.evaluate(() => Object.keys(S().ex).find(id => !Object.values(S().prog.sessions).some(sd => sd.items.some(it => it.ex === id))));
+  await B2.evaluate(() => { S().ex.xezbar = { name: 'EZ-bar curls', g: 'biceps', u: 'kg', rest: 90, lo: 8, hi: 12, base: null, note: '' }; saveSettings(); GH.sync(); }); await wait(1200);
+  check(!!read('orbit/settings.json')?.ex?.xezbar, 'B added an exercise and pushed it');
+  await A.evaluate(id => { S().proteinT = 195; if (id) delete S().ex[id]; saveSettings(); }, gone); await wait(2800); // A hadn't seen it, and edits settings
+  const rs = read('orbit/settings.json');
+  check(!!rs?.ex?.xezbar && rs.proteinT === 195, 'repo keeps B’s exercise and A’s change');
+  check(!gone || !rs.ex[gone], 'a delete on A stays deleted');
+  check(await A.evaluate(() => S().ex.xezbar?.name) === 'EZ-bar curls', 'A has the exercise');
+  await B2.evaluate(() => GH.sync()); await wait(800);
+  check(await B2.evaluate(() => S().proteinT) === 195, 'B has A’s change');
+
   console.log('7. Restore on A replaces data everywhere');
   await A.evaluate(() => { restoreBackup({ app: 'orbit', settings: S(), workouts: { '2026-08-08': { date: '2026-08-08', s: order()[0], ex: [] } }, days: {} }); }); await wait(2600);
   const f7 = Object.keys(files()).sort();

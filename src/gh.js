@@ -9,6 +9,18 @@
    ============================================================ */
 window.GH_SYNC = true;
 const GH_CFG = 'orbit-gh-cfg', GH_META = 'orbit-gh-meta', GH_API = 'https://api.github.com';
+/* Three-way merge of settings (v1.49). b is what both sides started from (NOBASE when unknown: then a union).
+   A side that didn't change a value takes the other's; objects merge key by key, so an exercise added on one device and
+   a setting changed on another both survive. A value changed on both sides: this device wins; an edit beats a delete. */
+const NOBASE = Symbol('nobase');
+function merge3(b, l, r) {
+  const isObj = v => v != null && typeof v === 'object' && !Array.isArray(v), eq = (x, y) => JSON.stringify(x) === JSON.stringify(y), cp = v => v === undefined ? undefined : clone(v);
+  if (eq(l, r)) return cp(l);
+  if (b !== NOBASE && eq(b, l)) return cp(r);
+  if (b !== NOBASE && eq(b, r)) return cp(l);
+  if (isObj(l) && isObj(r)) { const out = {}; for (const k of new Set([...Object.keys(l), ...Object.keys(r)])) { const v = merge3(b === NOBASE ? NOBASE : isObj(b) ? b[k] : undefined, l[k], r[k]); if (v !== undefined) out[k] = v; } return out; }
+  return l === undefined ? cp(r) : cp(l);
+}
 function b64(text) { const by = new TextEncoder().encode(text); let s = ''; for (let i = 0; i < by.length; i += 0x8000) s += String.fromCharCode.apply(null, by.subarray(i, i + 0x8000)); return btoa(s); }
 const GH = {
   cfg: null, meta: null, busy: false, again: false, timer: null, poll: null,
@@ -93,6 +105,8 @@ const GH = {
     const fetchList = Object.keys(remote).filter(p => remote[p] !== m.known[p]);
     const texts = {}; let i = 0;
     await Promise.all(Array.from({ length: Math.min(6, fetchList.length) }, async () => { while (i < fetchList.length) { const p = fetchList[i++]; texts[p] = await this.blobText(remote[p]); } }));
+    const sp = this.path('settings'); this.baseSet = NOBASE; // v1.49: the version this device last synced, so edits on both sides can be merged
+    if (texts[sp] && m.dirty[sp] && !m.first && m.known[sp]) { try { this.baseSet = JSON.parse(await this.blobText(m.known[sp])); } catch (e) { } }
     let ch = false;
     for (const p of fetchList) { let o = null; try { o = JSON.parse(texts[p]); } catch (e) { continue; } if (this.merge(p, o)) ch = true; }
     if (!m.first) for (const p in m.known) if (!remote[p] && this.removeRemote(p)) ch = true; // deleted on another device
@@ -104,7 +118,11 @@ const GH = {
   merge(p, o) {
     const info = this.parse(p), dirty = this.meta.dirty[p], first = this.meta.first;
     if (info.kind === 'settings') {
-      if (dirty && !first) return false; // edited here: this device's settings win
+      if (dirty && !first) { // edited on both sides: merge field by field against the last synced version (v1.49; was whole-file, this device wins, which dropped an exercise added elsewhere)
+        const b = this.baseSet === NOBASE ? NOBASE : migrateSettings(this.baseSet), next = merge3(b, STATE.settings, migrateSettings(o));
+        if (JSON.stringify(next) === JSON.stringify(STATE.settings)) return false;
+        STATE.settings = next; return true; // stays dirty, so the merged copy goes up
+      }
       if (JSON.stringify(o) === JSON.stringify(STATE.settings)) return false;
       STATE.settings = migrateSettings(o); delete this.meta.dirty[p]; return true;
     }
