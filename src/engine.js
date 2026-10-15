@@ -36,11 +36,11 @@ function upcoming(n) { // [{date, s, done, planned}] starting today; assumes you
   return out;
 }
 function slotName(id) { return id === '_rest' ? 'Rest' : sessDef(id)?.name || ''; }
-function rotationNo(date = today()) { // v1.53: which time through the split, ticking over on the day its first session is done (or due);
-  const first = trainIds()[0]; if (!first) return 1; // sessions before the first one belong to an earlier rotation. A new split counts its own first session.
-  let k = Object.values(STATE.w).filter(w => w.s === first && !w.rest && w.date <= date).length;
-  if (!STATE.w[date] && sessionFor(date) === first) k++; // due today: the new rotation starts today
-  return Math.max(1, k);
+function streak(t = today()) { // v1.54: days in a row with a log (a session or a logged rest day); today only adds once logged, it never breaks the run
+  const used = d => { const w = STATE.w[d]; return !!w && !emptyW(w); };
+  let d = used(t) ? t : addDays(t, -1), n = 0;
+  while (used(d)) { n++; d = addDays(d, -1); }
+  return n;
 }
 
 /* ============================================================

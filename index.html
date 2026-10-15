@@ -502,6 +502,7 @@ details.more > summary::-webkit-details-marker { display: none; }
 .toast { position: fixed; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 74px); transform: translate(-50%, -16px); opacity: 0; pointer-events: none; z-index: 50; background: var(--surface-3); border: 1px solid var(--line-2); color: var(--ink); padding: 10px 16px; border-radius: 12px; font-size: 14px; max-width: calc(100% - 32px); text-align: center; transition: opacity .2s, transform .2s; box-shadow: 0 10px 30px rgba(0,0,0,.5); }
 .daynav { display: flex; align-items: center; gap: 6px; flex: none; } .daynav .link { font-size: 14px; margin-right: 4px; }
 .hdr-r { display: flex; align-items: center; gap: 10px; flex: none; }
+.pill.streak { gap: 5px; font-variant-numeric: tabular-nums; } .pill.streak svg { width: 14px; height: 14px; color: var(--accent); flex: none; } .pill.streak b { font-weight: 600; } /* v1.54: streak, WHOOP-style */
 .fab { position: fixed; right: 16px; bottom: calc(var(--tabh) + max(8px, calc(env(safe-area-inset-bottom, 0px) - 8px)) + 14px); z-index: 40; width: 48px; height: 48px; border-radius: 50%; border: 1px solid color-mix(in srgb, var(--accent) 60%, transparent); background: color-mix(in srgb, var(--surface-3) 88%, transparent); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); color: var(--accent); display: grid; place-items: center; box-shadow: 0 4px 18px rgba(0,0,0,.45), 0 0 10px var(--glow); opacity: 0; transform: translateY(8px) scale(.9); pointer-events: none; transition: opacity .18s, transform .18s; }
 .fab.on { opacity: 1; transform: none; pointer-events: auto; }
 .fab i { position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--accent); color: #0b0b10; font: 600 11px/18px var(--f-mono); font-style: normal; text-align: center; }
@@ -569,6 +570,7 @@ function dowMon(s) { return (new Date(toUTC(s)).getUTCDay() + 6) % 7; } // Mon =
 function weekStart(s) { return addDays(s, -dowMon(s)); }
 function fmtDur(sec) { if (!sec) return ''; const m = Math.round(sec / 60); return m >= 60 ? `${Math.floor(m / 60)} h ${pad(m % 60)}` : `${m} min`; }
 const ICON = {
+  flame: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.6 2.3c.4 3.1-1.3 4.9-2.9 6.6C8.2 10.5 6.6 12.2 6.6 15a5.4 5.4 0 0 0 10.8 0c0-2.2-1-3.9-2-5.1-.2 1.3-.8 2.3-1.8 2.8.4-3.5-.5-7.7-1-10.4zM12 21a3 3 0 0 1-3-3c0-1.6 1.1-2.6 2-3.6.3 1 .9 1.7 1.7 2 .2-.7.2-1.4 0-2.2 1.3.9 2.3 2.2 2.3 3.8a3 3 0 0 1-3 3z"/></svg>',
   search: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg>',
   tick: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
   x: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
@@ -647,7 +649,7 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.53'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.54'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
@@ -697,11 +699,11 @@ function upcoming(n) { // [{date, s, done, planned}] starting today; assumes you
   return out;
 }
 function slotName(id) { return id === '_rest' ? 'Rest' : sessDef(id)?.name || ''; }
-function rotationNo(date = today()) { // v1.53: which time through the split, ticking over on the day its first session is done (or due);
-  const first = trainIds()[0]; if (!first) return 1; // sessions before the first one belong to an earlier rotation. A new split counts its own first session.
-  let k = Object.values(STATE.w).filter(w => w.s === first && !w.rest && w.date <= date).length;
-  if (!STATE.w[date] && sessionFor(date) === first) k++; // due today: the new rotation starts today
-  return Math.max(1, k);
+function streak(t = today()) { // v1.54: days in a row with a log (a session or a logged rest day); today only adds once logged, it never breaks the run
+  const used = d => { const w = STATE.w[d]; return !!w && !emptyW(w); };
+  let d = used(t) ? t : addDays(t, -1), n = 0;
+  while (used(d)) { n++; d = addDays(d, -1); }
+  return n;
 }
 
 /* ============================================================
@@ -1887,7 +1889,7 @@ function futureDayHTML(d, off) {
 function vToday() {
   if (ui.dayOff) return vDay(ui.dayOff);
   const t = today(), w = STATE.w[t], sid = w ? w.s : sessionFor(t), sd = sessDef(sid), o = order(), idx = o.indexOf(sid);
-  let h = `<div class="page-h day"><div><div class="eyebrow">${esc(fmtDow(t))} ${esc(fmtDate(t, { year: 'numeric' }))}</div><h1>Today</h1></div><div class="hdr-r">${o.length ? `<span class="pill plain" title="Your ${ordinal(rotationNo())} time through the split">${ordinal(rotationNo())} rotation</span>` : ''}${dayNav(0)}</div></div>`;
+  let h = `<div class="page-h day"><div><div class="eyebrow">${esc(fmtDow(t))} ${esc(fmtDate(t, { year: 'numeric' }))}</div><h1>Today</h1></div><div class="hdr-r">${(() => { const n = streak(); return n ? `<span class="pill plain streak" data-live="streak" title="${n} day${n === 1 ? '' : 's'} in a row with a session or rest day logged" aria-label="Streak: ${n} day${n === 1 ? '' : 's'}">${ICON.flame}<b>${n}</b></span>` : ''; })()}${dayNav(0)}</div></div>`;
   const tail = () => whoopCard() + stripHTML() + weekCard();
   if (w && (!w.fin || ui.editToday)) return h + logBody(t) + stripHTML() + weekCard(); // the log, until you press Done (no Recovery card while logging, v1.36)
   if (w) return h + doneHero(w, idx, o) + tail();

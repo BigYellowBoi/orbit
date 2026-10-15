@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const core = fs.readFileSync(path.join(root, 'src/core.js'), 'utf8');
 const engineSrc = fs.readFileSync(path.join(root, 'src/engine.js'), 'utf8');
-const EXPOSE = `globalThis.E = { STATE, S, rotationNo: typeof rotationNo !== 'undefined' ? rotationNo : null, today, addDays, diffDays, sessionFor, upcoming, lastFor, bestBefore, bestSet, records, hasHistory, hasRef,
+const EXPOSE = `globalThis.E = { STATE, S, streak: typeof streak !== 'undefined' ? streak : null, today, addDays, diffDays, sessionFor, upcoming, lastFor, bestBefore, bestSet, records, hasHistory, hasRef,
   liftSeries, maintenance, strengthRef, suggest, setAim, cutCheck, progression, prsIn, setScore, e1rm, exRir, exStep, derived, xpRun: typeof xpRun !== "undefined" ? xpRun : null, XP: typeof XP !== "undefined" ? XP : null, partialFlags: typeof partialFlags !== "undefined" ? partialFlags : null, warmup: typeof warmup !== "undefined" ? warmup : null, rowAim: typeof rowAim !== "undefined" ? rowAim : null, doneSets, planWeekly, wStats, fmtSet, dayVal, scoreTxt, newWorkout, restRecord, sessDef, exDef, ordModel: typeof ordModel !== "undefined" ? ordModel : null, ordFactor: typeof ordFactor !== "undefined" ? ordFactor : null, overlap: typeof overlap !== "undefined" ? overlap : null, ctxLog: typeof ctxLog !== "undefined" ? ctxLog : null, usualCtx: typeof usualCtx !== "undefined" ? usualCtx : null, aimIn: typeof aimIn !== "undefined" ? aimIn : null, refScore, exRir, snapBase: typeof snapBase !== "undefined" ? snapBase : null, baseCtx: typeof baseCtx !== "undefined" ? baseCtx : null, moveEx: typeof moveEx !== "undefined" ? moveEx : null, movedIdx: typeof movedIdx !== "undefined" ? movedIdx : null,
   bump: () => { STATE.v++; } };`;
 
@@ -100,17 +100,15 @@ function follow(goal, rate, weeks = 26, exId = 'shoulder_press') {
   ok(['dip', 'down'].includes(E.maintenance(id).state), 'a real drop still shows');
 }
 
-/* ---------- rotation number (v1.53) ---------- */
-if (load().rotationNo) {
+/* ---------- streak (v1.54) ---------- */
+if (load().streak) {
   const E = load(), t = E.today(), d = n => E.addDays(t, n);
-  const log = (k, s) => { E.STATE.w[d(k)] = E.newWorkout(d(k), s); };
-  log(-3, 'legs'); log(-2, 'push1'); log(-1, 'pull'); // the legs day ended an earlier rotation
-  ok(E.rotationNo() === 1, 'rotation: legs before the first Push 1 does not start a rotation');
-  log(0, 'push2'); ok(E.rotationNo() === 1, 'rotation: still the 1st on Push 2');
-  delete E.STATE.w[t]; log(-1, 'push2'); log(-2, 'pull'); log(-3, 'push1'); log(-4, 'legs'); E.STATE.w[d(-5)] = undefined; delete E.STATE.w[d(-5)];
-  ok(E.sessionFor(t) === 'legs' && E.rotationNo() === 1, 'rotation: 1st through Legs');
-  log(0, 'legs'); log(1, 'push1'); ok(E.rotationNo(d(1)) === 2, 'rotation: 2nd from the next Push 1');
-  ok(E.rotationNo(d(2)) === 2, 'rotation: stays 2nd after it');
+  ok(E.streak() === 0, 'streak: nothing logged');
+  E.STATE.w[d(-3)] = E.newWorkout(d(-3), 'push1'); E.STATE.w[d(-2)] = E.restRecord(d(-2)); E.STATE.w[d(-1)] = E.newWorkout(d(-1), 'pull');
+  ok(E.streak() === 3, 'streak: a logged rest day keeps it and counts; today not logged yet does not break it');
+  E.STATE.w[t] = E.newWorkout(t, 'push2'); ok(E.streak() === 4, 'streak: today adds once logged');
+  E.STATE.w[t] = { ...E.newWorkout(t, 'push2'), nw: 1, ex: [] }; ok(E.streak() === 3, 'streak: an empty started session does not count');
+  delete E.STATE.w[d(-2)]; ok(E.streak() === 1, 'streak: a day with nothing logged breaks it');
 }
 
 /* ---------- PRs ---------- */

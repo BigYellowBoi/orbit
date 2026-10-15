@@ -72,7 +72,7 @@ function futureDayHTML(d, off) {
 function vToday() {
   if (ui.dayOff) return vDay(ui.dayOff);
   const t = today(), w = STATE.w[t], sid = w ? w.s : sessionFor(t), sd = sessDef(sid), o = order(), idx = o.indexOf(sid);
-  let h = `<div class="page-h day"><div><div class="eyebrow">${esc(fmtDow(t))} ${esc(fmtDate(t, { year: 'numeric' }))}</div><h1>Today</h1></div><div class="hdr-r">${o.length ? `<span class="pill plain" title="Your ${ordinal(rotationNo())} time through the split">${ordinal(rotationNo())} rotation</span>` : ''}${dayNav(0)}</div></div>`;
+  let h = `<div class="page-h day"><div><div class="eyebrow">${esc(fmtDow(t))} ${esc(fmtDate(t, { year: 'numeric' }))}</div><h1>Today</h1></div><div class="hdr-r">${(() => { const n = streak(); return n ? `<span class="pill plain streak" data-live="streak" title="${n} day${n === 1 ? '' : 's'} in a row with a session or rest day logged" aria-label="Streak: ${n} day${n === 1 ? '' : 's'}">${ICON.flame}<b>${n}</b></span>` : ''; })()}${dayNav(0)}</div></div>`;
   const tail = () => whoopCard() + stripHTML() + weekCard();
   if (w && (!w.fin || ui.editToday)) return h + logBody(t) + stripHTML() + weekCard(); // the log, until you press Done (no Recovery card while logging, v1.36)
   if (w) return h + doneHero(w, idx, o) + tail();

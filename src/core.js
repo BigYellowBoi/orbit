@@ -23,6 +23,7 @@ function dowMon(s) { return (new Date(toUTC(s)).getUTCDay() + 6) % 7; } // Mon =
 function weekStart(s) { return addDays(s, -dowMon(s)); }
 function fmtDur(sec) { if (!sec) return ''; const m = Math.round(sec / 60); return m >= 60 ? `${Math.floor(m / 60)} h ${pad(m % 60)}` : `${m} min`; }
 const ICON = {
+  flame: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.6 2.3c.4 3.1-1.3 4.9-2.9 6.6C8.2 10.5 6.6 12.2 6.6 15a5.4 5.4 0 0 0 10.8 0c0-2.2-1-3.9-2-5.1-.2 1.3-.8 2.3-1.8 2.8.4-3.5-.5-7.7-1-10.4zM12 21a3 3 0 0 1-3-3c0-1.6 1.1-2.6 2-3.6.3 1 .9 1.7 1.7 2 .2-.7.2-1.4 0-2.2 1.3.9 2.3 2.2 2.3 3.8a3 3 0 0 1-3 3z"/></svg>',
   search: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg>',
   tick: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
   x: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
