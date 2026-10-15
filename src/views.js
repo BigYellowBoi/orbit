@@ -192,6 +192,10 @@ function vLog() {
   return `<button class="link" data-act="go" data-tab="history" style="align-self:flex-start">‹ History</button>
     <div class="dnav"><button class="iconbtn" data-act="logday" data-n="-1" aria-label="Previous day">‹</button><div class="dnav-c"><b>${esc(fmtDow(d) + ' ' + fmtDate(d))}</b><small>${esc(fmtDate(d, { weekday: 'long', year: 'numeric' }))}</small></div><button class="iconbtn" data-act="logday" data-n="1" aria-label="Next day">›</button></div>` + logBody(d);
 }
+function sessTopTxt(w) { // the session bar's line: done working sets of all working sets, and tonnage (v1.51: warm-ups out of both, rebuilt whole on every change)
+  const sd = sessDef(w.s), st = wStats(w), n = sum((w.ex || []).map(e => e.sets.filter(x => x.t !== 'w').length));
+  return `${sd?.focus ? sd.focus + ' · ' : ''}${st.sets} / ${n} sets${st.kg ? ` · ${fmt(st.kg / 1000, 1)} t moved` : ''}`;
+}
 function logBody(d) {
   const w = STATE.w[d], t = today(), past = d < t;
   let h = '';
@@ -217,8 +221,8 @@ function logBody(d) {
     return h;
   }
   const sd = sessDef(w.s), st = wStats(w), dur = sessDur(w), wl = whoopLiftMin(w.date);
-  const nPlan = sum((w.ex || []).map(e => e.sets.length)), empty = emptyW(w);
-  h += `<div class="sess-top"><div class="t"><b>${esc(sessName(w))}</b><small>${esc(sd?.focus || '')}${sd?.focus ? ' · ' : ''}${st.sets} / ${nPlan} sets${st.kg ? ` · ${fmt(st.kg / 1000, 1)} t moved` : ''}</small></div>
+  const empty = emptyW(w);
+  h += `<div class="sess-top"><div class="t"><b>${esc(sessName(w))}</b><small>${esc(sessTopTxt(w))}</small></div>
     ${past && !empty ? saveBtn : dur ? pill('acc', fmtDur(dur)) : ''}</div>`;
   if (empty) h += `<div class="btnrow" style="justify-content:space-between"><span class="xs muted">Nothing logged yet.</span><button class="link dim" data-act="cancelw">Not training? Cancel session</button></div>`;
   const ln = lastSessionNote(w);

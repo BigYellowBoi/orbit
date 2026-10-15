@@ -617,7 +617,7 @@ function setInput(el, final) {
   setFromInputs(s, num($(`#w${i}_${j}`)?.value), parseInt($(`#r${i}_${j}`)?.value, 10), def.u, rowAim(e, j, w.date, aimIn(w, i))?.w);
   const row = $(`#row${i}_${j}`); if (row) row.classList.toggle('done', s.done);
   if (final && s.done && s.w != null && $(`#w${i}_${j}`) && $(`#w${i}_${j}`).value === '') $(`#w${i}_${j}`).value = fmt(s.w, 2).replace(/,/g, '');
-  const st = wStats(w), sm = $('.sess-top .t small'); if (sm) sm.textContent = sm.textContent.replace(/\d+ sets?/, `${st.sets} set${st.sets === 1 ? '' : 's'}`);
+  const sm = $('.sess-top .t small'); if (sm) sm.textContent = sessTopTxt(w);
   saveW(w.date); renderFab(); // the count of empty sets changes as you fill them
   if (final && s.done && s.t !== 'w' && prsIn({ date: w.date, ex: [e] }).some(p => p.s === s)) { row?.classList.add('pr'); toast(`New best · ${esc(def.name)} ${esc(fmtSet(e.id, s))}`, 'pr'); }
   else if (final && row && !s.done) row.classList.remove('pr');

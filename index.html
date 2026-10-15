@@ -647,7 +647,7 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.50'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.51'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
@@ -2005,6 +2005,10 @@ function vLog() {
   return `<button class="link" data-act="go" data-tab="history" style="align-self:flex-start">‹ History</button>
     <div class="dnav"><button class="iconbtn" data-act="logday" data-n="-1" aria-label="Previous day">‹</button><div class="dnav-c"><b>${esc(fmtDow(d) + ' ' + fmtDate(d))}</b><small>${esc(fmtDate(d, { weekday: 'long', year: 'numeric' }))}</small></div><button class="iconbtn" data-act="logday" data-n="1" aria-label="Next day">›</button></div>` + logBody(d);
 }
+function sessTopTxt(w) { // the session bar's line: done working sets of all working sets, and tonnage (v1.51: warm-ups out of both, rebuilt whole on every change)
+  const sd = sessDef(w.s), st = wStats(w), n = sum((w.ex || []).map(e => e.sets.filter(x => x.t !== 'w').length));
+  return `${sd?.focus ? sd.focus + ' · ' : ''}${st.sets} / ${n} sets${st.kg ? ` · ${fmt(st.kg / 1000, 1)} t moved` : ''}`;
+}
 function logBody(d) {
   const w = STATE.w[d], t = today(), past = d < t;
   let h = '';
@@ -2030,8 +2034,8 @@ function logBody(d) {
     return h;
   }
   const sd = sessDef(w.s), st = wStats(w), dur = sessDur(w), wl = whoopLiftMin(w.date);
-  const nPlan = sum((w.ex || []).map(e => e.sets.length)), empty = emptyW(w);
-  h += `<div class="sess-top"><div class="t"><b>${esc(sessName(w))}</b><small>${esc(sd?.focus || '')}${sd?.focus ? ' · ' : ''}${st.sets} / ${nPlan} sets${st.kg ? ` · ${fmt(st.kg / 1000, 1)} t moved` : ''}</small></div>
+  const empty = emptyW(w);
+  h += `<div class="sess-top"><div class="t"><b>${esc(sessName(w))}</b><small>${esc(sessTopTxt(w))}</small></div>
     ${past && !empty ? saveBtn : dur ? pill('acc', fmtDur(dur)) : ''}</div>`;
   if (empty) h += `<div class="btnrow" style="justify-content:space-between"><span class="xs muted">Nothing logged yet.</span><button class="link dim" data-act="cancelw">Not training? Cancel session</button></div>`;
   const ln = lastSessionNote(w);
@@ -3172,7 +3176,7 @@ function setInput(el, final) {
   setFromInputs(s, num($(`#w${i}_${j}`)?.value), parseInt($(`#r${i}_${j}`)?.value, 10), def.u, rowAim(e, j, w.date, aimIn(w, i))?.w);
   const row = $(`#row${i}_${j}`); if (row) row.classList.toggle('done', s.done);
   if (final && s.done && s.w != null && $(`#w${i}_${j}`) && $(`#w${i}_${j}`).value === '') $(`#w${i}_${j}`).value = fmt(s.w, 2).replace(/,/g, '');
-  const st = wStats(w), sm = $('.sess-top .t small'); if (sm) sm.textContent = sm.textContent.replace(/\d+ sets?/, `${st.sets} set${st.sets === 1 ? '' : 's'}`);
+  const sm = $('.sess-top .t small'); if (sm) sm.textContent = sessTopTxt(w);
   saveW(w.date); renderFab(); // the count of empty sets changes as you fill them
   if (final && s.done && s.t !== 'w' && prsIn({ date: w.date, ex: [e] }).some(p => p.s === s)) { row?.classList.add('pr'); toast(`New best · ${esc(def.name)} ${esc(fmtSet(e.id, s))}`, 'pr'); }
   else if (final && row && !s.done) row.classList.remove('pr');
