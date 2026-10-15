@@ -113,6 +113,22 @@ function follow(goal, rate, weeks = 26, exId = 'shoulder_press') {
   ok(E.lastFor(id, t).date === d2 && E.lastFor(id, d2).date === d1 && !E.lastFor(id, d1), 'lastFor walks back by date');
   ok(E.bestSet(id, d1).w === 150 && E.bestSet(id).w === 152.5, 'bestSet: stated max, then logged');
 }
+{ // v1.50: a best needs the best's weight or heavier; light high-rep sets never count
+  const E = load(), t = E.today(), id = 'lat_raise';
+  E.S().ex[id].base = { w: 16, r: 8 };
+  const d1 = E.addDays(t, -6), d2 = E.addDays(t, -4), d3 = E.addDays(t, -2);
+  E.STATE.w[d1] = { date: d1, s: 'push2', ex: [{ id, sets: [{ w: 14, r: 14, done: true }, { w: 14, r: 13, done: true }] }] };
+  E.STATE.w[d2] = { date: d2, s: 'push2', ex: [{ id, sets: [{ w: 16, r: 9, done: true }, { w: 18, r: 7, done: true }] }] };
+  E.STATE.w[d3] = { date: d3, s: 'push2', ex: [{ id, sets: [{ w: 16, r: 10, done: true }, { w: 18, r: 8, done: true }] }] };
+  E.bump();
+  ok(E.prsIn(E.STATE.w[d1]).length === 0, 'best rule: 14×14 under a 16 kg best is not a best, even with a higher e1RM');
+  ok(E.prsIn(E.STATE.w[d2]).map(p => p.s.w + 'x' + p.s.r).join() === '16x9,18x7', 'best rule: same weight more reps, then heavier with a higher e1RM');
+  ok(E.prsIn(E.STATE.w[d3]).map(p => p.s.w + 'x' + p.s.r).join() === '18x8', 'best rule: after an 18 kg best, 16×10 does not count');
+  ok(E.bestSet(id).w === 18 && E.bestSet(id).r === 8 && E.records(id).best.date === d3, 'best rule: bestSet and records follow it');
+  const k = 'katana'; E.S().ex[k].base = { w: 7.5, r: 8 }; const d4 = E.addDays(t, -1);
+  E.STATE.w[d4] = { date: d4, s: 'push2', ex: [{ id: k, sets: [{ w: 6.25, r: 20, done: true }] }] }; E.bump();
+  ok(E.prsIn(E.STATE.w[d4]).length === 0, 'best rule: 6.25×20 under a 7.5 kg best is not a best');
+}
 
 /* ---------- bodyweight lifts ---------- */
 {

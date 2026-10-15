@@ -25,8 +25,8 @@ function rxTxt(it) { const d = exDef(it.ex); return `${defSets(it.ex)} × ${d.lo
 function prevLine(exId, before, sid) { const sg = suggest(exId, before, usualCtx(exId, sid)), l = lastLine(exId, before); return [sg ? `<b class="aimtxt">Aim ${esc(suggestTxt(exId, sg))}</b>` : '', esc(l)].filter(Boolean).join(' · '); }
 function lastLine(exId, before) {
   const ix = lixEx(exId), n = nBefore(ix.list, before); // Best counts logged sets only; stated maxes just seed the Aim
-  let b = null; for (let i = 0; i < n; i++) if (!b || ix.list[i].sc > b.sc) b = ix.list[i];
-  const l = lastFor(exId, before), best = b ? `Best ${fmtSet(exId, b.top)}` : '';
+  const b = n ? ix.logged[n - 1] : null; // logged sets only, same rule as new bests (v1.50)
+  const l = lastFor(exId, before), best = b ? `Best ${fmtSet(exId, b.s)}` : '';
   if (l) return `Last ${fmtDate(l.date)} · ${setsTxt(exId, l.sets)}${best ? ' · ' + best : ''}`;
   return ''; // never done before: nothing to say (v1.36; was "Not logged yet")
 }

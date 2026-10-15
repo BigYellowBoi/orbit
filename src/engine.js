@@ -96,20 +96,27 @@ function maxScore(exId) { const b = exDef(exId).base; return b && b.r > 0 ? setS
 function lixEx(exId) { // this lift's sessions in date order with their best set, plus the running best (stated max included)
   const L = lix(); if (L.ex[exId]) return L.ex[exId];
   const list = (L.by[exId] || []).map(x => { let top = x.sets[0], sc = setScore(exId, top, x.date); for (const s of x.sets) { const v = setScore(exId, s, x.date); if (v > sc) { sc = v; top = s; } } return { date: x.date, sets: x.sets, top, sc, ctx: x.ctx }; });
-  let run = maxScore(exId); const pre = list.map(x => (run = Math.max(run, x.sc)));
-  return L.ex[exId] = { list, pre };
+  const b = exDef(exId).base, chain = cur => list.map(x => (cur = bestStep(exId, cur, x.sets, x.date))); // running best after each session (v1.50)
+  const best = chain(b && b.r > 0 ? { s: b, sc: maxScore(exId), date: null } : null), logged = chain(null);
+  return L.ex[exId] = { list, best, logged, pre: best.map(r => r ? r.sc : 0) };
 }
+/* A best (v1.50, his rule): a higher estimated 1RM at the best's weight or heavier, so light high-rep sets never count.
+   With nothing yet, the heaviest set starts it (most reps on ties). */
+function beatsBest(exId, cur, s, date) { const sc = setScore(exId, s, date); return !cur || (sc > cur.sc + 1e-9 && (s.w || 0) >= (cur.s.w || 0) - 1e-9); }
+function bestStep(exId, cur, sets, date) {
+  if (!cur) { const h = sets.reduce((a, x) => !a || (x.w || 0) > (a.w || 0) || ((x.w || 0) === (a.w || 0) && x.r > a.r) ? x : a, null); return h ? { s: h, sc: setScore(exId, h, date), date } : null; }
+  let nx = cur; for (const x of sets) { if (beatsBest(exId, cur, x, date) && setScore(exId, x, date) > nx.sc) nx = { s: x, sc: setScore(exId, x, date), date }; }
+  return nx;
+}
+function bestRecBefore(exId, before) { const ix = lixEx(exId), i = nBefore(ix.list, before), b = exDef(exId).base; return i ? ix.best[i - 1] : b && b.r > 0 ? { s: b, sc: maxScore(exId), date: null } : null; }
 function lastFor(exId, before) { // the last session of this lift before a date
   const { list } = lixEx(exId), i = nBefore(list, before); if (!i) return null;
   let j = i - 1; while (j > 0 && list[j - 1].date === list[i - 1].date) j--;
   return { date: list[j].date, sets: list[j].sets };
 }
-function bestBefore(exId, before) { const ix = lixEx(exId), i = nBefore(ix.list, before); return i ? ix.pre[i - 1] : maxScore(exId); } // best score on dates strictly before, including the stated max
+function bestBefore(exId, before) { const r = bestRecBefore(exId, before); return r ? r.sc : 0; } // best score on dates strictly before, including the stated max
 function bestSet(exId, before = '9999') { // best before a date: stated max or any logged set
-  const b = exDef(exId).base, { list } = lixEx(exId), n = nBefore(list, before);
-  let best = b && b.r > 0 ? b : null, sc = best ? maxScore(exId) : 0;
-  for (let i = 0; i < n; i++) if (list[i].sc > sc) { sc = list[i].sc; best = list[i].top; }
-  return best;
+  const r = bestRecBefore(exId, before); return r ? r.s : null;
 }
 function records(exId) { // heaviest set and best e1RM set, from logs plus the stated max
   const b = exDef(exId).base, { list } = lixEx(exId), cands = [];
@@ -117,8 +124,7 @@ function records(exId) { // heaviest set and best e1RM set, from logs plus the s
   for (const x of list) for (const s of x.sets) cands.push({ s, date: x.date });
   if (!cands.length) return null;
   const heavy = cands.reduce((a, c) => ((c.s.w || 0) > (a.s.w || 0) || ((c.s.w || 0) === (a.s.w || 0) && c.s.r > a.s.r)) ? c : a);
-  let best = cands[0], bsc = best.date ? list[0].sc : maxScore(exId);
-  for (const x of list) if (x.sc > bsc) { bsc = x.sc; best = { s: x.top, date: x.date }; }
+  const r = bestRecBefore(exId, '9999'), best = r ? { s: r.s, date: r.date } : cands[0];
   return { heavy, best, logged: list.length > 0 };
 }
 function hasRef(exId, before) { return maxScore(exId) > 0 || hasHistory(exId, before); }
@@ -385,8 +391,8 @@ function prsIn(w) { // sets in this workout that beat everything before its date
   const out = [];
   for (const e of w.ex || []) {
     if (!hasRef(e.id, w.date)) continue;
-    const prev = bestBefore(e.id, w.date); let run = prev;
-    for (const s of doneSets(e)) { const sc = setScore(e.id, s, w.date); if (sc > run + 1e-9) { run = sc; out.push({ id: e.id, s }); } }
+    let run = bestRecBefore(e.id, w.date); // sets in order, each against the best so far (same rule as beatsBest)
+    for (const s of doneSets(e)) if (run && beatsBest(e.id, run, s, w.date)) { run = { s, sc: setScore(e.id, s, w.date), date: w.date }; out.push({ id: e.id, s }); }
   }
   return out;
 }

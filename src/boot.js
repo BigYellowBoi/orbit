@@ -613,13 +613,13 @@ document.addEventListener('pointerup', endDrag); document.addEventListener('poin
 /* ---------- set rows: saved and counted as you type ---------- */
 function setInput(el, final) {
   const w = logW(); if (!w) return; const i = +el.dataset.e, j = +el.dataset.s, e = w.ex[i], s = e?.sets[j]; if (!s) return;
-  const def = exDef(e.id), wasDone = s.done, prevBest = final ? Math.max(bestBefore(e.id, w.date), ...e.sets.filter((x, k) => k !== j && x.done && x.r > 0).map(x => setScore(e.id, x, w.date))) : 0;
+  const def = exDef(e.id), wasDone = s.done;
   setFromInputs(s, num($(`#w${i}_${j}`)?.value), parseInt($(`#r${i}_${j}`)?.value, 10), def.u, rowAim(e, j, w.date, aimIn(w, i))?.w);
   const row = $(`#row${i}_${j}`); if (row) row.classList.toggle('done', s.done);
   if (final && s.done && s.w != null && $(`#w${i}_${j}`) && $(`#w${i}_${j}`).value === '') $(`#w${i}_${j}`).value = fmt(s.w, 2).replace(/,/g, '');
   const st = wStats(w), sm = $('.sess-top .t small'); if (sm) sm.textContent = sm.textContent.replace(/\d+ sets?/, `${st.sets} set${st.sets === 1 ? '' : 's'}`);
   saveW(w.date); renderFab(); // the count of empty sets changes as you fill them
-  if (final && s.done && s.t !== 'w' && hasRef(e.id, w.date) && setScore(e.id, s, w.date) > prevBest + 1e-9) { row?.classList.add('pr'); toast(`New best · ${esc(def.name)} ${esc(fmtSet(e.id, s))}`, 'pr'); }
+  if (final && s.done && s.t !== 'w' && prsIn({ date: w.date, ex: [e] }).some(p => p.s === s)) { row?.classList.add('pr'); toast(`New best · ${esc(def.name)} ${esc(fmtSet(e.id, s))}`, 'pr'); }
   else if (final && row && !s.done) row.classList.remove('pr');
 }
 document.addEventListener('input', ev => { const el = ev.target; if (el.matches && el.matches('.set .in')) setInput(el, false); });
