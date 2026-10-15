@@ -619,7 +619,11 @@ function setInput(el, final) {
   if (final && s.done && s.w != null && $(`#w${i}_${j}`) && $(`#w${i}_${j}`).value === '') $(`#w${i}_${j}`).value = fmt(s.w, 2).replace(/,/g, '');
   const sm = $('.sess-top .t small'); if (sm) sm.textContent = sessTopTxt(w);
   saveW(w.date); renderFab(); // the count of empty sets changes as you fill them
-  if (final && s.done && s.t !== 'w' && prsIn({ date: w.date, ex: [e] }).some(p => p.s === s)) { row?.classList.add('pr'); toast(`New best · ${esc(def.name)} ${esc(fmtSet(e.id, s))}`, 'pr'); }
+  if (final) { // v1.52: re-mark every set of this exercise, so a set corrected below the best loses its purple
+    const now = new Set(prsIn({ date: w.date, ex: [e] }).map(p => p.s)), was = !!row?.classList.contains('pr');
+    e.sets.forEach((x, k) => $(`#row${i}_${k}`)?.classList.toggle('pr', now.has(x)));
+    if (now.has(s) && !was) toast(`New best · ${esc(def.name)} ${esc(fmtSet(e.id, s))}`, 'pr');
+  }
   else if (final && row && !s.done) row.classList.remove('pr');
 }
 document.addEventListener('input', ev => { const el = ev.target; if (el.matches && el.matches('.set .in')) setInput(el, false); });

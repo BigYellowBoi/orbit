@@ -22,6 +22,12 @@ const ok = (c, msg) => { if (c) passes++; else { fails++; console.log('FAIL', ms
   ok((await bar()).join() === `2,${t0 + 1}`, 'a warm-up does not count ' + await bar());
   await p.tap('[data-act="pickopen"]'); await p.tap('.picklist [data-act="addexid"]');
   ok((await bar())[1] > t0 + 1 && (await bar())[1] === await total(), '+ Exercise raises the total ' + await bar());
+  // v1.52: a best corrected below the best loses its purple
+  await p.evaluate(() => { const w = STATE.w[today()]; S().ex[w.ex[2].id].base = { w: 10, r: 10 }; bump(); render(true); });
+  await p.fill('#w2_0', '10'); await p.fill('#r2_0', '12'); await p.locator('#r2_0').blur();
+  ok(await p.$eval('#row2_0', e => e.classList.contains('pr')), '10 × 12 over a 10 × 10 best is marked');
+  await p.fill('#r2_0', '9'); await p.locator('#r2_0').blur();
+  ok(!(await p.$eval('#row2_0', e => e.classList.contains('pr'))), 'corrected to 10 × 9 it is not');
   ok(!errs.length, 'no page errors ' + errs.join(' | '));
   await b.close(); console.log(`${passes} passed, ${fails} failed`); process.exit(fails ? 1 : 0);
 })();
