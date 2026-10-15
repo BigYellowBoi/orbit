@@ -647,7 +647,7 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.52'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.53'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
@@ -697,9 +697,11 @@ function upcoming(n) { // [{date, s, done, planned}] starting today; assumes you
   return out;
 }
 function slotName(id) { return id === '_rest' ? 'Rest' : sessDef(id)?.name || ''; }
-function rotationCount() { // completed full rotations (training sessions only)
-  const n = trainIds().length; if (!n) return 0;
-  const k = Object.values(STATE.w).filter(w => sessDef(w.s) && !w.rest).length; return Math.floor(k / n);
+function rotationNo(date = today()) { // v1.53: which time through the split, ticking over on the day its first session is done (or due);
+  const first = trainIds()[0]; if (!first) return 1; // sessions before the first one belong to an earlier rotation. A new split counts its own first session.
+  let k = Object.values(STATE.w).filter(w => w.s === first && !w.rest && w.date <= date).length;
+  if (!STATE.w[date] && sessionFor(date) === first) k++; // due today: the new rotation starts today
+  return Math.max(1, k);
 }
 
 /* ============================================================
@@ -1885,7 +1887,7 @@ function futureDayHTML(d, off) {
 function vToday() {
   if (ui.dayOff) return vDay(ui.dayOff);
   const t = today(), w = STATE.w[t], sid = w ? w.s : sessionFor(t), sd = sessDef(sid), o = order(), idx = o.indexOf(sid);
-  let h = `<div class="page-h day"><div><div class="eyebrow">${esc(fmtDow(t))} ${esc(fmtDate(t, { year: 'numeric' }))}</div><h1>Today</h1></div><div class="hdr-r">${o.length ? `<span class="pill plain" title="Your ${ordinal(rotationCount() + 1)} time through the split">${ordinal(rotationCount() + 1)} rotation</span>` : ''}${dayNav(0)}</div></div>`;
+  let h = `<div class="page-h day"><div><div class="eyebrow">${esc(fmtDow(t))} ${esc(fmtDate(t, { year: 'numeric' }))}</div><h1>Today</h1></div><div class="hdr-r">${o.length ? `<span class="pill plain" title="Your ${ordinal(rotationNo())} time through the split">${ordinal(rotationNo())} rotation</span>` : ''}${dayNav(0)}</div></div>`;
   const tail = () => whoopCard() + stripHTML() + weekCard();
   if (w && (!w.fin || ui.editToday)) return h + logBody(t) + stripHTML() + weekCard(); // the log, until you press Done (no Recovery card while logging, v1.36)
   if (w) return h + doneHero(w, idx, o) + tail();
