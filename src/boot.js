@@ -494,6 +494,7 @@ document.addEventListener('click', ev => {
 
 function setRest(date, on) { // plan or unplan a one-off rest day; past dates drop off the list
   const t = today(); if (!date || date < t) return;
+  if (on && STATE.w[date] && !emptyW(STATE.w[date])) { toast('That day is already logged'); const i = $('#restadd'); if (i) i.value = ''; return; } // v1.55: planned rest is for days ahead, not a logged day
   const a = (S().restPlan || []).filter(d => d >= t && d !== date); if (on) a.push(date);
   S().restPlan = a.sort(); ui.restPick = null; saveSettings();
   toast(on ? `Rest planned for ${esc(fmtDow(date))} ${esc(fmtDate(date))}` : 'Planned rest removed'); render(true);

@@ -116,7 +116,7 @@ function stripHTML() { // the next days; tap one to plan it as a rest day (or un
   if (pick) h += `<div class="pickrow"><span><b>${esc(lab(pick.date))}</b> · ${pick.planned ? 'planned rest' : isRestSlot(pick.s) ? 'rest from your rotation' : esc(slotName(pick.s))}</span>${pick.planned ? `<button class="btn sm ghost" data-act="restoff" data-date="${pick.date}">Train this day</button>` : isRestSlot(pick.s) ? '' : `<button class="btn sm" data-act="reston" data-date="${pick.date}">Rest this day</button>`}</div>`;
   if (ui.restPlanOpen) h += `<section class="card"><div class="card-h"><h2>Planned rest days</h2></div>
     ${later.length ? `<div class="chips">${later.map(d => `<span class="pill plain restchip">${esc(lab(d))}<button class="ed-x sm" data-act="restoff" data-date="${d}" aria-label="Remove rest on ${esc(lab(d))}">${ICON.x}</button></span>`).join('')}</div>` : '<p class="xs muted">None yet.</p>'}
-    <label class="fl">Add a day<input class="in" type="date" id="restadd" data-in="restadd" min="${t}"></label>
+    <label class="fl">Add a day<input class="in" type="date" id="restadd" data-in="restadd" min="${STATE.w[t] && !emptyW(STATE.w[t]) ? addDays(t, 1) : t}"></label>
     <p class="xs muted">Tap a day above for this week, or pick any date here. On a planned rest day the rotation waits, so the sessions after it move back a day. If a rest slot from your rotation is due that day, the planned rest just fills it.</p></section>`;
   return h + `</section>`;
 }
