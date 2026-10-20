@@ -85,7 +85,7 @@ function vToday() {
   const t = today(), w = STATE.w[t], sid = w ? w.s : sessionFor(t), sd = sessDef(sid), o = order(), idx = o.indexOf(sid);
   let h = `<div class="page-h day"><div><div class="eyebrow">${esc(fmtDow(t))} ${esc(fmtDate(t, { year: 'numeric' }))}</div><h1>Today</h1></div><div class="hdr-r">${(() => { const n = streak(); return n ? `<span class="pill plain streak" data-live="streak" title="${n} day${n === 1 ? '' : 's'} in a row with a session or rest day logged" aria-label="Streak: ${n} day${n === 1 ? '' : 's'}">${ICON.flame}<b>${n}</b></span>` : ''; })()}${dayNav(0)}</div></div>`;
   h += injBannerHTML(t);
-  const tail = () => whoopCard() + stripHTML() + weekCard() + (injActive(t).length ? '' : '<button class="link dim" data-act="injnew" style="align-self:center">Log an injury</button>');
+  const tail = () => whoopCard() + stripHTML() + weekCard() + (injActive(t).length ? '' : injList().length ? '<button class="link dim" data-act="go" data-tab="injuries" style="align-self:center">Injuries</button>' : '<button class="link dim" data-act="injnew" style="align-self:center">Log an injury</button>');
   if (w && (!w.fin || ui.editToday)) return h + logBody(t) + stripHTML() + weekCard(); // the log, until you press Done (no Recovery card while logging, v1.36)
   if (w) return h + doneHero(w, idx, o) + tail();
   if (!sd) return h + `<section class="card"><p>Your programme has no sessions. Add one in Plan.</p><button class="btn" data-act="go" data-tab="plan">Open Plan</button></section>`;
@@ -201,13 +201,16 @@ function whoopCard(day) {
 }
 
 /* ---------- Injuries (v1.57) ---------- */
-function injBannerHTML(d) { // Today: what's active and how much of today's session it changes
+function injBannerHTML(d) { // Today (v1.58: compact): each active injury, a daily pain check, and how much of today's session changes
   const act = injActive(d); if (!act.length) return '';
   const w = STATE.w[d], sid = w && !w.rest ? w.s : sessionFor(d), ids = w && !w.rest ? (w.ex || []).map(e => e.id) : (sessDef(sid)?.items || []).map(it => it.ex);
   const n = ids.filter(id => { const p = injPlan(id, d); return p && p.act !== 'watch'; }).length;
-  return `<section class="card injbanner"><div class="card-h"><span class="eyebrow">Injury</span><button class="link" data-act="go" data-tab="injuries">Manage</button></div>
-    ${act.map(i => `<p><b>${esc(injLabel(i))}</b> · ${esc(INJ_SEV[i.sev]?.[0] || '')} · since ${esc(fmtD(i.start))}</p>`).join('')}
-    ${n ? `<p class="small dim">${n} lift${n === 1 ? '' : 's'} in ${esc(slotName(sid) || 'today\u2019s session')} adjusted.</p>` : ''}</section>`;
+  const row = (i, k) => { const v = i.log?.[d];
+    const next = v === 0 && i.sev !== 'niggle' ? `<button class="link inline" data-act="injstep" data-id="${i.id}">Step it down to a niggle</button>`
+      : v === 0 && i.sev === 'niggle' && (() => { const l = Object.entries(i.log || {}).filter(([x]) => x <= d).sort().slice(-2); return l.length === 2 && l.every(([, p]) => p <= 2); })() ? `<button class="link inline" data-act="injheal" data-id="${i.id}">Pain-free twice: mark it healed</button>` : '';
+    return `<div class="ib-h"><span><b>${esc(injLabel(i))}</b> · ${esc(INJ_SEV[i.sev]?.[0] || '')}${!k && n ? ` · ${n} lift${n === 1 ? '' : 's'} adjusted` : ''}</span>${k ? '' : '<button class="link inline" data-act="go" data-tab="injuries">Manage</button>'}</div>
+      <div class="chips four" role="group" aria-label="${esc(injLabel(i))} today">${PAIN_LV.map(([p, l]) => `<button class="chip ${v === p ? 'on' : ''}${p >= 5 ? ' hot' : ''}" data-act="injday" data-id="${i.id}" data-v="${p}" aria-pressed="${v === p}">${p === 0 ? 'No pain' : l}</button>`).join('')}</div>${next}`; };
+  return `<section class="card injbanner">${act.map(row).join('')}</section>`;
 }
 const INJ_ACT = { watch: 'Pain check', hold: 'No increases', light: 'Lighter', skip: 'Skip' };
 function injEffects(inj, d) { // per training session: the lifts this injury changes

@@ -503,7 +503,9 @@ body:has(#updp) .fab { bottom: calc(var(--tabh) + max(8px, calc(env(safe-area-in
 .chips.four { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; } .chips.four .chip { padding: 6px 4px; min-height: 40px; }
 .chip.hot.on { background: var(--bad); border-color: var(--bad); color: #fff; }
 .redflag { color: var(--bad-ink); margin: 0; }
-.injbanner { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); } .injbanner p { margin: 0; font-size: 14px; }
+.injbanner { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); padding: 10px 12px; gap: 8px; }
+.ib-h { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 14px; } .ib-h > span { min-width: 0; }
+.injbanner .chips.four .chip { min-height: 34px; padding: 4px; font-size: 13px; } .injbanner .link.inline { align-self: flex-start; font-size: 13px; }
 .sev { display: grid; gap: 6px; }
 .sevb { text-align: left; display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; min-height: 52px; border-radius: 10px; border: 1px solid var(--line-2); background: transparent; color: var(--ink); }
 .sevb b { font-weight: 600; font-size: 14.5px; } .sevb span { font-size: 12.5px; color: var(--ink-3); }

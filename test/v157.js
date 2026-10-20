@@ -64,10 +64,17 @@ const ok = (c, msg) => { if (c) passes++; else { fails++; console.log('FAIL', ms
   const sk = await p.evaluate(() => STATE.w[today()].ex.findIndex(e => e.id === 'lat_raise'));
   ok(await p.locator(`#ex${sk} .injnote.skip`).count() === 1 && await p.locator(`#ex${sk} .aim`).count() === 0, 'cannot load it: skip note, no Aim');
 
+  // v1.58: daily check on the Today card, step down, then heal
+  await p.evaluate(() => { const id = Object.keys(S().inj)[0]; S().inj[id].sev = 'painful'; saveSettings(); go('today'); });
+  await p.click('.injbanner [data-act="injday"][data-v="0"]');
+  ok(await p.evaluate(() => Object.values(S().inj)[0].log[today()]) === 0, 'daily check saved');
+  await p.click('[data-act="injstep"]'); ok(await p.evaluate(() => Object.values(S().inj)[0].sev) === 'niggle', 'stepped down to a niggle');
+  ok((await p.locator('.injbanner').boundingBox()).height < 130, 'injury card is compact');
   // heal it from the Injuries screen
   await p.evaluate(() => go('injuries')); await p.click('[data-act="injheal"]');
   ok(await p.evaluate(() => Object.values(S().inj)[0].end) === await p.evaluate(() => today()), 'healed today');
   ok(await p.locator('text=Hurting again').count() === 1, 'healed list');
+  await p.evaluate(() => { const w = STATE.w[today()]; delete STATE.w[today()]; saveW(today()); go('today'); globalThis._w = w; }); ok(await p.locator('#view [data-act="go"][data-tab="injuries"]').count() === 1, 'healed: Injuries link at the bottom of Today');
 
   // 5. alcohol: mornings after a drink are left out of Recovery the morning after
   const rows = await p.evaluate(() => {

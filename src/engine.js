@@ -659,6 +659,13 @@ function injLabel(inj) { const a = INJ_AREAS[inj.area] || inj.area, sd = INJ_SID
 function injList() { return Object.entries(S().inj || {}).map(([id, x]) => ({ id, ...x })).sort((a, b) => a.start < b.start ? 1 : a.start > b.start ? -1 : 0); }
 function injActive(date = today()) { return injList().filter(i => i.start <= date && (!i.end || i.end > date)); }
 function painHist(exId, inj, before) { return lixEx(exId).list.filter(x => x.date >= inj.start && x.date < before && x.pain != null); }
+/* v1.58: the daily check on Today's injury card (inj.log { date: pain }) counts for every lift the injury touches, in date
+   order with the pain logged after lifts; a lift's own entry wins on the same day. Today's check counts for today's Aims. */
+function painSeq(exId, inj, before) {
+  const by = {}; for (const [d, v] of Object.entries(inj.log || {})) if (d >= inj.start && d <= before) by[d] = v;
+  for (const x of painHist(exId, inj, before)) by[x.date] = x.pain;
+  return Object.keys(by).sort().map(d => ({ date: d, pain: by[d] }));
+}
 function injVerdict(exId, inj, date, hist) {
   const o = inj.ex?.[exId]; if (o === 'keep') return { act: 'watch', inj, why: 'You marked this as fine. Log pain after it.' };
   const L = o === 'adj' ? 2 : injLvl(exId, inj.area); if (!L) return null;
@@ -666,9 +673,9 @@ function injVerdict(exId, inj, date, hist) {
   if (inj.sev === 'noload') return { act: 'skip', inj, why: `${lab}: can’t load it, so skip this today.` };
   if (inj.sev === 'painful') return L === 2 ? { act: 'light', inj, why: `${lab}: lighter while it settles.` } : { act: 'watch', inj, why: `Works your ${lo} a little. Log pain after it.` };
   if (L < 2) return { act: 'watch', inj, why: `Works your ${lo} a little. Log pain after it.` };
-  let clean = 0; if (hist) { for (const x of painHist(exId, inj, date).reverse()) { if (x.pain <= 2) clean++; else break; } }
-  if (clean >= 2) return { act: 'watch', inj, why: `${clean} pain-free sessions since the niggle, so normal Aims are back.` };
-  return { act: 'hold', inj, why: `${lab} niggle: no load increases until 2 pain-free sessions in a row (${clean} so far).` };
+  let clean = 0; if (hist) { for (const x of painSeq(exId, inj, date).reverse()) { if (x.pain <= 2) clean++; else break; } }
+  if (clean >= 2) return { act: 'watch', inj, why: `Pain-free ${clean} times in a row, so normal Aims are back.` };
+  return { act: 'hold', inj, why: `${lab} niggle: no load increases until it's pain-free twice in a row (${clean} so far).` };
 }
 function injPick(vs) { return vs.filter(Boolean).sort((a, b) => INJ_RANK[b.act] - INJ_RANK[a.act])[0] || null; }
 function injRaw(exId, date) { return injPick(injActive(date).map(i => injVerdict(exId, i, date, false))); } // no pain history: safe to call while the lift index is built
@@ -676,7 +683,7 @@ function injHurt(e, date) { if (e.pain >= 5) return true; if (!S().inj) return f
 function injPlan(exId, date = today()) { // today's verdict for a lift across active injuries, with the last pain logged on it since the injury began
   const act = injActive(date); if (!act.length) return null;
   const v = injPick(act.map(i => injVerdict(exId, i, date, true))); if (!v) return null;
-  const last = painHist(exId, v.inj, date).pop(); return { ...v, lastPain: last ? last.pain : null };
+  const last = painSeq(exId, v.inj, date).pop(); return { ...v, lastPain: last ? last.pain : null };
 }
 function injScale(exId, sg, f) {
   const d = exDef(exId), st = exStep(exId);

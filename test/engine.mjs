@@ -415,6 +415,12 @@ if (load().injPlan) {
   E.S().inj = { c: { area: 'shoulder', side: 'both', sev: 'noload', start: d(-1) } }; E.bump();
   ok(E.injPlan('shoulder_press', t).act === 'skip' && E.injPlan('incline_db', t).act === 'skip', 'cannot load it: pressing skipped');
   ok(!E.injSwaps('incline_db', t).some(id => E.injLvl(id, 'shoulder') > 0), 'swaps never load the injured area');
+  // v1.58: the daily check on Today counts for every lift the injury touches
+  E.S().inj = { d: { area: 'shoulder', side: 'right', sev: 'niggle', start: d(-5), log: { [d(-1)]: 0, [t]: 0 } } }; E.STATE.w[d(-3)].ex[0].pain = 5; E.bump();
+  ok(E.injPlan('shoulder_press', t).act === 'watch' && E.injPlan('incline_db', t).act === 'watch', 'two pain-free daily checks clear a niggle on every lift');
+  E.S().inj.d.log[t] = 5; E.bump();
+  const sore = E.injPlan('shoulder_press', t); ok(sore.act === 'hold' && sore.lastPain === 5 && E.suggest('shoulder_press', t).f === 0.8, 'a sore morning: held and 20% lighter today');
+  E.S().inj = { c: { area: 'shoulder', side: 'both', sev: 'noload', start: d(-1) } };
   E.S().inj.c.ex = { shoulder_press: 'keep' }; E.bump();
   ok(E.injPlan('shoulder_press', t).act === 'watch', 'a lift marked fine is only watched');
 }

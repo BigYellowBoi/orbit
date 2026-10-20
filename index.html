@@ -540,7 +540,9 @@ body:has(#updp) .fab { bottom: calc(var(--tabh) + max(8px, calc(env(safe-area-in
 .chips.four { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; } .chips.four .chip { padding: 6px 4px; min-height: 40px; }
 .chip.hot.on { background: var(--bad); border-color: var(--bad); color: #fff; }
 .redflag { color: var(--bad-ink); margin: 0; }
-.injbanner { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); } .injbanner p { margin: 0; font-size: 14px; }
+.injbanner { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); padding: 10px 12px; gap: 8px; }
+.ib-h { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 14px; } .ib-h > span { min-width: 0; }
+.injbanner .chips.four .chip { min-height: 34px; padding: 4px; font-size: 13px; } .injbanner .link.inline { align-self: flex-start; font-size: 13px; }
 .sev { display: grid; gap: 6px; }
 .sevb { text-align: left; display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; min-height: 52px; border-radius: 10px; border: 1px solid var(--line-2); background: transparent; color: var(--ink); }
 .sevb b { font-weight: 600; font-size: 14.5px; } .sevb span { font-size: 12.5px; color: var(--ink-3); }
@@ -674,7 +676,7 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.57'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.58'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
@@ -1347,6 +1349,13 @@ function injLabel(inj) { const a = INJ_AREAS[inj.area] || inj.area, sd = INJ_SID
 function injList() { return Object.entries(S().inj || {}).map(([id, x]) => ({ id, ...x })).sort((a, b) => a.start < b.start ? 1 : a.start > b.start ? -1 : 0); }
 function injActive(date = today()) { return injList().filter(i => i.start <= date && (!i.end || i.end > date)); }
 function painHist(exId, inj, before) { return lixEx(exId).list.filter(x => x.date >= inj.start && x.date < before && x.pain != null); }
+/* v1.58: the daily check on Today's injury card (inj.log { date: pain }) counts for every lift the injury touches, in date
+   order with the pain logged after lifts; a lift's own entry wins on the same day. Today's check counts for today's Aims. */
+function painSeq(exId, inj, before) {
+  const by = {}; for (const [d, v] of Object.entries(inj.log || {})) if (d >= inj.start && d <= before) by[d] = v;
+  for (const x of painHist(exId, inj, before)) by[x.date] = x.pain;
+  return Object.keys(by).sort().map(d => ({ date: d, pain: by[d] }));
+}
 function injVerdict(exId, inj, date, hist) {
   const o = inj.ex?.[exId]; if (o === 'keep') return { act: 'watch', inj, why: 'You marked this as fine. Log pain after it.' };
   const L = o === 'adj' ? 2 : injLvl(exId, inj.area); if (!L) return null;
@@ -1354,9 +1363,9 @@ function injVerdict(exId, inj, date, hist) {
   if (inj.sev === 'noload') return { act: 'skip', inj, why: `${lab}: can’t load it, so skip this today.` };
   if (inj.sev === 'painful') return L === 2 ? { act: 'light', inj, why: `${lab}: lighter while it settles.` } : { act: 'watch', inj, why: `Works your ${lo} a little. Log pain after it.` };
   if (L < 2) return { act: 'watch', inj, why: `Works your ${lo} a little. Log pain after it.` };
-  let clean = 0; if (hist) { for (const x of painHist(exId, inj, date).reverse()) { if (x.pain <= 2) clean++; else break; } }
-  if (clean >= 2) return { act: 'watch', inj, why: `${clean} pain-free sessions since the niggle, so normal Aims are back.` };
-  return { act: 'hold', inj, why: `${lab} niggle: no load increases until 2 pain-free sessions in a row (${clean} so far).` };
+  let clean = 0; if (hist) { for (const x of painSeq(exId, inj, date).reverse()) { if (x.pain <= 2) clean++; else break; } }
+  if (clean >= 2) return { act: 'watch', inj, why: `Pain-free ${clean} times in a row, so normal Aims are back.` };
+  return { act: 'hold', inj, why: `${lab} niggle: no load increases until it's pain-free twice in a row (${clean} so far).` };
 }
 function injPick(vs) { return vs.filter(Boolean).sort((a, b) => INJ_RANK[b.act] - INJ_RANK[a.act])[0] || null; }
 function injRaw(exId, date) { return injPick(injActive(date).map(i => injVerdict(exId, i, date, false))); } // no pain history: safe to call while the lift index is built
@@ -1364,7 +1373,7 @@ function injHurt(e, date) { if (e.pain >= 5) return true; if (!S().inj) return f
 function injPlan(exId, date = today()) { // today's verdict for a lift across active injuries, with the last pain logged on it since the injury began
   const act = injActive(date); if (!act.length) return null;
   const v = injPick(act.map(i => injVerdict(exId, i, date, true))); if (!v) return null;
-  const last = painHist(exId, v.inj, date).pop(); return { ...v, lastPain: last ? last.pain : null };
+  const last = painSeq(exId, v.inj, date).pop(); return { ...v, lastPain: last ? last.pain : null };
 }
 function injScale(exId, sg, f) {
   const d = exDef(exId), st = exStep(exId);
@@ -2158,7 +2167,7 @@ function vToday() {
   const t = today(), w = STATE.w[t], sid = w ? w.s : sessionFor(t), sd = sessDef(sid), o = order(), idx = o.indexOf(sid);
   let h = `<div class="page-h day"><div><div class="eyebrow">${esc(fmtDow(t))} ${esc(fmtDate(t, { year: 'numeric' }))}</div><h1>Today</h1></div><div class="hdr-r">${(() => { const n = streak(); return n ? `<span class="pill plain streak" data-live="streak" title="${n} day${n === 1 ? '' : 's'} in a row with a session or rest day logged" aria-label="Streak: ${n} day${n === 1 ? '' : 's'}">${ICON.flame}<b>${n}</b></span>` : ''; })()}${dayNav(0)}</div></div>`;
   h += injBannerHTML(t);
-  const tail = () => whoopCard() + stripHTML() + weekCard() + (injActive(t).length ? '' : '<button class="link dim" data-act="injnew" style="align-self:center">Log an injury</button>');
+  const tail = () => whoopCard() + stripHTML() + weekCard() + (injActive(t).length ? '' : injList().length ? '<button class="link dim" data-act="go" data-tab="injuries" style="align-self:center">Injuries</button>' : '<button class="link dim" data-act="injnew" style="align-self:center">Log an injury</button>');
   if (w && (!w.fin || ui.editToday)) return h + logBody(t) + stripHTML() + weekCard(); // the log, until you press Done (no Recovery card while logging, v1.36)
   if (w) return h + doneHero(w, idx, o) + tail();
   if (!sd) return h + `<section class="card"><p>Your programme has no sessions. Add one in Plan.</p><button class="btn" data-act="go" data-tab="plan">Open Plan</button></section>`;
@@ -2274,13 +2283,16 @@ function whoopCard(day) {
 }
 
 /* ---------- Injuries (v1.57) ---------- */
-function injBannerHTML(d) { // Today: what's active and how much of today's session it changes
+function injBannerHTML(d) { // Today (v1.58: compact): each active injury, a daily pain check, and how much of today's session changes
   const act = injActive(d); if (!act.length) return '';
   const w = STATE.w[d], sid = w && !w.rest ? w.s : sessionFor(d), ids = w && !w.rest ? (w.ex || []).map(e => e.id) : (sessDef(sid)?.items || []).map(it => it.ex);
   const n = ids.filter(id => { const p = injPlan(id, d); return p && p.act !== 'watch'; }).length;
-  return `<section class="card injbanner"><div class="card-h"><span class="eyebrow">Injury</span><button class="link" data-act="go" data-tab="injuries">Manage</button></div>
-    ${act.map(i => `<p><b>${esc(injLabel(i))}</b> · ${esc(INJ_SEV[i.sev]?.[0] || '')} · since ${esc(fmtD(i.start))}</p>`).join('')}
-    ${n ? `<p class="small dim">${n} lift${n === 1 ? '' : 's'} in ${esc(slotName(sid) || 'today\u2019s session')} adjusted.</p>` : ''}</section>`;
+  const row = (i, k) => { const v = i.log?.[d];
+    const next = v === 0 && i.sev !== 'niggle' ? `<button class="link inline" data-act="injstep" data-id="${i.id}">Step it down to a niggle</button>`
+      : v === 0 && i.sev === 'niggle' && (() => { const l = Object.entries(i.log || {}).filter(([x]) => x <= d).sort().slice(-2); return l.length === 2 && l.every(([, p]) => p <= 2); })() ? `<button class="link inline" data-act="injheal" data-id="${i.id}">Pain-free twice: mark it healed</button>` : '';
+    return `<div class="ib-h"><span><b>${esc(injLabel(i))}</b> · ${esc(INJ_SEV[i.sev]?.[0] || '')}${!k && n ? ` · ${n} lift${n === 1 ? '' : 's'} adjusted` : ''}</span>${k ? '' : '<button class="link inline" data-act="go" data-tab="injuries">Manage</button>'}</div>
+      <div class="chips four" role="group" aria-label="${esc(injLabel(i))} today">${PAIN_LV.map(([p, l]) => `<button class="chip ${v === p ? 'on' : ''}${p >= 5 ? ' hot' : ''}" data-act="injday" data-id="${i.id}" data-v="${p}" aria-pressed="${v === p}">${p === 0 ? 'No pain' : l}</button>`).join('')}</div>${next}`; };
+  return `<section class="card injbanner">${act.map(row).join('')}</section>`;
 }
 const INJ_ACT = { watch: 'Pain check', hold: 'No increases', light: 'Lighter', skip: 'Skip' };
 function injEffects(inj, d) { // per training session: the lifts this injury changes
@@ -3298,6 +3310,10 @@ const ACT = {
     if (INJ_SIDED.has(f.area)) rec.side = f.side || 'right'; else delete rec.side; if (!rec.note) delete rec.note;
     S().inj = { ...(S().inj || {}), [id]: rec }; ui.injForm = null; saveSettings();
     toast(f.id ? 'Injury updated' : `${esc(injLabel(rec))} logged. Your Aims are adjusted.`); injReturn(); },
+  injday: el => { const i = S().inj?.[el.dataset.id], v = +el.dataset.v, d = today(); if (!i) return; i.log = { ...(i.log || {}) };
+    if (i.log[d] === v) delete i.log[d]; else i.log[d] = v; for (const k of Object.keys(i.log)) if (k < addDays(d, -60)) delete i.log[k]; // keep two months
+    saveSettings(); render(true); if (i.log[d] >= 5) toast('Noted. Its lifts are lighter today.'); },
+  injstep: el => { const i = S().inj?.[el.dataset.id]; if (!i) return; i.sev = 'niggle'; saveSettings(); toast('Now a niggle: full weight, no increases until it’s pain-free twice in a row'); render(true); },
   injheal: el => { const i = S().inj?.[el.dataset.id]; if (!i) return; i.end = today(); saveSettings(); toast(`${esc(injLabel(i))} marked healed. Aims are back to normal.`); render(true); },
   injreopen: el => { const i = S().inj?.[el.dataset.id]; if (!i) return; delete i.end; saveSettings(); render(true); },
   injdel: el => { const id = el.dataset.id; if (ui.confirm !== 'injdel' + id) { ui.confirm = 'injdel' + id; render(true); return; } delete S().inj[id]; if (!Object.keys(S().inj).length) delete S().inj; ui.confirm = null; saveSettings(); render(true); },

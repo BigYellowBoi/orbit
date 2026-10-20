@@ -397,6 +397,10 @@ const ACT = {
     if (INJ_SIDED.has(f.area)) rec.side = f.side || 'right'; else delete rec.side; if (!rec.note) delete rec.note;
     S().inj = { ...(S().inj || {}), [id]: rec }; ui.injForm = null; saveSettings();
     toast(f.id ? 'Injury updated' : `${esc(injLabel(rec))} logged. Your Aims are adjusted.`); injReturn(); },
+  injday: el => { const i = S().inj?.[el.dataset.id], v = +el.dataset.v, d = today(); if (!i) return; i.log = { ...(i.log || {}) };
+    if (i.log[d] === v) delete i.log[d]; else i.log[d] = v; for (const k of Object.keys(i.log)) if (k < addDays(d, -60)) delete i.log[k]; // keep two months
+    saveSettings(); render(true); if (i.log[d] >= 5) toast('Noted. Its lifts are lighter today.'); },
+  injstep: el => { const i = S().inj?.[el.dataset.id]; if (!i) return; i.sev = 'niggle'; saveSettings(); toast('Now a niggle: full weight, no increases until it’s pain-free twice in a row'); render(true); },
   injheal: el => { const i = S().inj?.[el.dataset.id]; if (!i) return; i.end = today(); saveSettings(); toast(`${esc(injLabel(i))} marked healed. Aims are back to normal.`); render(true); },
   injreopen: el => { const i = S().inj?.[el.dataset.id]; if (!i) return; delete i.end; saveSettings(); render(true); },
   injdel: el => { const id = el.dataset.id; if (ui.confirm !== 'injdel' + id) { ui.confirm = 'injdel' + id; render(true); return; } delete S().inj[id]; if (!Object.keys(S().inj).length) delete S().inj; ui.confirm = null; saveSettings(); render(true); },
