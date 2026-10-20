@@ -68,6 +68,10 @@ const ok = (c, msg) => { if (c) passes++; else { fails++; console.log('FAIL', ms
   await p.evaluate(() => { const id = Object.keys(S().inj)[0]; S().inj[id].sev = 'painful'; saveSettings(); go('today'); });
   await p.click('.injbanner [data-act="injday"][data-v="0"]');
   ok(await p.evaluate(() => Object.values(S().inj)[0].log[today()]) === 0, 'daily check saved');
+  ok(await p.locator('.injbanner [data-act="injday"]').count() === 0 && /today no pain/.test(await p.locator('.injbanner').innerText()), 'answered: buttons gone, answer in the line');
+  await p.evaluate(() => go('injuries')); await p.click('[data-act="injday"][data-v="2"]');
+  ok(await p.evaluate(() => Object.values(S().inj)[0].log[today()]) === 2, 'changed under Manage');
+  await p.click('[data-act="injday"][data-v="0"]'); await p.evaluate(() => go('today'));
   await p.click('[data-act="injstep"]'); ok(await p.evaluate(() => Object.values(S().inj)[0].sev) === 'niggle', 'stepped down to a niggle');
   ok((await p.locator('.injbanner').boundingBox()).height < 130, 'injury card is compact');
   // heal it from the Injuries screen

@@ -676,7 +676,7 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.58'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.59'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
@@ -2290,10 +2290,11 @@ function injBannerHTML(d) { // Today (v1.58: compact): each active injury, a dai
   const row = (i, k) => { const v = i.log?.[d];
     const next = v === 0 && i.sev !== 'niggle' ? `<button class="link inline" data-act="injstep" data-id="${i.id}">Step it down to a niggle</button>`
       : v === 0 && i.sev === 'niggle' && (() => { const l = Object.entries(i.log || {}).filter(([x]) => x <= d).sort().slice(-2); return l.length === 2 && l.every(([, p]) => p <= 2); })() ? `<button class="link inline" data-act="injheal" data-id="${i.id}">Pain-free twice: mark it healed</button>` : '';
-    return `<div class="ib-h"><span><b>${esc(injLabel(i))}</b> · ${esc(INJ_SEV[i.sev]?.[0] || '')}${!k && n ? ` · ${n} lift${n === 1 ? '' : 's'} adjusted` : ''}</span>${k ? '' : '<button class="link inline" data-act="go" data-tab="injuries">Manage</button>'}</div>
-      <div class="chips four" role="group" aria-label="${esc(injLabel(i))} today">${PAIN_LV.map(([p, l]) => `<button class="chip ${v === p ? 'on' : ''}${p >= 5 ? ' hot' : ''}" data-act="injday" data-id="${i.id}" data-v="${p}" aria-pressed="${v === p}">${p === 0 ? 'No pain' : l}</button>`).join('')}</div>${next}`; };
+    return `<div class="ib-h"><span><b>${esc(injLabel(i))}</b> · ${esc(INJ_SEV[i.sev]?.[0] || '')}${!k && n ? ` · ${n} lift${n === 1 ? '' : 's'} adjusted` : ''}${v != null ? ` · today ${v === 0 ? 'no pain' : PAIN_LV.find(x => x[0] === v)?.[1] || v}` : ''}</span>${k ? '' : '<button class="link inline" data-act="go" data-tab="injuries">Manage</button>'}</div>
+      ${v == null ? injDayChips(i, d) : ''}${next}`; }; // answered: the buttons go; change it under Manage (v1.59)
   return `<section class="card injbanner">${act.map(row).join('')}</section>`;
 }
+function injDayChips(i, d) { const v = i.log?.[d]; return `<div class="chips four" role="group" aria-label="${esc(injLabel(i))} today">${PAIN_LV.map(([p, l]) => `<button class="chip ${v === p ? 'on' : ''}${p >= 5 ? ' hot' : ''}" data-act="injday" data-id="${i.id}" data-v="${p}" aria-pressed="${v === p}">${p === 0 ? 'No pain' : l}</button>`).join('')}</div>`; }
 const INJ_ACT = { watch: 'Pain check', hold: 'No increases', light: 'Lighter', skip: 'Skip' };
 function injEffects(inj, d) { // per training session: the lifts this injury changes
   const out = [];
@@ -2314,6 +2315,7 @@ function vInjuries() {
     h += `<section class="card"><div class="card-h"><h2>${esc(injLabel(i))}</h2>${pill(i.sev === 'niggle' ? 'warn' : 'bad', INJ_SEV[i.sev]?.[0] || '')}</div>
       <p class="xs muted">Since ${esc(fmtDow(i.start))} ${esc(fmtD(i.start))} · ${diffDays(i.start, t) + 1} day${diffDays(i.start, t) ? 's' : ''}</p>
       ${i.note ? `<p class="small">${esc(i.note)}</p>` : ''}
+      <div class="painchk"><span>How it feels today</span>${injDayChips(i, t)}</div>
       ${eff.length ? eff.map(e => `<div class="sec"><span class="xs muted">${esc(sessDef(e.sid).name)}</span><ul class="exlist injfx">${e.rows.map(r => `<li><span>${esc(exDef(r.id).name)}</span><span class="rx"><span class="injtag ${r.v.act}">${INJ_ACT[r.v.act]}</span></span>
         <span class="lt">${i.ex?.[r.id] ? `<button class="link inline" data-act="injex" data-id="${i.id}" data-k="${r.id}" data-v="">${i.ex[r.id] === 'keep' ? 'Adjust it again' : 'Remove'}</button>` : r.v.act !== 'watch' ? `<button class="link inline" data-act="injex" data-id="${i.id}" data-k="${r.id}" data-v="keep">Doesn\u2019t hurt: train it normally</button>` : ''}</span></li>`).join('')}</ul></div>`).join('') : '<p class="small dim">None of your Plan lifts load this area.</p>'}
       ${others.length ? `<label class="fl">Something else hurts?<select class="in" data-in="injadd" data-id="${i.id}"><option value="">Add a lift\u2026</option>${exOpts(others)}</select></label>` : ''}
