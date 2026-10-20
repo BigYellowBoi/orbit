@@ -290,8 +290,12 @@ function renderMark() { // header ring: where today sits in the rotation, one se
 }
 document.addEventListener('focusout', () => setTimeout(() => { if (pendingRender && !editingInView()) render(); }, 60));
 const logging = () => ui.tab === 'log' || (ui.tab === 'today' && !!STATE.w[today()]);
+/* v1.60: tab changes start every screen at the top, except today's open log: leaving it keeps where you were (scroll, an
+   open note, history or More, the Add exercise list), and coming back from any other screen puts you exactly there. */
 function go(tab) {
   if (tab === 'trends') tab = 'body';
+  const leaving = ui.tab === 'today' && tab !== 'today' && logOpen() ? { y: scrollY0(), editToday: ui.editToday, exNote: ui.exNote, exHist: ui.exHist, exMore: ui.exMore, pick: ui.pick, date: today() } : null;
+  if (leaving) ui.logPlace = leaving;
   if (tab === 'log' && (!ui.logDate || ui.logDate >= today())) { tab = 'today'; ui.editToday = true; } // today's log lives on Today
   if (ui.tab === 'today' && tab !== 'today') ui.editToday = false;
   if (ui.tab === 'strength' && tab !== 'strength') ui.lift = null; // a picked lift lasts while you stay on Strength
@@ -304,9 +308,13 @@ function go(tab) {
   if (tab === 'today') ui.logDate = null;
   if (tab !== 'log') ui.logEdit = null; // a past log goes back to read-only once you leave it (v1.46)
   if (tab !== 'injuries') ui.injForm = null; if (tab !== 'friends') { ui.frAdd = false; ui.frEdit = null; }
-  ui.tab = tab; ui.confirm = null; ui.pickSess = null; ui.editEx = null;
+  const prevTab = ui.tab; ui.tab = tab; ui.confirm = null; ui.pickSess = null; ui.editEx = null;
   if (tab === 'friends') setTimeout(frStale, 0); // links older than 10 minutes are read again
+  const back = tab === 'today' && ui.logPlace && !leaving && prevTab !== 'today' && ui.logPlace.date === today() && STATE.w[today()] ? ui.logPlace : null;
+  if (back) { ui.editToday = back.editToday; ui.exNote = back.exNote; ui.exHist = back.exHist; ui.exMore = back.exMore; ui.pick = back.pick; }
+  if (tab === 'today') ui.logPlace = null;
   resetScroll(); render(true); if (logging()) wakeLock();
+  if (back && logOpen()) { const y = back.y; scrollToY(y); requestAnimationFrame(() => { if (Math.abs(scrollY0() - y) > 1) scrollToY(y); }); }
 }
 let toastT;
 function toast(html, kind) { const t = $('#toast'); t.innerHTML = html; t.className = 'toast show ' + (kind || ''); clearTimeout(toastT); toastT = setTimeout(() => t.className = 'toast', kind === 'pr' ? 4000 : 2600); }
