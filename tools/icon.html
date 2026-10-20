@@ -1,13 +1,15 @@
 <html><body style="margin:0;background:transparent">
 <svg width="1024" height="1024" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-<defs><filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="0.55"/></filter></defs><g id="bg"></g><g id="halo" filter="url(#glow)" opacity=".7"></g><g id="ring"></g><circle cx="12" cy="12" r="1.9" fill="#e8ebef"/></svg>
+<defs><filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="0.55"/></filter></defs><g id="bg"></g><g id="mark"><g id="halo" filter="url(#glow)" opacity=".7"></g><g id="ring"></g><circle cx="12" cy="12" r="1.9" fill="#e8ebef"/></g></svg>
 <script>
 // ?desktop: rounded tile on a transparent canvas (Windows/macOS taskbar, browser tabs). Default: full-bleed square (iOS, Android maskable).
 const desk = location.search.includes('desktop');
 document.getElementById('bg').innerHTML = desk
-  ? '<rect x="1.25" y="1.25" width="21.5" height="21.5" rx="5" fill="#111418" stroke="#2d343d" stroke-width=".35"/>'
+  ? '<rect x="0.96" y="0.96" width="22.08" height="22.08" rx="6.24" fill="#111418" stroke="#2d343d" stroke-width=".3"/>'
   : '<rect width="24" height="24" fill="#111418"/>';
 if (!desk) document.body.style.background = '#111418';
+// Desktop: tile matches the other app's icon (4% inset, 26% radius) and the ring spans ~70% of the canvas like its mark.
+if (desk) document.getElementById('mark').setAttribute('transform', 'translate(12 12) scale(1.13) translate(-12 -12)');
 const r = 6.6, n = 4, k = 3, gapDeg = 24, pt = a => [12 + r * Math.sin(a * Math.PI / 180), 12 - r * Math.cos(a * Math.PI / 180)]; let s = '';
 for (let i = 0; i < n; i++) { const a0 = i * 360 / n + gapDeg / 2, a1 = (i + 1) * 360 / n - gapDeg / 2, [x0, y0] = pt(a0), [x1, y1] = pt(a1);
   s += `<path d="M${x0} ${y0}A${r} ${r} 0 0 1 ${x1} ${y1}" fill="none" stroke="${i < k ? '#b388ff' : '#2d343d'}" stroke-width="1.7" stroke-linecap="round"/>`; }
