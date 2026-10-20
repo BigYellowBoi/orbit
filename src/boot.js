@@ -294,6 +294,7 @@ const logging = () => ui.tab === 'log' || (ui.tab === 'today' && !!STATE.w[today
    open note, history or More, the Add exercise list), and coming back from any other screen puts you exactly there. */
 function go(tab) {
   if (tab === 'trends') tab = 'body';
+  flushField(); // v1.61: a field mid-typing is saved before the screen changes (iOS doesn't always fire change when it goes)
   const leaving = ui.tab === 'today' && tab !== 'today' && logOpen() ? { y: scrollY0(), editToday: ui.editToday, exNote: ui.exNote, exHist: ui.exHist, exMore: ui.exMore, pick: ui.pick, date: today() } : null;
   if (leaving) ui.logPlace = leaving;
   if (tab === 'log' && (!ui.logDate || ui.logDate >= today())) { tab = 'today'; ui.editToday = true; } // today's log lives on Today

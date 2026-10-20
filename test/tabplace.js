@@ -22,6 +22,11 @@ const ok = (c, msg) => { if (c) passes++; else { fails++; console.log('FAIL', ms
   ok(Math.abs(await y() - 600) <= 1, 'Settings and back keeps the place');
   await p.click('[data-act="logdone"]'); await p.waitForTimeout(100); await p.evaluate(() => scrollToY(200));
   await tab('body'); await tab('today'); await p.waitForTimeout(100); ok(await y() === 0, 'finished log: Today starts at the top');
+  await p.click('[data-act="start"]'); await p.waitForSelector('.card.ex');
+  await p.evaluate(() => { const ta = document.querySelector('#wnote'); ta.focus(); ta.value = 'mid edit'; }); // typed, no change event
+  await tab('history'); ok(await p.evaluate(() => STATE.w[today()].note) === 'mid edit', 'a field mid-typing is saved on a tab switch');
+  await p.evaluate(() => { go('today'); const i = document.querySelector('#r0_1'); i.focus(); i.value = '7'; });
+  await tab('plan'); ok(await p.evaluate(() => STATE.w[today()].ex[0].sets[1].r) === 7, 'a set mid-typing is saved on a tab switch');
   ok(!errs.length, 'no page errors: ' + errs.join(' | '));
   await b.close(); console.log(`${passes} passed, ${fails} failed`); process.exit(fails ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });
