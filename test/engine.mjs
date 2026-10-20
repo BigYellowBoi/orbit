@@ -11,7 +11,7 @@ const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const core = fs.readFileSync(path.join(root, 'src/core.js'), 'utf8');
 const engineSrc = fs.readFileSync(path.join(root, 'src/engine.js'), 'utf8');
 const EXPOSE = `globalThis.E = { STATE, S, streak: typeof streak !== 'undefined' ? streak : null, today, addDays, diffDays, sessionFor, upcoming, lastFor, bestBefore, bestSet, records, hasHistory, hasRef,
-  liftSeries, maintenance, strengthRef, suggest, setAim, cutCheck, progression, prsIn, setScore, e1rm, exRir, exStep, derived, xpRun: typeof xpRun !== "undefined" ? xpRun : null, XP: typeof XP !== "undefined" ? XP : null, partialFlags: typeof partialFlags !== "undefined" ? partialFlags : null, warmup: typeof warmup !== "undefined" ? warmup : null, rowAim: typeof rowAim !== "undefined" ? rowAim : null, doneSets, planWeekly, wStats, fmtSet, dayVal, scoreTxt, newWorkout, restRecord, sessDef, exDef, ordModel: typeof ordModel !== "undefined" ? ordModel : null, ordFactor: typeof ordFactor !== "undefined" ? ordFactor : null, overlap: typeof overlap !== "undefined" ? overlap : null, ctxLog: typeof ctxLog !== "undefined" ? ctxLog : null, usualCtx: typeof usualCtx !== "undefined" ? usualCtx : null, aimIn: typeof aimIn !== "undefined" ? aimIn : null, refScore, exRir, snapBase: typeof snapBase !== "undefined" ? snapBase : null, baseCtx: typeof baseCtx !== "undefined" ? baseCtx : null, moveEx: typeof moveEx !== "undefined" ? moveEx : null, movedIdx: typeof movedIdx !== "undefined" ? movedIdx : null,
+  liftSeries, maintenance, strengthRef, suggest, setAim, cutCheck, progression, prsIn, setScore, e1rm, exRir, exStep, derived, xpRun: typeof xpRun !== "undefined" ? xpRun : null, XP: typeof XP !== "undefined" ? XP : null, partialFlags: typeof partialFlags !== "undefined" ? partialFlags : null, warmup: typeof warmup !== "undefined" ? warmup : null, rowAim: typeof rowAim !== "undefined" ? rowAim : null, doneSets, planWeekly, wStats, fmtSet, dayVal, scoreTxt, newWorkout, restRecord, sessDef, exDef, ordModel: typeof ordModel !== "undefined" ? ordModel : null, ordFactor: typeof ordFactor !== "undefined" ? ordFactor : null, overlap: typeof overlap !== "undefined" ? overlap : null, ctxLog: typeof ctxLog !== "undefined" ? ctxLog : null, usualCtx: typeof usualCtx !== "undefined" ? usualCtx : null, aimIn: typeof aimIn !== "undefined" ? aimIn : null, refScore, exRir, snapBase: typeof snapBase !== "undefined" ? snapBase : null, baseCtx: typeof baseCtx !== "undefined" ? baseCtx : null, moveEx: typeof moveEx !== "undefined" ? moveEx : null, injPlan: typeof injPlan !== "undefined" ? injPlan : null, injLvl: typeof injLvl !== "undefined" ? injLvl : null, injSwaps: typeof injSwaps !== "undefined" ? injSwaps : null, lixEx, movedIdx: typeof movedIdx !== "undefined" ? movedIdx : null,
   bump: () => { STATE.v++; } };`;
 
 function load(engine = engineSrc) {
@@ -385,6 +385,38 @@ if (process.env.OLD_ENGINE) {
   ok(Math.abs(E.strengthRef('spider', t, cu).fresh - E.strengthRef('spider', t, cp).fresh) < 1e-12, 'one fresh strength whichever session asks');
   ok(sc(E.suggest('spider', t, cu)) < sc(E.suggest('spider', t, cp)), 'its Aim in Upper (later, after hammer curls) is lighter than in Pull');
   const M = E.ordModel().by.spider; ok(M.n >= 18, `both splits' sessions teach it (${M.n} sessions)`);
+}
+
+/* ---------- injuries (v1.57): verdicts, Aims, and injured sessions kept out of the strength estimate ---------- */
+if (load().injPlan) {
+  const E = load(), t = E.today(), d = n => E.addDays(t, n);
+  const log = (date, w, r, extra = {}) => { E.STATE.w[date] = { date, s: 'push2', ex: [{ id: 'shoulder_press', sets: [{ w, r, done: true }, { w: w - 2.5, r, done: true }], ...extra }] }; E.bump(); };
+  for (let k = 12; k >= 1; k--) log(d(-4 * k - 20), 40, 9);
+  const before = E.suggest('shoulder_press', t);
+  ok(E.injLvl('shoulder_press', 'shoulder') === 2 && E.injLvl('leg_ext', 'shoulder') === 0 && E.injLvl('pushdown', 'shoulder') === 0, 'shoulder press loads the shoulder, leg extension and pushdowns do not');
+  E.S().inj = { a: { area: 'shoulder', side: 'right', sev: 'painful', start: d(-18) } }; E.bump();
+  const p = E.injPlan('shoulder_press', t); ok(p && p.act === 'light', 'painful shoulder: shoulder press goes light');
+  ok(E.injPlan('leg_ext', t) === null, 'painful shoulder: legs untouched');
+  const sg = E.suggest('shoulder_press', t); ok(sg.w <= before.w * 0.7 + 1e-9 && sg.r === before.r && sg.inj, `light Aim is about 70% (${sg.w} of ${before.w})`);
+  // light sessions logged during the injury don't drag the strength estimate down
+  for (const k of [-15, -11, -7, -3]) log(d(k), 27.5, 9, { pain: 2 });
+  const ref = E.strengthRef('shoulder_press', t); ok(ref.top.w === 40, 'strength still read from pre-injury sessions');
+  E.STATE.w[d(-3)].ex[0].pain = 5; E.bump();
+  ok(E.suggest('shoulder_press', t).w < sg.w, 'pain 4 or more last time takes the Aim down again');
+  E.S().inj.a.end = d(-1); E.bump();
+  ok(E.injPlan('shoulder_press', t) === null && Math.abs(E.suggest('shoulder_press', t).w - before.w) < 1e-9, 'healed: the Aim is back where it was');
+  // niggle: hold until two pain-free sessions in a row
+  E.S().inj = { b: { area: 'shoulder', side: 'right', sev: 'niggle', start: d(-10) } }; E.bump();
+  E.STATE.w[d(-3)].ex[0].pain = 0; E.STATE.w[d(-7)].ex[0].pain = 5; E.bump();
+  ok(E.injPlan('shoulder_press', t).act === 'hold', 'niggle: one pain-free session still holds');
+  E.STATE.w[d(-7)].ex[0].pain = 0; E.bump();
+  ok(E.injPlan('shoulder_press', t).act === 'watch', 'niggle: two pain-free sessions in a row and normal Aims return');
+  // can't load it: skip, with gentler swaps for the same muscle only
+  E.S().inj = { c: { area: 'shoulder', side: 'both', sev: 'noload', start: d(-1) } }; E.bump();
+  ok(E.injPlan('shoulder_press', t).act === 'skip' && E.injPlan('incline_db', t).act === 'skip', 'cannot load it: pressing skipped');
+  ok(!E.injSwaps('incline_db', t).some(id => E.injLvl(id, 'shoulder') > 0), 'swaps never load the injured area');
+  E.S().inj.c.ex = { shoulder_press: 'keep' }; E.bump();
+  ok(E.injPlan('shoulder_press', t).act === 'watch', 'a lift marked fine is only watched');
 }
 
 /* ---------- one set count per exercise (v1.45): the migration picks the count it has in most sessions ---------- */

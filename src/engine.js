@@ -72,7 +72,7 @@ let LIX = { key: null };
 function lix() {
   const key = STATE.v + ':' + today(); if (LIX.key === key) return LIX;
   const by = {};
-  for (const w of workoutsSorted()) (w.ex || []).forEach((e, i) => { const ds = doneSets(e); if (ds.length) (by[e.id] = by[e.id] || []).push({ date: w.date, sets: ds, ctx: ctxLog(w, i) }); }); // ctx: where it sat in that session (v1.43)
+  for (const w of workoutsSorted()) (w.ex || []).forEach((e, i) => { const ds = doneSets(e); if (ds.length) (by[e.id] = by[e.id] || []).push({ date: w.date, sets: ds, ctx: ctxLog(w, i), pain: e.pain ?? null, inj: injHurt(e, w.date) }); }); // ctx: where it sat in that session (v1.43); inj: done light or in pain (v1.57)
   return LIX = { key, by, ex: {}, bw: null };
 }
 function nBefore(list, before) { let lo = 0, hi = list.length; while (lo < hi) { const m = (lo + hi) >> 1; if (list[m].date < before) lo = m + 1; else hi = m; } return lo; } // entries dated before `before`
@@ -97,7 +97,7 @@ function setScore(exId, s, date) { // one number to rank sets: e1RM, or reps for
 function maxScore(exId) { const b = exDef(exId).base; return b && b.r > 0 ? setScore(exId, b, null) : 0; }
 function lixEx(exId) { // this lift's sessions in date order with their best set, plus the running best (stated max included)
   const L = lix(); if (L.ex[exId]) return L.ex[exId];
-  const list = (L.by[exId] || []).map(x => { let top = x.sets[0], sc = setScore(exId, top, x.date); for (const s of x.sets) { const v = setScore(exId, s, x.date); if (v > sc) { sc = v; top = s; } } return { date: x.date, sets: x.sets, top, sc, ctx: x.ctx }; });
+  const list = (L.by[exId] || []).map(x => { let top = x.sets[0], sc = setScore(exId, top, x.date); for (const s of x.sets) { const v = setScore(exId, s, x.date); if (v > sc) { sc = v; top = s; } } return { date: x.date, sets: x.sets, top, sc, ctx: x.ctx, pain: x.pain, inj: x.inj }; });
   const b = exDef(exId).base, chain = cur => list.map(x => (cur = bestStep(exId, cur, x.sets, x.date))); // running best after each session (v1.50)
   const best = chain(b && b.r > 0 ? { s: b, sc: maxScore(exId), date: null } : null), logged = chain(null);
   return L.ex[exId] = { list, best, logged, pre: best.map(r => r ? r.sc : 0) };
@@ -134,7 +134,7 @@ function hasHistory(exId, before) { return nBefore(lixEx(exId).list, before) > 0
 function liftSeries(exId) { return lixEx(exId).list.map(x => ({ date: x.date, y: x.sc, top: x.top })); }
 const median = a => { const v = [...a].sort((x, y) => x - y), n = v.length; return n % 2 ? v[(n - 1) / 2] : (v[n / 2 - 1] + v[n / 2]) / 2; };
 function maintenance(exId) { // recent 28 days vs days 29–90: is strength holding? Medians of each session's best set, so one standout day doesn't decide it
-  const t = today(), ser = lixEx(exId).list.map(x => ({ date: x.date, y: freshSc(exId, x), top: x.top })); // on the fresh scale, so a lift moved later in the session doesn't read as a drop (v1.43)
+  const t = today(), ser = lixEx(exId).list.filter(x => !x.inj).map(x => ({ date: x.date, y: freshSc(exId, x), top: x.top })); // on the fresh scale, so a lift moved later in the session doesn't read as a drop (v1.43)
   const rec = ser.filter(p => diffDays(p.date, t) <= 28), pri = ser.filter(p => { const a = diffDays(p.date, t); return a > 28 && a <= 90; });
   if (!rec.length) return { state: 'none', last: ser[ser.length - 1] || null };
   const r = median(rec.map(p => p.y)); if (!pri.length) return { state: 'new', r, last: ser[ser.length - 1] };
@@ -207,13 +207,14 @@ function baseCtxNow(exId) { const d = exDef(exId); if (!(d.bpos > 0)) return usu
 function inv2(M) { const d = M[0][0] * M[1][1] - M[0][1] * M[1][0]; return Math.abs(d) < 1e-15 ? null : [[M[1][1] / d, -M[0][1] / d], [-M[1][0] / d, M[0][0] / d]]; }
 function ordSig(by) { // session-to-session noise: spread of changes between consecutive sessions in the same slot
   const d = [], t = today(); for (const id in by) { const { list } = lixEx(id), rir = exRir(id); for (let i = 1; i < list.length; i++) { const a = list[i - 1], b = list[i];
-    if (b.date >= t || a.ctx.L !== b.ctx.L || a.ctx.G !== b.ctx.G || diffDays(a.date, b.date) > 42) continue; const va = refScore(id, a.top, rir, a.date), vb = refScore(id, b.top, rir, b.date); if (va > 0 && vb > 0) d.push(Math.log(vb / va)); } }
+    if (b.date >= t || a.inj || b.inj || a.ctx.L !== b.ctx.L || a.ctx.G !== b.ctx.G || diffDays(a.date, b.date) > 42) continue; const va = refScore(id, a.top, rir, a.date), vb = refScore(id, b.top, rir, b.date); if (va > 0 && vb > 0) d.push(Math.log(vb / va)); } }
   if (d.length < 8) return ORD.sig0; const m = median(d); return Math.min(0.1, Math.max(0.02, 1.4826 * median(d.map(x => Math.abs(x - m))) / Math.SQRT2));
 }
 function ordLift(id, sig) { // one lift's filter; returns its evidence on (kL, kG) with the filter's own wide prior taken back out
   const { list } = lixEx(id), rir = exRir(id); let s = [0, 0, 0], P = [[100, 0, 0], [0, 1, 0], [0, 0, 1]], prev = null, n = 0, chg = 0, lastL = null;
   for (const e of list) {
     if (e.date >= today()) break; // learns from finished days only, so today's sets don't move today's Aims
+    if (e.inj) continue; // done light or in pain for an injury: says nothing about slot costs (v1.57)
     const v = refScore(id, e.top, rir, e.date); if (!(v > 0)) continue;
     if (prev) P[0][0] += ORD.q * Math.max(1, diffDays(prev, e.date)); prev = e.date;
     const h = [1, -e.ctx.L, -e.ctx.G], Ph = P.map(r => r[0] * h[0] + r[1] * h[1] + r[2] * h[2]), S = h[0] * Ph[0] + h[1] * Ph[1] + h[2] * Ph[2] + sig * sig;
@@ -279,7 +280,8 @@ function refScore(exId, s, rir, date) {
 }
 function strengthRef(exId, before, ctx) { // current strength: median of the top sets from the last 3 sessions in 90 days, at a position in the session
   const { list } = lixEx(exId), n = nBefore(list, before), from = addDays(before, -90), rir = exRir(exId), at = ordFactor(exId, ctx || usualCtx(exId));
-  const last = list.slice(Math.max(0, n - 3), n).filter(x => x.date >= from);
+  const last = []; for (let i = n - 1; i >= 0 && last.length < 3; i--) if (!list[i].inj) last.unshift(list[i]); // sessions done light or in pain for an injury don't count (v1.57)
+  for (let i = last.length - 1; i >= 0; i--) if (last[i].date < from) last.splice(i, 1);
   // each on the fresh scale first (v1.43), so sessions done in another slot count fairly, then back to where the lift sits now
   if (last.length) { const v = last.map(x => refScore(exId, x.top, rir, x.date) / ordFactor(exId, x.ctx)).sort((a, b) => a - b), f = v[Math.floor((v.length - 1) / 2)]; return { v: f * at, fresh: f, n: last.length, top: last[last.length - 1].top }; }
   const b = exDef(exId).base; if (!(b && b.r > 0)) return null; const f = refScore(exId, b, 0, null) / ordFactor(exId, baseCtx(exId)); return { v: f * at, fresh: f, n: 0, top: b };
@@ -319,6 +321,10 @@ function growStrength(exId, before, ctx) {
 }
 function suggest(exId, before, ctx) { // the Aim shown on Today and in the log: { w, r, rir } or null; ctx: where the lift sits (default its usual slot)
   if (S().suggest === false) return null;
+  const ip = injPlan(exId, before); if (ip) return injAim(exId, before, ctx, ip); // v1.57: an injury changes the Aim
+  return suggestBase(exId, before, ctx);
+}
+function suggestBase(exId, before, ctx) {
   if (S().goal !== 'grow') return holdTarget(exId, before, ctx);
   const g = growStrength(exId, before, ctx); return g ? fitLoad(exId, g.e, g.cur.n ? g.cur.top.w : null, before) : null;
 }
@@ -610,15 +616,101 @@ function weekRows(n) {
   }
   return rows;
 }
+/* ============================================================
+   INJURIES (v1.57)
+   S().inj = { id: { area, side, sev, start, end, note, ex: { exId: 'keep' | 'adj' } } }, synced with settings.
+   How hard a lift loads an area: 2 = it's a main mover or the joint takes the load, 1 = some, 0 = none. Library lifts
+   are scored by movement; others by their muscle group (and its secondaries at most 1).
+   What changes, by how bad it is:
+     niggle   main loaders: no load increases (the maintenance Aim, never overload) until 2 pain-free sessions in a row
+     painful  main loaders: about 70% of the usual load for the same reps; others: a pain check only
+     noload   anything that loads it: skip it today (a gentler swap is offered when one exists)
+   Pain logged after a lift (0, 1–3, 4–5, 6+) steers the next Aim: 4 or more takes it down again. Sessions done light or in
+   pain are left out of strength estimates, so the Aims come back to where they were once it heals.
+   ============================================================ */
+const INJ_AREAS = { shoulder: 'Shoulder', elbow: 'Elbow', wrist: 'Wrist / hand', neck: 'Neck', upper_back: 'Upper back', lower_back: 'Lower back', hip: 'Hip', knee: 'Knee', ankle: 'Ankle / calf' };
+const INJ_SIDED = new Set(['shoulder', 'elbow', 'wrist', 'hip', 'knee', 'ankle']);
+const INJ_SEV = { niggle: ['Niggle', 'Can train it, just careful'], painful: ['Hurts on some lifts', 'Certain movements hurt'], noload: ['Can’t load it', 'Any load on it hurts'] };
+const INJ_GROUP = {
+  shoulder: { chest: 2, delt_f: 2, delt_s: 2, delt_r: 1, triceps: 1, back: 1 }, elbow: { biceps: 2, triceps: 2, chest: 1, back: 1, delt_f: 1 },
+  wrist: { biceps: 1, triceps: 1, chest: 1, back: 1, delt_f: 1 }, neck: { delt_f: 1, delt_s: 1, back: 1 }, upper_back: { back: 2, delt_r: 1, delt_f: 1 },
+  lower_back: { hams: 2, quads: 1, back: 1 }, hip: { quads: 2, hams: 2 }, knee: { quads: 2, hams: 1 }, ankle: { calves: 2, quads: 1 },
+};
+const INJ_EX = {
+  incline_db: { shoulder: 2, elbow: 1, wrist: 1 }, chest_press: { shoulder: 2, elbow: 1, wrist: 1 }, cable_fly: { shoulder: 2, elbow: 1 },
+  crunch: { lower_back: 1, neck: 1 }, ab_roller: { shoulder: 2, lower_back: 2, wrist: 1 },
+  tbar: { lower_back: 2, upper_back: 2, shoulder: 1, elbow: 1, wrist: 1 }, pulldown: { shoulder: 2, upper_back: 2, elbow: 1 },
+  seated_row: { upper_back: 2, shoulder: 1, elbow: 1, lower_back: 1 }, pullover: { shoulder: 2, upper_back: 1 },
+  preacher: { elbow: 2, wrist: 1 }, spider: { elbow: 2, wrist: 1, shoulder: 1 }, hammer: { elbow: 2, wrist: 1 },
+  shoulder_press: { shoulder: 2, elbow: 1, wrist: 1, neck: 1 }, lat_raise: { shoulder: 2, neck: 1 }, y_raise: { shoulder: 2, neck: 1 }, rear_fly: { shoulder: 1, upper_back: 1 },
+  katana: { elbow: 2, shoulder: 2 }, skull: { elbow: 2, shoulder: 1, wrist: 1 }, pushdown: { elbow: 2, wrist: 1 },
+  hack: { knee: 2, hip: 2, lower_back: 1, ankle: 1, shoulder: 1 }, rdl: { lower_back: 2, hip: 2, upper_back: 1, wrist: 1 }, leg_ext: { knee: 2 },
+  lying_curl: { knee: 1, lower_back: 1 }, seated_curl: { knee: 1 }, calf: { ankle: 2 },
+};
+const INJ_RANK = { watch: 1, hold: 2, light: 3, skip: 4 };
+const PAIN_LV = [[0, 'None'], [2, '1–3'], [5, '4–5'], [7, '6+']];
+function injLvl(exId, area) {
+  if (INJ_EX[exId] && exDef(exId).g === EXLIB[exId]?.g) return INJ_EX[exId][area] || 0; // a library lift as it came (one re-filed under another muscle is scored by that)
+  const d = exDef(exId), G = INJ_GROUP[area] || {}; let L = G[d.g] || 0;
+  for (const g of d.g2 || SECONDARY[exId] || []) L = Math.max(L, Math.min(1, G[g] || 0));
+  return L;
+}
+function injLabel(inj) { const a = INJ_AREAS[inj.area] || inj.area, sd = INJ_SIDED.has(inj.area) ? inj.side : null; return sd === 'left' || sd === 'right' ? `${sd === 'left' ? 'Left' : 'Right'} ${a.toLowerCase()}` : sd === 'both' ? `${a} (both sides)` : a; }
+function injList() { return Object.entries(S().inj || {}).map(([id, x]) => ({ id, ...x })).sort((a, b) => a.start < b.start ? 1 : a.start > b.start ? -1 : 0); }
+function injActive(date = today()) { return injList().filter(i => i.start <= date && (!i.end || i.end > date)); }
+function painHist(exId, inj, before) { return lixEx(exId).list.filter(x => x.date >= inj.start && x.date < before && x.pain != null); }
+function injVerdict(exId, inj, date, hist) {
+  const o = inj.ex?.[exId]; if (o === 'keep') return { act: 'watch', inj, why: 'You marked this as fine. Log pain after it.' };
+  const L = o === 'adj' ? 2 : injLvl(exId, inj.area); if (!L) return null;
+  const lab = injLabel(inj), lo = lab.toLowerCase();
+  if (inj.sev === 'noload') return { act: 'skip', inj, why: `${lab}: can’t load it, so skip this today.` };
+  if (inj.sev === 'painful') return L === 2 ? { act: 'light', inj, why: `${lab}: lighter while it settles.` } : { act: 'watch', inj, why: `Works your ${lo} a little. Log pain after it.` };
+  if (L < 2) return { act: 'watch', inj, why: `Works your ${lo} a little. Log pain after it.` };
+  let clean = 0; if (hist) { for (const x of painHist(exId, inj, date).reverse()) { if (x.pain <= 2) clean++; else break; } }
+  if (clean >= 2) return { act: 'watch', inj, why: `${clean} pain-free sessions since the niggle, so normal Aims are back.` };
+  return { act: 'hold', inj, why: `${lab} niggle: no load increases until 2 pain-free sessions in a row (${clean} so far).` };
+}
+function injPick(vs) { return vs.filter(Boolean).sort((a, b) => INJ_RANK[b.act] - INJ_RANK[a.act])[0] || null; }
+function injRaw(exId, date) { return injPick(injActive(date).map(i => injVerdict(exId, i, date, false))); } // no pain history: safe to call while the lift index is built
+function injHurt(e, date) { if (e.pain >= 5) return true; if (!S().inj) return false; const v = injRaw(e.id, date); return !!v && (v.act === 'light' || v.act === 'skip'); }
+function injPlan(exId, date = today()) { // today's verdict for a lift across active injuries, with the last pain logged on it since the injury began
+  const act = injActive(date); if (!act.length) return null;
+  const v = injPick(act.map(i => injVerdict(exId, i, date, true))); if (!v) return null;
+  const last = painHist(exId, v.inj, date).pop(); return { ...v, lastPain: last ? last.pain : null };
+}
+function injScale(exId, sg, f) {
+  const d = exDef(exId), st = exStep(exId);
+  if (d.u === 'bw' && !(sg.w > 0)) return { ...sg, r: Math.max(1, Math.round(sg.r * f)) };
+  let w = Math.floor(sg.w * f / st + 1e-6) * st; if (w <= 0) w = d.u === 'bw' ? 0 : st;
+  return { ...sg, w: +w.toFixed(3) };
+}
+function injAim(exId, before, ctx, ip) {
+  const sore = ip.lastPain >= 5, base = ip.act === 'skip' || (ip.act === 'watch' && !sore) ? suggestBase(exId, before, ctx) : holdTarget(exId, before, ctx);
+  if (!base) return null;
+  const f = ip.act === 'light' ? (sore ? 0.55 : 0.7) : sore && ip.act !== 'skip' ? 0.8 : 1;
+  return { ...(f < 1 ? injScale(exId, base, f) : base), inj: ip, f };
+}
+function injSwaps(exId, date, exclude = new Set()) { // gentler lifts for the same muscle (or movement), best first
+  const g = exDef(exId).g, act = injActive(date), ok = id => act.every(i => { const v = injVerdict(id, i, date, false); return !v || v.act === 'watch' || v.act === 'hold'; });
+  return Object.entries(S().ex).filter(([id, x]) => id !== exId && !exclude.has(id) && x.name && (x.g === g || (PATTERN[x.g] && PATTERN[x.g] === PATTERN[g])) && ok(id))
+    .sort((a, b) => (a[1].g === g ? 0 : 1) - (b[1].g === g ? 0 : 1) || a[1].name.localeCompare(b[1].name)).map(([id]) => id).slice(0, 4);
+}
+const PATTERN = { chest: 'push', delt_f: 'push', delt_s: 'push', triceps: 'push', back: 'pull', biceps: 'pull', delt_r: 'pull', quads: 'legs', hams: 'legs', calves: 'legs' };
+
 function recTone(r) { return r == null ? '' : r >= 67 ? 'good' : r >= 34 ? 'warn' : 'bad'; }
 function recWord(r) { return r == null ? '' : r >= 67 ? 'Green' : r >= 34 ? 'Yellow' : 'Red'; }
-function recoveryAfter() { // mean next-morning recovery after each session type
-  const by = {};
+/* Mean next-morning recovery after each session type. v1.57: mornings after alcohol (WHOOP journal, stored on the morning
+   it affects, as the Alcohol and recovery card reads it) are left out, since a drink costs more recovery than most sessions
+   do; `alc` counts them per type and `alcAvg` is their mean, so the card can say what was left out. */
+function recoveryAfter() {
+  const by = {}, alc = {};
   for (const w of Object.values(STATE.w)) {
-    const r = dayVal(addDays(w.date, 1), 'rec'); if (r == null) continue;
-    const k = sessName(w); (by[k] = by[k] || []).push(r);
+    if (emptyW(w)) continue;
+    const m = addDays(w.date, 1), r = dayVal(m, 'rec'); if (r == null) continue;
+    const k = sessName(w); if (STATE.d[m]?.alc) { (alc[k] = alc[k] || []).push(r); continue; }
+    (by[k] = by[k] || []).push(r);
   }
-  return Object.entries(by).map(([k, v]) => ({ k, avg: mean(v), n: v.length }));
+  return Object.entries(by).map(([k, v]) => ({ k, avg: mean(v), n: v.length, alc: (alc[k] || []).length, alcAvg: alc[k] ? mean(alc[k]) : null }));
 }
 function rangeStart() { return ui.range === 0 ? null : addDays(today(), -ui.range + 1); }
 function datesWith(keys, from) {

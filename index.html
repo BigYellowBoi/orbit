@@ -527,6 +527,31 @@ body:has(#updp) .fab { bottom: calc(var(--tabh) + max(8px, calc(env(safe-area-in
 .toast.pr { border-color: var(--accent); } .toast.bad { border-color: var(--bad); }
 @media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
 @media (max-width: 380px) { .hero h1 { font-size: 32px; } .set { grid-template-columns: 22px minmax(0, 1fr) minmax(0, 1fr) 18px; gap: 6px; } .hbars li { grid-template-columns: 80px minmax(0, 1fr) minmax(56px, max-content); } .stats { gap: 8px; } .stat b { font-size: 21px; } }
+/* v1.57: Today's folded exercise list, injuries, friends */
+.exsum { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink-2); font-size: 13.5px; text-align: left; min-height: 44px; }
+.exsum b { font-weight: 600; } .exsum[aria-expanded="true"] .chev { transform: rotate(180deg); }
+.tn-warn { color: var(--warn-ink); }
+.injtag { display: inline-block; margin-left: 6px; font-family: var(--f-body); font-size: 11.5px; font-weight: 600; padding: 1px 7px; border-radius: 99px; vertical-align: 1px; white-space: nowrap; background: var(--surface-2); color: var(--ink-2); }
+.injtag.hold { background: var(--warn-soft); color: var(--warn-ink); } .injtag.light { background: var(--warn-soft); color: var(--warn-ink); } .injtag.skip { background: var(--bad-soft); color: var(--bad-ink); }
+.exlist.injfx li .rx .injtag { margin-left: 0; }
+.injnote { display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: var(--ink-2); background: var(--warn-soft); border-radius: 10px; padding: 10px 12px; }
+.injnote.skip { background: var(--bad-soft); } .injnote p { margin: 0; }
+.painchk { display: flex; flex-direction: column; gap: 6px; } .painchk > span { font-size: 12px; color: var(--ink-3); }
+.chips.four { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; } .chips.four .chip { padding: 6px 4px; min-height: 40px; }
+.chip.hot.on { background: var(--bad); border-color: var(--bad); color: #fff; }
+.redflag { color: var(--bad-ink); margin: 0; }
+.injbanner { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); } .injbanner p { margin: 0; font-size: 14px; }
+.sev { display: grid; gap: 6px; }
+.sevb { text-align: left; display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; min-height: 52px; border-radius: 10px; border: 1px solid var(--line-2); background: transparent; color: var(--ink); }
+.sevb b { font-weight: 600; font-size: 14.5px; } .sevb span { font-size: 12.5px; color: var(--ink-3); }
+.sevb.on { background: var(--ink); color: var(--bg); border-color: var(--ink); } .sevb.on span { color: inherit; opacity: .75; }
+.pp { font-family: var(--f-body); font-size: 11.5px; font-weight: 600; padding: 1px 7px; border-radius: 99px; background: var(--good-soft); color: var(--good-ink); }
+.pp.p2 { background: var(--warn-soft); color: var(--warn-ink); } .pp.p5, .pp.p7 { background: var(--bad-soft); color: var(--bad-ink); }
+.link.inline { min-height: 0; padding: 0; font-size: 12.5px; }
+.flrow { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; } .flrow label { color: var(--ink-3); }
+.xnrem { min-height: 30px; padding: 0; font-size: 12.5px; }
+.frrow .chev { justify-self: end; } .frrow[aria-expanded="true"] .chev { transform: rotate(180deg); }
+.frdet { margin-top: -2px; }
 </style>
 </head>
 <body>
@@ -649,7 +674,7 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.56'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.57'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
@@ -735,7 +760,7 @@ let LIX = { key: null };
 function lix() {
   const key = STATE.v + ':' + today(); if (LIX.key === key) return LIX;
   const by = {};
-  for (const w of workoutsSorted()) (w.ex || []).forEach((e, i) => { const ds = doneSets(e); if (ds.length) (by[e.id] = by[e.id] || []).push({ date: w.date, sets: ds, ctx: ctxLog(w, i) }); }); // ctx: where it sat in that session (v1.43)
+  for (const w of workoutsSorted()) (w.ex || []).forEach((e, i) => { const ds = doneSets(e); if (ds.length) (by[e.id] = by[e.id] || []).push({ date: w.date, sets: ds, ctx: ctxLog(w, i), pain: e.pain ?? null, inj: injHurt(e, w.date) }); }); // ctx: where it sat in that session (v1.43); inj: done light or in pain (v1.57)
   return LIX = { key, by, ex: {}, bw: null };
 }
 function nBefore(list, before) { let lo = 0, hi = list.length; while (lo < hi) { const m = (lo + hi) >> 1; if (list[m].date < before) lo = m + 1; else hi = m; } return lo; } // entries dated before `before`
@@ -760,7 +785,7 @@ function setScore(exId, s, date) { // one number to rank sets: e1RM, or reps for
 function maxScore(exId) { const b = exDef(exId).base; return b && b.r > 0 ? setScore(exId, b, null) : 0; }
 function lixEx(exId) { // this lift's sessions in date order with their best set, plus the running best (stated max included)
   const L = lix(); if (L.ex[exId]) return L.ex[exId];
-  const list = (L.by[exId] || []).map(x => { let top = x.sets[0], sc = setScore(exId, top, x.date); for (const s of x.sets) { const v = setScore(exId, s, x.date); if (v > sc) { sc = v; top = s; } } return { date: x.date, sets: x.sets, top, sc, ctx: x.ctx }; });
+  const list = (L.by[exId] || []).map(x => { let top = x.sets[0], sc = setScore(exId, top, x.date); for (const s of x.sets) { const v = setScore(exId, s, x.date); if (v > sc) { sc = v; top = s; } } return { date: x.date, sets: x.sets, top, sc, ctx: x.ctx, pain: x.pain, inj: x.inj }; });
   const b = exDef(exId).base, chain = cur => list.map(x => (cur = bestStep(exId, cur, x.sets, x.date))); // running best after each session (v1.50)
   const best = chain(b && b.r > 0 ? { s: b, sc: maxScore(exId), date: null } : null), logged = chain(null);
   return L.ex[exId] = { list, best, logged, pre: best.map(r => r ? r.sc : 0) };
@@ -797,7 +822,7 @@ function hasHistory(exId, before) { return nBefore(lixEx(exId).list, before) > 0
 function liftSeries(exId) { return lixEx(exId).list.map(x => ({ date: x.date, y: x.sc, top: x.top })); }
 const median = a => { const v = [...a].sort((x, y) => x - y), n = v.length; return n % 2 ? v[(n - 1) / 2] : (v[n / 2 - 1] + v[n / 2]) / 2; };
 function maintenance(exId) { // recent 28 days vs days 29–90: is strength holding? Medians of each session's best set, so one standout day doesn't decide it
-  const t = today(), ser = lixEx(exId).list.map(x => ({ date: x.date, y: freshSc(exId, x), top: x.top })); // on the fresh scale, so a lift moved later in the session doesn't read as a drop (v1.43)
+  const t = today(), ser = lixEx(exId).list.filter(x => !x.inj).map(x => ({ date: x.date, y: freshSc(exId, x), top: x.top })); // on the fresh scale, so a lift moved later in the session doesn't read as a drop (v1.43)
   const rec = ser.filter(p => diffDays(p.date, t) <= 28), pri = ser.filter(p => { const a = diffDays(p.date, t); return a > 28 && a <= 90; });
   if (!rec.length) return { state: 'none', last: ser[ser.length - 1] || null };
   const r = median(rec.map(p => p.y)); if (!pri.length) return { state: 'new', r, last: ser[ser.length - 1] };
@@ -870,13 +895,14 @@ function baseCtxNow(exId) { const d = exDef(exId); if (!(d.bpos > 0)) return usu
 function inv2(M) { const d = M[0][0] * M[1][1] - M[0][1] * M[1][0]; return Math.abs(d) < 1e-15 ? null : [[M[1][1] / d, -M[0][1] / d], [-M[1][0] / d, M[0][0] / d]]; }
 function ordSig(by) { // session-to-session noise: spread of changes between consecutive sessions in the same slot
   const d = [], t = today(); for (const id in by) { const { list } = lixEx(id), rir = exRir(id); for (let i = 1; i < list.length; i++) { const a = list[i - 1], b = list[i];
-    if (b.date >= t || a.ctx.L !== b.ctx.L || a.ctx.G !== b.ctx.G || diffDays(a.date, b.date) > 42) continue; const va = refScore(id, a.top, rir, a.date), vb = refScore(id, b.top, rir, b.date); if (va > 0 && vb > 0) d.push(Math.log(vb / va)); } }
+    if (b.date >= t || a.inj || b.inj || a.ctx.L !== b.ctx.L || a.ctx.G !== b.ctx.G || diffDays(a.date, b.date) > 42) continue; const va = refScore(id, a.top, rir, a.date), vb = refScore(id, b.top, rir, b.date); if (va > 0 && vb > 0) d.push(Math.log(vb / va)); } }
   if (d.length < 8) return ORD.sig0; const m = median(d); return Math.min(0.1, Math.max(0.02, 1.4826 * median(d.map(x => Math.abs(x - m))) / Math.SQRT2));
 }
 function ordLift(id, sig) { // one lift's filter; returns its evidence on (kL, kG) with the filter's own wide prior taken back out
   const { list } = lixEx(id), rir = exRir(id); let s = [0, 0, 0], P = [[100, 0, 0], [0, 1, 0], [0, 0, 1]], prev = null, n = 0, chg = 0, lastL = null;
   for (const e of list) {
     if (e.date >= today()) break; // learns from finished days only, so today's sets don't move today's Aims
+    if (e.inj) continue; // done light or in pain for an injury: says nothing about slot costs (v1.57)
     const v = refScore(id, e.top, rir, e.date); if (!(v > 0)) continue;
     if (prev) P[0][0] += ORD.q * Math.max(1, diffDays(prev, e.date)); prev = e.date;
     const h = [1, -e.ctx.L, -e.ctx.G], Ph = P.map(r => r[0] * h[0] + r[1] * h[1] + r[2] * h[2]), S = h[0] * Ph[0] + h[1] * Ph[1] + h[2] * Ph[2] + sig * sig;
@@ -942,7 +968,8 @@ function refScore(exId, s, rir, date) {
 }
 function strengthRef(exId, before, ctx) { // current strength: median of the top sets from the last 3 sessions in 90 days, at a position in the session
   const { list } = lixEx(exId), n = nBefore(list, before), from = addDays(before, -90), rir = exRir(exId), at = ordFactor(exId, ctx || usualCtx(exId));
-  const last = list.slice(Math.max(0, n - 3), n).filter(x => x.date >= from);
+  const last = []; for (let i = n - 1; i >= 0 && last.length < 3; i--) if (!list[i].inj) last.unshift(list[i]); // sessions done light or in pain for an injury don't count (v1.57)
+  for (let i = last.length - 1; i >= 0; i--) if (last[i].date < from) last.splice(i, 1);
   // each on the fresh scale first (v1.43), so sessions done in another slot count fairly, then back to where the lift sits now
   if (last.length) { const v = last.map(x => refScore(exId, x.top, rir, x.date) / ordFactor(exId, x.ctx)).sort((a, b) => a - b), f = v[Math.floor((v.length - 1) / 2)]; return { v: f * at, fresh: f, n: last.length, top: last[last.length - 1].top }; }
   const b = exDef(exId).base; if (!(b && b.r > 0)) return null; const f = refScore(exId, b, 0, null) / ordFactor(exId, baseCtx(exId)); return { v: f * at, fresh: f, n: 0, top: b };
@@ -982,6 +1009,10 @@ function growStrength(exId, before, ctx) {
 }
 function suggest(exId, before, ctx) { // the Aim shown on Today and in the log: { w, r, rir } or null; ctx: where the lift sits (default its usual slot)
   if (S().suggest === false) return null;
+  const ip = injPlan(exId, before); if (ip) return injAim(exId, before, ctx, ip); // v1.57: an injury changes the Aim
+  return suggestBase(exId, before, ctx);
+}
+function suggestBase(exId, before, ctx) {
   if (S().goal !== 'grow') return holdTarget(exId, before, ctx);
   const g = growStrength(exId, before, ctx); return g ? fitLoad(exId, g.e, g.cur.n ? g.cur.top.w : null, before) : null;
 }
@@ -1273,15 +1304,101 @@ function weekRows(n) {
   }
   return rows;
 }
+/* ============================================================
+   INJURIES (v1.57)
+   S().inj = { id: { area, side, sev, start, end, note, ex: { exId: 'keep' | 'adj' } } }, synced with settings.
+   How hard a lift loads an area: 2 = it's a main mover or the joint takes the load, 1 = some, 0 = none. Library lifts
+   are scored by movement; others by their muscle group (and its secondaries at most 1).
+   What changes, by how bad it is:
+     niggle   main loaders: no load increases (the maintenance Aim, never overload) until 2 pain-free sessions in a row
+     painful  main loaders: about 70% of the usual load for the same reps; others: a pain check only
+     noload   anything that loads it: skip it today (a gentler swap is offered when one exists)
+   Pain logged after a lift (0, 1–3, 4–5, 6+) steers the next Aim: 4 or more takes it down again. Sessions done light or in
+   pain are left out of strength estimates, so the Aims come back to where they were once it heals.
+   ============================================================ */
+const INJ_AREAS = { shoulder: 'Shoulder', elbow: 'Elbow', wrist: 'Wrist / hand', neck: 'Neck', upper_back: 'Upper back', lower_back: 'Lower back', hip: 'Hip', knee: 'Knee', ankle: 'Ankle / calf' };
+const INJ_SIDED = new Set(['shoulder', 'elbow', 'wrist', 'hip', 'knee', 'ankle']);
+const INJ_SEV = { niggle: ['Niggle', 'Can train it, just careful'], painful: ['Hurts on some lifts', 'Certain movements hurt'], noload: ['Can’t load it', 'Any load on it hurts'] };
+const INJ_GROUP = {
+  shoulder: { chest: 2, delt_f: 2, delt_s: 2, delt_r: 1, triceps: 1, back: 1 }, elbow: { biceps: 2, triceps: 2, chest: 1, back: 1, delt_f: 1 },
+  wrist: { biceps: 1, triceps: 1, chest: 1, back: 1, delt_f: 1 }, neck: { delt_f: 1, delt_s: 1, back: 1 }, upper_back: { back: 2, delt_r: 1, delt_f: 1 },
+  lower_back: { hams: 2, quads: 1, back: 1 }, hip: { quads: 2, hams: 2 }, knee: { quads: 2, hams: 1 }, ankle: { calves: 2, quads: 1 },
+};
+const INJ_EX = {
+  incline_db: { shoulder: 2, elbow: 1, wrist: 1 }, chest_press: { shoulder: 2, elbow: 1, wrist: 1 }, cable_fly: { shoulder: 2, elbow: 1 },
+  crunch: { lower_back: 1, neck: 1 }, ab_roller: { shoulder: 2, lower_back: 2, wrist: 1 },
+  tbar: { lower_back: 2, upper_back: 2, shoulder: 1, elbow: 1, wrist: 1 }, pulldown: { shoulder: 2, upper_back: 2, elbow: 1 },
+  seated_row: { upper_back: 2, shoulder: 1, elbow: 1, lower_back: 1 }, pullover: { shoulder: 2, upper_back: 1 },
+  preacher: { elbow: 2, wrist: 1 }, spider: { elbow: 2, wrist: 1, shoulder: 1 }, hammer: { elbow: 2, wrist: 1 },
+  shoulder_press: { shoulder: 2, elbow: 1, wrist: 1, neck: 1 }, lat_raise: { shoulder: 2, neck: 1 }, y_raise: { shoulder: 2, neck: 1 }, rear_fly: { shoulder: 1, upper_back: 1 },
+  katana: { elbow: 2, shoulder: 2 }, skull: { elbow: 2, shoulder: 1, wrist: 1 }, pushdown: { elbow: 2, wrist: 1 },
+  hack: { knee: 2, hip: 2, lower_back: 1, ankle: 1, shoulder: 1 }, rdl: { lower_back: 2, hip: 2, upper_back: 1, wrist: 1 }, leg_ext: { knee: 2 },
+  lying_curl: { knee: 1, lower_back: 1 }, seated_curl: { knee: 1 }, calf: { ankle: 2 },
+};
+const INJ_RANK = { watch: 1, hold: 2, light: 3, skip: 4 };
+const PAIN_LV = [[0, 'None'], [2, '1–3'], [5, '4–5'], [7, '6+']];
+function injLvl(exId, area) {
+  if (INJ_EX[exId] && exDef(exId).g === EXLIB[exId]?.g) return INJ_EX[exId][area] || 0; // a library lift as it came (one re-filed under another muscle is scored by that)
+  const d = exDef(exId), G = INJ_GROUP[area] || {}; let L = G[d.g] || 0;
+  for (const g of d.g2 || SECONDARY[exId] || []) L = Math.max(L, Math.min(1, G[g] || 0));
+  return L;
+}
+function injLabel(inj) { const a = INJ_AREAS[inj.area] || inj.area, sd = INJ_SIDED.has(inj.area) ? inj.side : null; return sd === 'left' || sd === 'right' ? `${sd === 'left' ? 'Left' : 'Right'} ${a.toLowerCase()}` : sd === 'both' ? `${a} (both sides)` : a; }
+function injList() { return Object.entries(S().inj || {}).map(([id, x]) => ({ id, ...x })).sort((a, b) => a.start < b.start ? 1 : a.start > b.start ? -1 : 0); }
+function injActive(date = today()) { return injList().filter(i => i.start <= date && (!i.end || i.end > date)); }
+function painHist(exId, inj, before) { return lixEx(exId).list.filter(x => x.date >= inj.start && x.date < before && x.pain != null); }
+function injVerdict(exId, inj, date, hist) {
+  const o = inj.ex?.[exId]; if (o === 'keep') return { act: 'watch', inj, why: 'You marked this as fine. Log pain after it.' };
+  const L = o === 'adj' ? 2 : injLvl(exId, inj.area); if (!L) return null;
+  const lab = injLabel(inj), lo = lab.toLowerCase();
+  if (inj.sev === 'noload') return { act: 'skip', inj, why: `${lab}: can’t load it, so skip this today.` };
+  if (inj.sev === 'painful') return L === 2 ? { act: 'light', inj, why: `${lab}: lighter while it settles.` } : { act: 'watch', inj, why: `Works your ${lo} a little. Log pain after it.` };
+  if (L < 2) return { act: 'watch', inj, why: `Works your ${lo} a little. Log pain after it.` };
+  let clean = 0; if (hist) { for (const x of painHist(exId, inj, date).reverse()) { if (x.pain <= 2) clean++; else break; } }
+  if (clean >= 2) return { act: 'watch', inj, why: `${clean} pain-free sessions since the niggle, so normal Aims are back.` };
+  return { act: 'hold', inj, why: `${lab} niggle: no load increases until 2 pain-free sessions in a row (${clean} so far).` };
+}
+function injPick(vs) { return vs.filter(Boolean).sort((a, b) => INJ_RANK[b.act] - INJ_RANK[a.act])[0] || null; }
+function injRaw(exId, date) { return injPick(injActive(date).map(i => injVerdict(exId, i, date, false))); } // no pain history: safe to call while the lift index is built
+function injHurt(e, date) { if (e.pain >= 5) return true; if (!S().inj) return false; const v = injRaw(e.id, date); return !!v && (v.act === 'light' || v.act === 'skip'); }
+function injPlan(exId, date = today()) { // today's verdict for a lift across active injuries, with the last pain logged on it since the injury began
+  const act = injActive(date); if (!act.length) return null;
+  const v = injPick(act.map(i => injVerdict(exId, i, date, true))); if (!v) return null;
+  const last = painHist(exId, v.inj, date).pop(); return { ...v, lastPain: last ? last.pain : null };
+}
+function injScale(exId, sg, f) {
+  const d = exDef(exId), st = exStep(exId);
+  if (d.u === 'bw' && !(sg.w > 0)) return { ...sg, r: Math.max(1, Math.round(sg.r * f)) };
+  let w = Math.floor(sg.w * f / st + 1e-6) * st; if (w <= 0) w = d.u === 'bw' ? 0 : st;
+  return { ...sg, w: +w.toFixed(3) };
+}
+function injAim(exId, before, ctx, ip) {
+  const sore = ip.lastPain >= 5, base = ip.act === 'skip' || (ip.act === 'watch' && !sore) ? suggestBase(exId, before, ctx) : holdTarget(exId, before, ctx);
+  if (!base) return null;
+  const f = ip.act === 'light' ? (sore ? 0.55 : 0.7) : sore && ip.act !== 'skip' ? 0.8 : 1;
+  return { ...(f < 1 ? injScale(exId, base, f) : base), inj: ip, f };
+}
+function injSwaps(exId, date, exclude = new Set()) { // gentler lifts for the same muscle (or movement), best first
+  const g = exDef(exId).g, act = injActive(date), ok = id => act.every(i => { const v = injVerdict(id, i, date, false); return !v || v.act === 'watch' || v.act === 'hold'; });
+  return Object.entries(S().ex).filter(([id, x]) => id !== exId && !exclude.has(id) && x.name && (x.g === g || (PATTERN[x.g] && PATTERN[x.g] === PATTERN[g])) && ok(id))
+    .sort((a, b) => (a[1].g === g ? 0 : 1) - (b[1].g === g ? 0 : 1) || a[1].name.localeCompare(b[1].name)).map(([id]) => id).slice(0, 4);
+}
+const PATTERN = { chest: 'push', delt_f: 'push', delt_s: 'push', triceps: 'push', back: 'pull', biceps: 'pull', delt_r: 'pull', quads: 'legs', hams: 'legs', calves: 'legs' };
+
 function recTone(r) { return r == null ? '' : r >= 67 ? 'good' : r >= 34 ? 'warn' : 'bad'; }
 function recWord(r) { return r == null ? '' : r >= 67 ? 'Green' : r >= 34 ? 'Yellow' : 'Red'; }
-function recoveryAfter() { // mean next-morning recovery after each session type
-  const by = {};
+/* Mean next-morning recovery after each session type. v1.57: mornings after alcohol (WHOOP journal, stored on the morning
+   it affects, as the Alcohol and recovery card reads it) are left out, since a drink costs more recovery than most sessions
+   do; `alc` counts them per type and `alcAvg` is their mean, so the card can say what was left out. */
+function recoveryAfter() {
+  const by = {}, alc = {};
   for (const w of Object.values(STATE.w)) {
-    const r = dayVal(addDays(w.date, 1), 'rec'); if (r == null) continue;
-    const k = sessName(w); (by[k] = by[k] || []).push(r);
+    if (emptyW(w)) continue;
+    const m = addDays(w.date, 1), r = dayVal(m, 'rec'); if (r == null) continue;
+    const k = sessName(w); if (STATE.d[m]?.alc) { (alc[k] = alc[k] || []).push(r); continue; }
+    (by[k] = by[k] || []).push(r);
   }
-  return Object.entries(by).map(([k, v]) => ({ k, avg: mean(v), n: v.length }));
+  return Object.entries(by).map(([k, v]) => ({ k, avg: mean(v), n: v.length, alc: (alc[k] || []).length, alcAvg: alc[k] ? mean(alc[k]) : null }));
 }
 function rangeStart() { return ui.range === 0 ? null : addDays(today(), -ui.range + 1); }
 function datesWith(keys, from) {
@@ -1816,6 +1933,145 @@ function vNotes() {
   return h;
 }
 /* ============================================================
+   FRIENDS (v1.57): a friend's workouts and session times, read-only.
+   A friend shares a JSON file at a link (a raw GitHub file, a Gist, anything with open CORS) or sends the file itself.
+   Orbit reads three shapes: the Recomp Logbook backup (Export JSON), that app's browser copy, and an Orbit backup.
+   Only workouts and timing are kept: session, date, start and end, duration, exercises and sets, cardio minutes and
+   distance. Check-ins, weight, food, photos, injuries and notes in the file are dropped on read and never stored.
+   The links live in settings (so every device has them); the parsed sessions are cached on this device only.
+   ============================================================ */
+const FR_KEY = 'orbit-friends-v1';
+const FR = { cache: null, busy: {} };
+/* Recomp Logbook exercise names (kind: k load in kg or pins, b body weight plus kg, r reps only, t seconds, T seconds with
+   a plate, c load and metres) and session names, so his keys read as names. Unknown keys are shown tidied up. */
+const FR_EX = { bench: ['Barbell Flat Bench Press', 'k'], ohp_db: ['Seated Dumbbell Overhead Press', 'k'], ohp_seat_bb: ['Seated Barbell Overhead Press', 'k'], ohp_stand: ['Standing Barbell Overhead Press', 'k'], incline_db: ['Incline Dumbbell Press (30°)', 'k'], lat_raise: ['Cable Lateral Raise', 'k'], pec_fly: ['Pec Deck / Cable Fly', 'k'], oh_tri: ['Overhead Cable Tricep Extension', 'k'], plank: ['Plank', 't'], dead_bug: ['Dead Bug', 'r'], lh_fly: ['Low-to-High Cable Fly', 'k'], pushdown: ['Tricep Pushdown (rope)', 'k'], skull: ['Skull Crusher (EZ bar)', 'k'], ab_wheel: ['Ab Wheel Rollout', 'r'], db_fly: ['Dumbbell Fly (flat bench)', 'k'], cgbp: ['Close-Grip Bench Press', 'k'], w_plank: ['Weighted Plank', 'T'], squat: ['Barbell Back Squat', 'k'], rdl: ['Romanian Deadlift', 'k'], leg_press: ['Leg Press', 'k'], lying_curl: ['Lying Leg Curl', 'k'], lunge: ['Walking Lunges', 'k'], seat_calf: ['Seated Calf Raise', 'k'], knee_raise: ['Hanging Knee Raise', 'r'], seat_curl: ['Seated Leg Curl', 'k'], bss: ['Bulgarian Split Squat', 'k'], stand_calf: ['Standing Calf Raise', 'k'], pull_through: ['Cable Pull-Through', 'k'], hip_thrust: ['Barbell Hip Thrust', 'k'], hack: ['Hack Squat Machine', 'k'], nordic: ['Nordic Hamstring Curl', 'r'], deadlift: ['Conventional Deadlift', 'k'], pulldown: ['Lat Pulldown (wide, overhand)', 'k'], row_v: ['Seated Cable Row (V-bar)', 'k'], cs_row: ['Chest-Supported DB Row', 'k'], face_pull: ['Face Pull (rope)', 'k'], db_curl: ['Dumbbell Curl (alternating)', 'k'], hammer: ['Hammer Curl', 'k'], pallof: ['Pallof Press', 'k'], pullup: ['Weighted Pull-Up / Assisted', 'b'], row_wide: ['Seated Cable Row (wide, pronated)', 'k'], sa_row: ['Single-Arm Dumbbell Row', 'k'], rear_delt: ['Rear Delt Fly', 'k'], ez_curl: ['EZ Bar Curl', 'k'], hang_leg: ['Hanging Leg Raise', 'r'], bb_row: ['Barbell Bent-Over Row', 'k'], pullover: ['Cable Pullover (straight arm)', 'k'], spider: ['Spider Curl (incline bench)', 'k'], rev_curl: ['Reverse Curl (EZ bar)', 'k'], carry: ['Suitcase Carry', 'c'], floor_press: ['DB Floor Press', 'k'], machine_chest: ['Machine Chest Press', 'k'], landmine_press: ['Half-Kneeling Landmine Press', 'k'], neutral_pulldown: ['Neutral-Grip Lat Pulldown', 'k'], trap_bar: ['Trap Bar Deadlift (high handles)', 'k'], box_squat: ['Box Squat (above parallel)', 'k'], glute_bridge: ['Barbell Glute Bridge', 'k'] };
+const FR_SESS = { A: 'Upper Push', B: 'Lower Body', C: 'Upper Pull + Core', COND: 'Conditioning', Z2: 'Zone 2 + Mobility', AR: 'Active recovery', WALK: 'Walk + Mobility', THR: 'Tempo / Threshold', EZS: 'Easy + Strides + Core', LONG: 'Long Easy', INT: 'Intervals' };
+const FR_LIFT = new Set(['A', 'B', 'C']);
+function frCache() { if (!FR.cache) { try { FR.cache = JSON.parse(localStorage.getItem(FR_KEY) || '{}') || {}; } catch (e) { FR.cache = {}; } } return FR.cache; }
+function frStore() { try { localStorage.setItem(FR_KEY, JSON.stringify(FR.cache || {})); } catch (e) { } }
+function friendList() { return Object.entries(S().friends || {}).map(([id, f]) => ({ id, ...f })).sort((a, b) => (a.name || '').localeCompare(b.name || '')); }
+function rawUrl(u) { // a github.com file page works too: it becomes the raw file
+  const s = String(u || '').trim(), m = /^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/(?:blob|raw)\/(.+)$/.exec(s);
+  return m ? `https://raw.githubusercontent.com/${m[1]}/${m[2]}/${m[3]}` : s;
+}
+const frDate = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
+const frNum = v => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+const tidy = k => String(k || '').replace(/[_-]+/g, ' ').replace(/^\w/, c => c.toUpperCase());
+function frSet(kind, s, pin) { // one set as text, in his units
+  const w = frNum(s.w), r = frNum(s.r); if (!(r > 0)) return null;
+  if (kind === 'r') return `${r} reps`;
+  if (kind === 't') return `${r} s`;
+  if (kind === 'T') return `${w ? fmt(w, 2) + ' kg × ' : ''}${r} s`;
+  if (kind === 'c') return `${w != null ? fmt(w, 2) + ' kg × ' : ''}${r} m`;
+  if (kind === 'b') return `${w > 0 ? `BW+${fmt(w, 2)}` : w < 0 ? `BW${fmt(w, 2)}` : 'BW'} × ${r}`;
+  return w == null ? `${r} reps` : pin ? `pin ${fmt(w, 1)} × ${r}` : `${fmt(w, 2)} kg × ${r}`;
+}
+/* Session length: his app's own timer (durationSec, or finish minus start); minutes typed for cardio otherwise. */
+function frRecomp(list, name) {
+  const out = [];
+  for (const w of list) {
+    if (!w || !frDate(w.date)) continue;
+    const ex = (Array.isArray(w.exercises) ? w.exercises : []).filter(e => e && !e.skipped).map(e => {
+      const def = FR_EX[e.key] || [tidy(e.key), 'k'], sets = (e.sets || []).filter(s => s && s.done).map(s => frSet(def[1], s, e.u === 'pin')).filter(Boolean);
+      return sets.length ? [def[0] + (e.swapFor ? ' (swap)' : ''), sets] : null; }).filter(Boolean);
+    const c = w.cardio || {}, cardio = [frNum(c.tt) ? `5 km in ${Math.floor(c.tt / 60)}:${pad(Math.round(c.tt % 60))}` : frNum(c.min) ? `${fmt(c.min, 0)} min` : '', frNum(c.dist) ? `${fmt(c.dist, 2)} km` : '', frNum(c.hr) ? `${fmt(c.hr, 0)} bpm avg` : ''].filter(Boolean).join(' · ');
+    if (!w.done && !ex.length && !cardio) continue; // opened and never used
+    const s = frNum(w.startedAt), f = frNum(w.finishedAt), dur = frNum(w.durationSec) ?? (s && f && f > s ? Math.round((f - s) / 1000) : frNum(c.min) ? c.min * 60 : null);
+    out.push({ d: w.date, n: c.test ? 'Time trial' : FR_SESS[w.session] || tidy(w.session), lift: FR_LIFT.has(w.session), s, e: w.done ? f : null, dur, open: !w.done, sets: sum(ex.map(x => x[1].length)), ex, c: cardio, rpe: frNum(w.sessionRpe) });
+  }
+  return { name, sessions: out };
+}
+function frOrbit(o) { // a friend on Orbit: names from his own exercise list, durations from WHOOP or minutes typed
+  const exd = o.settings?.ex || {}, ses = o.settings?.prog?.sessions || {}, days = o.days || {}, out = [];
+  for (const [d, w] of Object.entries(o.workouts || {})) {
+    if (!frDate(d) || !w || w.rest) continue;
+    const ex = (w.ex || []).map(e => { const x = exd[e.id] || {}, sets = (e.sets || []).filter(s => s && s.done && s.r > 0 && s.t !== 'w').map(s => x.u === 'bw' ? `${s.w ? `BW+${fmt(s.w, 2)}` : 'BW'} × ${s.r}` : s.w == null ? `${s.r} reps` : `${fmt(s.w, 2)} ${x.u === 'plates' ? 'pl' : 'kg'} × ${s.r}`);
+      return sets.length ? [x.name || tidy(e.id), sets] : null; }).filter(Boolean);
+    const acts = (days[d]?.acts || []).filter(a => LIFT_RE.test(a.n || '')), wm = acts.length ? sum(acts.map(a => a.min || 0)) : null;
+    const t0 = /^\d{1,2}:\d{2}/.test(acts[0]?.t || '') ? new Date(`${d}T${acts[0].t.slice(0, 5).padStart(5, '0')}:00`).getTime() : null;
+    if (!ex.length && !w.cardio?.done) continue;
+    out.push({ d, n: ses[w.s]?.name || w.sName || tidy(w.s), lift: ex.length > 0, s: t0, e: null, dur: wm ? wm * 60 : w.durMin ? w.durMin * 60 : null, open: false, sets: sum(ex.map(x => x[1].length)), ex, c: w.cardio?.done ? `${w.cardio.name || 'Cardio'} · ${fmt(w.cardio.min || 0, 0)} min` : '', rpe: null });
+  }
+  return { name: '', sessions: out };
+}
+function frParse(o) {
+  if (!o || typeof o !== 'object') throw new Error('That file isn’t JSON from a training log.');
+  if (o.app === 'orbit') return frOrbit(o);
+  const name = typeof o.settings?.name === 'string' ? o.settings.name.slice(0, 30) : '';
+  if (Array.isArray(o.workouts)) return frRecomp(o.workouts, name); // Recomp Logbook: Export JSON
+  if (o.workouts && typeof o.workouts === 'object') return frRecomp(Object.values(o.workouts), name); // its browser copy
+  throw new Error('No workouts found in that file.');
+}
+function frKeep(id, parsed) { // what is stored on this device: the parsed sessions only, newest first
+  const sessions = parsed.sessions.sort((a, b) => (a.d < b.d ? 1 : a.d > b.d ? -1 : (b.s || 0) - (a.s || 0))).slice(0, 400);
+  frCache()[id] = { at: Date.now(), name: parsed.name, sessions }; frStore();
+  const f = S().friends?.[id]; if (f && !f.name && parsed.name) { f.name = parsed.name; saveSettings(); }
+}
+async function frFetch(id, quiet) {
+  const f = S().friends?.[id]; if (!f?.url || FR.busy[id]) return;
+  FR.busy[id] = 1; if (ui.tab === 'friends') render();
+  try {
+    const u = rawUrl(f.url), r = await fetch(u + (u.includes('?') ? '&' : '?') + 't=' + Date.now(), { cache: 'no-store' });
+    if (!r.ok) throw new Error(r.status === 404 ? 'The file wasn’t found at that link. A private repo can’t be read this way.' : `The link answered ${r.status}.`);
+    frKeep(id, frParse(await r.json()));
+    delete frCache()[id].err; frStore();
+  } catch (e) {
+    const c = frCache()[id] = { ...(frCache()[id] || {}), err: e instanceof SyntaxError ? 'That link isn’t a JSON file.' : /fetch|network|load/i.test(e.message) && !/answered/.test(e.message) ? 'Couldn’t reach that link. It needs to be a public raw file (raw.githubusercontent.com or a Gist).' : e.message, errAt: Date.now() }; frStore();
+    if (!quiet) toast(esc(c.err), 'bad');
+  } finally { delete FR.busy[id]; if (ui.tab === 'friends') render(); }
+}
+function frStale() { for (const f of friendList()) { const c = frCache()[f.id]; if (f.url && (!c || Date.now() - (c.at || 0) > 10 * 60e3) && !(c?.errAt && Date.now() - c.errAt < 60e3)) frFetch(f.id, true); } }
+const frClock = ms => ms ? new Date(ms).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }).replace(/\s?([ap])\.?m\.?/i, (m, a) => a.toLowerCase() + 'm') : '';
+function frAgo(ms) { const m = Math.round((Date.now() - ms) / 60e3); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 48 * 60 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`; }
+
+/* ---------- the screen ---------- */
+function vFriends() {
+  const fl = friendList(), t = today();
+  let h = `<button class="link" data-act="go" data-tab="history" style="align-self:flex-start">‹ History</button>
+    <div class="page-h"><div><div class="eyebrow">Workouts and session times</div><h1>Friends</h1></div>${fl.length && !ui.frAdd ? '<button class="btn sm ghost" data-act="fradd">Add</button>' : ''}</div>`;
+  if (!fl.length || ui.frAdd) h += frAddHTML(!fl.length);
+  if (!fl.length) return h;
+  const cur = fl.find(f => f.id === ui.fr) || fl[0], c = frCache()[cur.id], busy = !!FR.busy[cur.id];
+  if (fl.length > 1) h += `<div class="chips">${fl.map(f => `<button class="chip ${f.id === cur.id ? 'on' : ''}" data-act="frpick" data-id="${f.id}">${esc(f.name || 'Friend')}</button>`).join('')}</div>`;
+  const status = busy ? 'Updating…' : c?.at ? `Updated ${frAgo(c.at)}` : cur.url ? 'Not loaded yet' : 'Loaded from a file';
+  h += `<div class="sec-h"><span class="eyebrow">${esc(cur.name || 'Friend')} · ${esc(status)}</span><span>${cur.url ? `<button class="link" data-act="frrefresh" data-id="${cur.id}" ${busy ? 'disabled' : ''}>Refresh</button>` : ''}</span></div>`;
+  if (c?.err) h += `<p class="warnnote small">${esc(c.err)}</p>`;
+  const ss = c?.sessions || [];
+  if (!ss.length) return h + `<section class="card"><p class="small dim">${busy ? 'Loading his sessions.' : 'No sessions to show yet.'}</p></section>` + frManageHTML(cur);
+  const m30 = ss.filter(x => x.d > addDays(t, -30)), lifts = m30.filter(x => x.lift && x.dur), starts = m30.filter(x => x.s).map(x => { const d = new Date(x.s); return d.getHours() * 60 + d.getMinutes(); });
+  const med = a => a.length ? median(a) : null, st = med(starts), lastD = ss[0].d;
+  h += `<section class="card"><div class="card-h"><h2>Last 30 days</h2><span class="eyebrow">last trained ${esc(lastD === t ? 'today' : lastD === addDays(t, -1) ? 'yesterday' : fmtD(lastD))}</span></div>
+    <div class="stats">${stat(m30.length, '', 'sessions')}${stat(lifts.length ? fmtDur(med(lifts.map(x => x.dur))) : '–', '', 'typical lift session')}${stat(st != null ? frClock(new Date(2000, 0, 1, Math.floor(st / 60), Math.round(st % 60)).getTime()) : '–', '', 'usual start')}</div></section>`;
+  const n = ui.frAll ? ss.length : Math.min(ss.length, 30); let wk = null, open = false;
+  for (const x of ss.slice(0, n)) {
+    const ws = weekStart(x.d);
+    if (ws !== wk) { if (open) h += '</div>'; wk = ws; open = true; h += `<div class="sec-h"><span class="eyebrow">Week of ${esc(fmtD(ws))}</span><span class="xs muted">${ss.filter(y => weekStart(y.d) === ws).length} sessions</span></div><div class="hist">`; }
+    const key = x.d + '|' + x.n + '|' + (x.s || ''), on = ui.frOpen === key, time = x.s ? `${frClock(x.s)}${x.e ? ` – ${frClock(x.e)}` : ''}` : '';
+    const meta = [time, x.dur ? fmtDur(x.dur) : '', x.sets ? `${x.sets} sets` : '', x.lift ? '' : x.c].filter(Boolean).join(' · ');
+    h += `<button class="hrow frrow" data-act="fropen" data-k="${esc(key)}" aria-expanded="${on}"><span class="hdate"><b>${esc(fmtDow(x.d))}</b><small>${esc(fmtDate(x.d))}</small></span><span class="hmain"><b>${esc(x.n)}${x.open ? ' <span class="pill warn">In progress</span>' : ''}</b><small>${esc(meta || 'No details')}</small></span><span class="chev">${ICON.down}</span></button>`;
+    if (on) h += `<section class="card flat frdet">${x.ex.length ? `<ul class="exlist ro">${x.ex.map(([nm, sets]) => `<li><span>${esc(nm)}</span><span class="rx">${sets.map((v, i) => `<span class="rs"><i>${i + 1}</i><span>${esc(v)}</span></span>`).join('')}</span></li>`).join('')}</ul>` : ''}${x.c ? `<p class="small dim">${esc(x.c)}</p>` : ''}${x.rpe ? `<p class="xs muted">Felt ${x.rpe}/10</p>` : ''}</section>`;
+  }
+  if (open) h += '</div>';
+  if (ss.length > 30) h += `<button class="link" data-act="frall" style="align-self:flex-start">${ui.frAll ? 'Show the last 30' : `Show all ${ss.length}`}</button>`;
+  return h + frManageHTML(cur);
+}
+function frAddHTML(first) {
+  return `<section class="card"><div class="card-h"><h2>${first ? 'See a friend’s workouts' : 'Add a friend'}</h2>${first ? '' : '<button class="link dim" data-act="fradd">Cancel</button>'}</div>
+    <p class="small dim">He exports his log as JSON (Recomp Logbook: Data and settings, Export JSON) and puts the file in a public GitHub repo or Gist. Paste the link to that file. Orbit only keeps his sessions, times, sets and cardio; nothing else in the file is stored.</p>
+    <label class="fl">Name<input class="in" id="frname" maxlength="30" autocomplete="off" placeholder="e.g. Dylan"></label>
+    <label class="fl">Link to his file<input class="in" id="frurl" type="url" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://raw.githubusercontent.com/…/backup.json"></label>
+    <div class="btnrow" style="justify-content:space-between"><label class="btn sm ghost filebtn">Or open a file<input type="file" class="vh" accept=".json,application/json" data-in="frfile"></label><button class="btn" data-act="frsave">Add friend</button></div></section>`;
+}
+function frManageHTML(f) {
+  const editing = ui.frEdit === f.id;
+  return `<section class="card flat"><div class="card-h"><h2>${esc(f.name || 'Friend')}</h2><button class="link dim" data-act="fredit" data-id="${f.id}">${editing ? 'Close' : 'Edit'}</button></div>
+    ${editing ? `<label class="fl">Name<input class="in" id="frename" maxlength="30" value="${esc(f.name || '')}"></label>
+      <label class="fl">Link to his file<input class="in" id="freurl" type="url" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" value="${esc(f.url || '')}" placeholder="Leave blank to load files by hand"></label>
+      <div class="btnrow" style="justify-content:space-between"><label class="btn sm ghost filebtn">Load a file<input type="file" class="vh" accept=".json,application/json" data-in="frfile" data-id="${f.id}"></label><button class="btn sm" data-act="frupd" data-id="${f.id}">Save</button></div>
+      <button class="link danger" data-act="frdel" data-id="${f.id}" style="align-self:flex-start">${ui.confirm === 'frdel' + f.id ? 'Tap again to remove' : 'Remove friend'}</button>`
+      : `<p class="xs muted">${f.url ? `Reads ${esc(rawUrl(f.url).replace(/^https?:\/\//, '').slice(0, 64))}${rawUrl(f.url).length > 72 ? '…' : ''}` : 'Loaded from a file on this device.'}</p>`}</section>`;
+}
+/* ============================================================
    VIEWS
    ============================================================ */
 const ordinal = n => n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th');
@@ -1838,8 +2094,15 @@ function deltaTxt(v, base, d = 0, unit = '', invert = false) {
   const better = invert ? diff < 0 : diff > 0;
   return `<span class="delta" style="color:var(${better ? '--good-ink' : '--warn-ink'})">${diff > 0 ? '+' : '−'}${fmt(Math.abs(diff), d)}${unit} vs 30-day</span>`;
 }
+/* Exercise dropdowns (v1.57): grouped by muscle in the app's usual order, like the Body metric picker. `first` puts one
+   muscle's group on top (Swap: the lift's own muscle). */
+function exOpts(ids, sel, first) {
+  const by = {}; for (const id of ids) { const g = GROUPS[exDef(id).g] ? exDef(id).g : 'other'; (by[g] = by[g] || []).push(id); }
+  const gs = GROUP_ORDER.filter(g => by[g]).sort((a, b) => (b === first) - (a === first));
+  return gs.map(g => `<optgroup label="${esc(GROUPS[g])}">${by[g].sort((a, b) => exDef(a).name.localeCompare(exDef(b).name)).map(id => `<option value="${id}" ${id === sel ? 'selected' : ''}>${esc(exDef(id).name)}</option>`).join('')}</optgroup>`).join('');
+}
 function rxTxt(it) { const d = exDef(it.ex); return `${defSets(it.ex)} × ${d.lo}${d.hi > d.lo ? '–' + d.hi : ''}`; }
-function prevLine(exId, before, sid) { const sg = suggest(exId, before, usualCtx(exId, sid)), l = lastLine(exId, before); return [sg ? `<b class="aimtxt">Aim ${esc(suggestTxt(exId, sg))}</b>` : '', esc(l)].filter(Boolean).join(' · '); }
+function prevLine(exId, before, sid) { const sg = suggest(exId, before, usualCtx(exId, sid)), l = lastLine(exId, before); return [sg && sg.inj?.act !== 'skip' ? `<b class="aimtxt">Aim ${esc(suggestTxt(exId, sg))}</b>` : '', esc(l)].filter(Boolean).join(' · '); }
 function lastLine(exId, before) {
   const ix = lixEx(exId), n = nBefore(ix.list, before); // Best counts logged sets only; stated maxes just seed the Aim
   const b = n ? ix.logged[n - 1] : null; // logged sets only, same rule as new bests (v1.50)
@@ -1873,6 +2136,11 @@ function pastDayHTML(d) {
     ${prs.length ? `<div class="chips">${prs.slice(0, 6).map(p => `<span class="pill acc">${esc(exDef(p.id).name)} ${esc(fmtSet(p.id, p.s))}</span>`).join('')}</div>` : ''}
     <button class="btn wide ghost" data-act="openlog" data-d="${d}">Open log</button></section>`;
 }
+function injTag(exId, d) { const p = injPlan(exId, d); return p && p.act !== 'watch' ? ` <span class="injtag ${p.act}">${{ hold: 'Held', light: 'Lighter', skip: 'Skip' }[p.act]}</span>` : ''; } // injury marker on planned lifts (v1.57)
+function planList(its, d, sid, cardio = true) {
+  return `<ul class="exlist">${its.map(it => `<li><span>${esc(exDef(it.ex).name)}${injTag(it.ex, d)}</span><span class="rx">${rxTxt(it)}</span><span class="lt">${prevLine(it.ex, d, sid)}</span></li>`).join('')}
+      ${cardio ? `<li><span>${esc(S().cardio.name)}</span><span class="rx">${S().cardio.min} min</span></li>` : ''}</ul>`;
+}
 function futureDayHTML(d, off) {
   const u = upcoming(off + 1)[off], sid = u.s, sd = sessDef(sid), o = order(), idx = o.indexOf(sid);
   if (sid === '_rest' || isRestSlot(sid)) return `<section class="card hero"><div class="card-h"><span class="eyebrow">${u.planned ? 'Planned rest' : 'Rest from your rotation'}</span></div>
@@ -1882,15 +2150,15 @@ function futureDayHTML(d, off) {
   return `<section class="card hero"><div class="card-h"><span class="eyebrow">Planned · ${idx + 1} of ${o.length}</span></div>
     <div class="rot">${o.map((id, i) => `<i class="${i === idx ? 'on' : ''}"></i>`).join('')}</div>
     <div><h1>${esc(sd.name)}</h1><p class="focus">${esc(sd.focus || '')}</p></div>
-    <ul class="exlist">${sd.items.filter(it => S().ex[it.ex]).map(it => `<li><span>${esc(exDef(it.ex).name)}</span><span class="rx">${rxTxt(it)}</span><span class="lt">${prevLine(it.ex, d, sid)}</span></li>`).join('')}
-      <li><span>${esc(S().cardio.name)}</span><span class="rx">${S().cardio.min} min</span></li></ul>
+    ${planList(sd.items.filter(it => S().ex[it.ex]), d, sid)}
     <div class="btnrow" style="justify-content:space-between"><span class="xs muted">Assumes you train each day until then.</span><button class="link dim" data-act="reston" data-date="${d}">Rest this day</button></div></section>`;
 }
 function vToday() {
   if (ui.dayOff) return vDay(ui.dayOff);
   const t = today(), w = STATE.w[t], sid = w ? w.s : sessionFor(t), sd = sessDef(sid), o = order(), idx = o.indexOf(sid);
   let h = `<div class="page-h day"><div><div class="eyebrow">${esc(fmtDow(t))} ${esc(fmtDate(t, { year: 'numeric' }))}</div><h1>Today</h1></div><div class="hdr-r">${(() => { const n = streak(); return n ? `<span class="pill plain streak" data-live="streak" title="${n} day${n === 1 ? '' : 's'} in a row with a session or rest day logged" aria-label="Streak: ${n} day${n === 1 ? '' : 's'}">${ICON.flame}<b>${n}</b></span>` : ''; })()}${dayNav(0)}</div></div>`;
-  const tail = () => whoopCard() + stripHTML() + weekCard();
+  h += injBannerHTML(t);
+  const tail = () => whoopCard() + stripHTML() + weekCard() + (injActive(t).length ? '' : '<button class="link dim" data-act="injnew" style="align-self:center">Log an injury</button>');
   if (w && (!w.fin || ui.editToday)) return h + logBody(t) + stripHTML() + weekCard(); // the log, until you press Done (no Recovery card while logging, v1.36)
   if (w) return h + doneHero(w, idx, o) + tail();
   if (!sd) return h + `<section class="card"><p>Your programme has no sessions. Add one in Plan.</p><button class="btn" data-act="go" data-tab="plan">Open Plan</button></section>`;
@@ -1900,8 +2168,10 @@ function vToday() {
     <div class="rot">${o.map((id, i) => `<i class="${i === idx ? 'on' : i < idx ? 'done' : ''}"></i>`).join('')}</div>
     <div><h1>${esc(sd.name)}</h1><p class="focus">${esc(sd.focus || '')}</p></div>
     <button class="btn wide" data-act="start" data-id="${sid}">Log ${esc(sd.name)}</button>
-    <ul class="exlist">${sd.items.filter(it => S().ex[it.ex]).map(it => `<li><span>${esc(exDef(it.ex).name)}</span><span class="rx">${rxTxt(it)}</span><span class="lt">${prevLine(it.ex, t, sid)}</span></li>`).join('')}
-      <li><span>${esc(S().cardio.name)}</span><span class="rx">${S().cardio.min} min</span></li></ul>
+    ${(() => { // v1.57: folded on Today so Recovery sits higher; past and coming days show the list open
+      const its = sd.items.filter(it => S().ex[it.ex]), open = !!ui.todayEx, adj = its.filter(it => { const q = injPlan(it.ex, t); return q && q.act !== 'watch'; }).length;
+      return `<button class="exsum" data-act="todayex" aria-expanded="${open}"><span>${its.length} exercise${its.length === 1 ? '' : 's'} · ${esc(S().cardio.name)}${adj ? ` · <b class="tn-warn">${adj} adjusted for injury</b>` : ''}</span><span class="chev">${ICON.down}</span></button>
+        ${open ? planList(its, t, sid) : ''}`; })()}
     ${ui.pickSess === 'today' ? `<div class="sec"><span class="xs muted">Do a different session today. The rotation carries on from whichever you log.</span><div class="chips">${trainIds().map(id => `<button class="chip ${id === sid ? 'on' : ''}" data-act="setnext" data-id="${id}">${esc(sessDef(id).name)}</button>`).join('')}</div></div>`
       : `<div class="btnrow" style="justify-content:space-between"><button class="link" data-act="picktoday">Change today's session</button><button class="link dim" data-act="restday">Rest day instead</button></div>`}</section>`;
   return h + tail();
@@ -2003,6 +2273,62 @@ function whoopCard(day) {
     <span class="rsrc">WHOOP · ${isT ? 'today' : esc(fmtDate(t))}</span></section>`;
 }
 
+/* ---------- Injuries (v1.57) ---------- */
+function injBannerHTML(d) { // Today: what's active and how much of today's session it changes
+  const act = injActive(d); if (!act.length) return '';
+  const w = STATE.w[d], sid = w && !w.rest ? w.s : sessionFor(d), ids = w && !w.rest ? (w.ex || []).map(e => e.id) : (sessDef(sid)?.items || []).map(it => it.ex);
+  const n = ids.filter(id => { const p = injPlan(id, d); return p && p.act !== 'watch'; }).length;
+  return `<section class="card injbanner"><div class="card-h"><span class="eyebrow">Injury</span><button class="link" data-act="go" data-tab="injuries">Manage</button></div>
+    ${act.map(i => `<p><b>${esc(injLabel(i))}</b> · ${esc(INJ_SEV[i.sev]?.[0] || '')} · since ${esc(fmtD(i.start))}</p>`).join('')}
+    ${n ? `<p class="small dim">${n} lift${n === 1 ? '' : 's'} in ${esc(slotName(sid) || 'today\u2019s session')} adjusted.</p>` : ''}</section>`;
+}
+const INJ_ACT = { watch: 'Pain check', hold: 'No increases', light: 'Lighter', skip: 'Skip' };
+function injEffects(inj, d) { // per training session: the lifts this injury changes
+  const out = [];
+  for (const sid of trainIds()) { const rows = []; for (const it of sessDef(sid).items) { if (!S().ex[it.ex]) continue; const v = injVerdict(it.ex, inj, d, true); if (v) rows.push({ id: it.ex, v }); } if (rows.length) out.push({ sid, rows }); }
+  return out;
+}
+function vInjuries() {
+  if (ui.injForm) return injFormHTML();
+  const t = today(), all = injList(), act = all.filter(i => !i.end || i.end > t), done = all.filter(i => i.end && i.end <= t);
+  let h = `<button class="link" data-act="go" data-tab="today" style="align-self:flex-start">‹ Today</button>
+    <div class="page-h"><div><div class="eyebrow">Train around it</div><h1>Injuries</h1></div><button class="btn sm" data-act="injnew">Log one</button></div>
+    ${act.length ? '' : `<section class="card"><p class="small dim">Log where it hurts and how bad it is. Lifts that load it get lighter, held or skipped, with a pain check after each one, and those sessions don\u2019t count against your strength. Sharp, swelling or worsening pain is worth getting checked.</p></section>`}`;
+  for (const i of act) {
+    const eff = injEffects(i, t), inSess = new Set(eff.flatMap(e => e.rows.map(r => r.id)));
+    const others = Object.keys(S().ex).filter(id => S().ex[id].name && !inSess.has(id) && !injVerdict(id, i, t, false));
+    const pains = []; for (const id of new Set([...inSess, ...Object.keys(i.ex || {})])) for (const x of painHist(id, i, addDays(t, 1))) pains.push({ id, ...x });
+    pains.sort((a, b) => a.date < b.date ? 1 : -1);
+    h += `<section class="card"><div class="card-h"><h2>${esc(injLabel(i))}</h2>${pill(i.sev === 'niggle' ? 'warn' : 'bad', INJ_SEV[i.sev]?.[0] || '')}</div>
+      <p class="xs muted">Since ${esc(fmtDow(i.start))} ${esc(fmtD(i.start))} · ${diffDays(i.start, t) + 1} day${diffDays(i.start, t) ? 's' : ''}</p>
+      ${i.note ? `<p class="small">${esc(i.note)}</p>` : ''}
+      ${eff.length ? eff.map(e => `<div class="sec"><span class="xs muted">${esc(sessDef(e.sid).name)}</span><ul class="exlist injfx">${e.rows.map(r => `<li><span>${esc(exDef(r.id).name)}</span><span class="rx"><span class="injtag ${r.v.act}">${INJ_ACT[r.v.act]}</span></span>
+        <span class="lt">${i.ex?.[r.id] ? `<button class="link inline" data-act="injex" data-id="${i.id}" data-k="${r.id}" data-v="">${i.ex[r.id] === 'keep' ? 'Adjust it again' : 'Remove'}</button>` : r.v.act !== 'watch' ? `<button class="link inline" data-act="injex" data-id="${i.id}" data-k="${r.id}" data-v="keep">Doesn\u2019t hurt: train it normally</button>` : ''}</span></li>`).join('')}</ul></div>`).join('') : '<p class="small dim">None of your Plan lifts load this area.</p>'}
+      ${others.length ? `<label class="fl">Something else hurts?<select class="in" data-in="injadd" data-id="${i.id}"><option value="">Add a lift\u2026</option>${exOpts(others)}</select></label>` : ''}
+      ${pains.length ? `<div class="sec"><span class="xs muted">Pain logged after lifts</span><ul class="exlist recent">${pains.slice(0, 8).map(p => `<li><span>${esc(exDef(p.id).name)}<small class="xs muted"> · ${esc(fmtD(p.date))}</small></span><span class="rx"><span class="pp p${p.pain}">${esc(PAIN_LV.find(x => x[0] === p.pain)?.[1] || p.pain)}</span></span></li>`).join('')}</ul></div>` : ''}
+      <div class="btnrow" style="justify-content:space-between"><button class="btn sm ghost" data-act="injedit" data-id="${i.id}">Edit</button><button class="btn sm" data-act="injheal" data-id="${i.id}">It\u2019s healed</button></div></section>`;
+  }
+  if (done.length) h += `<section class="card flat"><div class="card-h"><h2>Healed</h2></div><ul class="exlist">${done.map(i => `<li><span>${esc(injLabel(i))} <small class="xs muted">${esc(INJ_SEV[i.sev]?.[0] || '')}</small></span><span class="rx">${esc(fmtD(i.start))} \u2013 ${esc(fmtD(i.end))}</span>
+    <span class="lt"><button class="link inline" data-act="injreopen" data-id="${i.id}">Hurting again</button> · <button class="link inline danger" data-act="injdel" data-id="${i.id}">${ui.confirm === 'injdel' + i.id ? 'Tap again to delete' : 'Delete'}</button></span></li>`).join('')}</ul></section>`;
+  return h;
+}
+function injFormHTML() {
+  const f = ui.injForm, t = today(), chip = (k, v, l) => `<button type="button" class="chip ${f[k] === v ? 'on' : ''}" data-act="injset" data-k="${k}" data-v="${v}">${esc(l)}</button>`;
+  let h = `<button class="link" data-act="injcancel" style="align-self:flex-start">‹ ${f.id ? 'Injuries' : 'Back'}</button>
+    <div class="page-h"><div><div class="eyebrow">${f.id ? 'Edit' : 'New'}</div><h1>Injury</h1></div></div>
+    <section class="card"><div class="fl"><span>Where</span><div class="chips">${Object.entries(INJ_AREAS).map(([k, l]) => chip('area', k, l)).join('')}</div></div>
+    ${INJ_SIDED.has(f.area) ? `<div class="fl"><span>Side</span><div class="chips">${chip('side', 'left', 'Left')}${chip('side', 'right', 'Right')}${chip('side', 'both', 'Both')}</div></div>` : ''}
+    <div class="fl"><span>How bad</span><div class="sev">${Object.entries(INJ_SEV).map(([k, [l, d]]) => `<button type="button" class="sevb ${f.sev === k ? 'on' : ''}" data-act="injset" data-k="sev" data-v="${k}"><b>${esc(l)}</b><span>${esc(d)}</span></button>`).join('')}</div></div>
+    <div class="fields" style="grid-template-columns:minmax(0,1fr)"><label class="fl">Started<input class="in" type="date" id="injstart" data-in="injstart" value="${f.start}" max="${t}"></label>
+    <label class="fl">Notes or physio advice<textarea class="in" id="injnote" data-in="injnote" placeholder="Optional, e.g. no overhead pressing for 2 weeks">${esc(f.note || '')}</textarea></label></div></section>`;
+  if (f.area && f.sev) {
+    const eff = injEffects({ ...f, ex: f.ex || {} }, t);
+    h += `<section class="card flat"><div class="card-h"><h2>What changes</h2></div>${eff.length ? eff.map(e => `<div class="sec"><span class="xs muted">${esc(sessDef(e.sid).name)}</span><ul class="exlist injfx">${e.rows.map(r => `<li><span>${esc(exDef(r.id).name)}</span><span class="rx"><span class="injtag ${r.v.act}">${INJ_ACT[r.v.act]}</span></span></li>`).join('')}</ul></div>`).join('') : '<p class="small dim">None of your Plan lifts load this area.</p>'}
+      ${f.sev === 'noload' ? '<p class="xs redflag">If any load on it hurts, it\u2019s worth getting it looked at.</p>' : ''}</section>`;
+  }
+  return h + `<button class="btn wide" data-act="injsave" ${f.area && f.sev ? '' : 'disabled'}>${f.id ? 'Save changes' : 'Save injury'}</button>`;
+}
+
 /* ---------- Log: one day's session. Today's renders inside Today; past days open from History ---------- */
 function vLog() {
   const d = ui.logDate || today(), t = today();
@@ -2032,7 +2358,7 @@ function logBody(d) {
     if (!sd) return h + `<section class="card"><p>Add a session in Plan first.</p></section>`;
     h += `<section class="card"><div class="card-h"><span class="eyebrow">No session on this day</span>${isRestSlot(due) ? pill('', 'Planned rest') : ''}</div>
       <div class="chips">${o.map(id => `<button class="chip ${id === sid ? 'on' : ''}" data-act="picksess" data-id="${id}">${esc(sessDef(id).name)}</button>`).join('')}</div>
-      <ul class="exlist">${sd.items.filter(it => S().ex[it.ex]).map(it => `<li><span>${esc(exDef(it.ex).name)}</span><span class="rx">${rxTxt(it)}</span><span class="lt">${prevLine(it.ex, d, sid)}</span></li>`).join('')}</ul>
+      ${planList(sd.items.filter(it => S().ex[it.ex]), d, sid, false)}
       <button class="btn wide" data-act="start" data-id="${sid}">Log ${esc(sd.name)}</button>
       <button class="link dim" data-act="restday" style="align-self:flex-start">Mark as a rest day</button></section>`;
     return h;
@@ -2078,7 +2404,7 @@ function readLogHTML(w) { // a past day's log to look at: nothing here can be ch
 }
 /* Add exercise (v1.36): a searchable list ranked for the day: the session's own muscles, then muscles its lifts also work
    and the same movement pattern (push, pull, legs), then abs, then the rest; most recently used first within each. */
-const PATTERN = { chest: 'push', delt_f: 'push', delt_s: 'push', triceps: 'push', back: 'pull', biceps: 'pull', delt_r: 'pull', quads: 'legs', hams: 'legs', calves: 'legs' };
+// PATTERN (push, pull, legs by muscle) lives in engine.js since v1.57
 function pickerHTML(w) {
   if (!ui.pick) return `<button class="btn ghost wide" data-act="pickopen">+ Exercise</button>`;
   const inW = new Set(w.ex.map(e => e.id)), sd = sessDef(w.s);
@@ -2105,11 +2431,11 @@ function exHistHTML(exId, before) { // the last few sessions of a lift, for a qu
     <button class="link" data-act="liftgo" data-id="${exId}">Strength trend</button></div>`;
 }
 function exMoreHTML(w, e, i) { // swap keeps the slot and set count; same muscle group listed first
-  const inW = new Set(w.ex.map(x => x.id)), g = exDef(e.id).g, all = Object.entries(S().ex).filter(([id]) => !inW.has(id)).sort((a, b) => a[1].name.localeCompare(b[1].name));
-  const same = all.filter(([, x]) => x.g === g), rest = all.filter(([, x]) => x.g !== g), opt = ([id, x]) => `<option value="${id}">${esc(x.name)}</option>`;
-  return `<div class="ex-more"><label class="fl">Swap for<select class="in" id="swap${i}" data-in="swapex" data-e="${i}"><option value="">Choose…</option>${same.length ? `<optgroup label="${esc(GROUPS[g] || 'Same group')}">${same.map(opt).join('')}</optgroup>` : ''}<optgroup label="Everything else">${rest.map(opt).join('')}</optgroup></select></label>
+  const inW = new Set(w.ex.map(x => x.id)), ids = Object.keys(S().ex).filter(id => !inW.has(id) && S().ex[id].name);
+  return `<div class="ex-more"><label class="fl">Swap for<select class="in" id="swap${i}" data-in="swapex" data-e="${i}"><option value="">Choose…</option>${exOpts(ids, null, exDef(e.id).g)}</select></label>
     ${doneSets(e).length ? `<p class="xs muted">Swapping clears the sets logged for ${esc(exDef(e.id).name)}.</p>` : ''}
-    <div class="btnrow" style="justify-content:space-between">${e.sets.length > 1 ? `<button class="link dim" data-act="remset" data-e="${i}">Remove last set</button>` : '<span></span>'}<button class="link danger" data-act="remex" data-e="${i}">Remove exercise</button></div></div>`;
+    <div class="btnrow" style="justify-content:space-between">${e.sets.length > 1 ? `<button class="link dim" data-act="remset" data-e="${i}">Remove last set</button>` : '<span></span>'}<button class="link danger" data-act="remex" data-e="${i}">Remove exercise</button></div>
+    ${injPlan(e.id, w.date) ? '' : `<button class="link dim" data-act="injnew" data-id="${e.id}" style="align-self:flex-start">Hurts? Log an injury</button>`}</div>`;
 }
 function orderLine(w, i) { // v1.43: the lift is in another slot than usual, and the Aim allows for it
   const id = w.ex[i].id, f = ordNote(id, ctxLog(w, i), w.s); if (!f) return '';
@@ -2133,14 +2459,25 @@ function exCard(w, e, i, prSet) {
   const meta = def.note ? esc(def.note) : ""; // v1.56: Last and Best live under each set row now, not here
   return `<section class="card ex" id="ex${i}" data-dragitem data-i="${i}"><div class="ex-h">${w.ex.length > 1 ? `<span class="grip" data-grip="ex" aria-label="Drag to reorder ${esc(def.name)}" role="button" tabindex="-1">${ICON.grip}</span>` : ''}<button class="ex-name" data-act="exhist" data-e="${i}" aria-expanded="${open}"><h3>${esc(def.name)}</h3><span class="chev">${ICON.down}</span></button><span class="rx">${def.lo}${def.hi > def.lo ? '–' + def.hi : ''} reps</span></div>
     ${open ? exHistHTML(e.id, w.date) : ''}
-    ${sg ? `<p class="aim"><b>Aim ${esc(suggestTxt(e.id, sg))}</b>${nWork > 1 && back?.back ? `, then ${esc(fmtLoad(e.id, back.w))}${def.u === 'kg' ? ' kg' : ''}` : ''} · ${sg.rir} rep${sg.rir === 1 ? '' : 's'} in reserve${S().goal === 'grow' ? ' · overload' : ''}</p>` : ''}
+    ${injCardHTML(w, e, i)}
+    ${sg && sg.inj?.act !== 'skip' ? `<p class="aim"><b>Aim ${esc(suggestTxt(e.id, sg))}</b>${nWork > 1 && back?.back ? `, then ${esc(fmtLoad(e.id, back.w))}${def.u === 'kg' ? ' kg' : ''}` : ''} · ${sg.rir} rep${sg.rir === 1 ? '' : 's'} in reserve${sg.inj ? (sg.f < 1 ? ` · ${fmt(sg.f * 100, 0)}% for the injury` : sg.inj.act === 'hold' ? ' · held for the injury' : '') : S().goal === 'grow' ? ' · overload' : ''}</p>` : ''}
     ${sg ? orderLine(w, i) : ''}
     ${meta ? `<p class="ex-meta">${meta}</p>` : ''}
     ${(() => { const ln = e.note == null ? lastExerciseNote(e.id, w.date) : null; return ln ? `<p class="ex-lastnote">Note from ${esc(fmtDate(ln.date))}: ${esc(ln.note)}</p>` : ''; })()}
     <div class="sets"><div class="set hdr"><span>Set</span><span>${esc(u.col)}</span><span>Reps</span><span></span></div>${rows}</div>
-    ${e.note != null || ui.exNote === i ? `<label class="fl">Exercise note<textarea class="in exnote" id="xn${i}" data-in="exnote" data-e="${i}" placeholder="Seat height, grip, how it felt">${esc(e.note || '')}</textarea></label>` : ''}
+    ${e.note != null || ui.exNote === i ? `<div class="fl"><span class="flrow"><label for="xn${i}">Exercise note</label><button class="link dim xnrem" data-act="exnoterem" data-e="${i}">Remove note</button></span><textarea class="in exnote" id="xn${i}" data-in="exnote" data-e="${i}" placeholder="Seat height, grip, how it felt">${esc(e.note || '')}</textarea></div>` : ''}
     <div class="ex-foot"><button class="link" data-act="addset" data-e="${i}">+ Set</button>${sg && sg.w > 0 && def.u !== 'bw' ? `<button class="link dim" data-act="addwarm" data-e="${i}">+ Warm-up</button>` : ''}${e.note == null && ui.exNote !== i ? `<button class="link dim" data-act="exnote" data-e="${i}">+ Note</button>` : ''}<button class="link dim more" data-act="exmore" data-e="${i}" aria-expanded="${ui.exMore === i}" aria-label="More for ${esc(def.name)}">${ui.exMore === i ? 'Close' : 'More'}</button></div>
     ${ui.exMore === i ? exMoreHTML(w, e, i) : ''}</section>`;
+}
+/* Injury on a log card (v1.57): what changed and why, a pain check after the lift, and gentler swaps when it's skipped. */
+function injCardHTML(w, e, i) {
+  const ip = injPlan(e.id, w.date); if (!ip) return '';
+  let h = `<p>${esc(ip.why)}${ip.lastPain >= 5 && ip.act !== 'skip' ? ' It hurt last time, so lighter again.' : ''}</p>`;
+  if (ip.act === 'skip') { const sw = injSwaps(e.id, w.date, new Set(w.ex.map(x => x.id)));
+    h += sw.length ? `<div class="chips">${sw.map(id => `<button class="chip" data-act="injswap" data-e="${i}" data-id="${id}">Swap for ${esc(exDef(id).name)}</button>`).join('')}</div>` : '<p class="xs">No gentler lift for this muscle in your list, so leave it out today.</p>'; }
+  h += `<div class="painchk"><span>Pain during it?</span><div class="chips four">${PAIN_LV.map(([v, l]) => `<button class="chip ${e.pain === v ? 'on' : ''}${v >= 5 ? ' hot' : ''}" data-act="expain" data-e="${i}" data-v="${v}" aria-pressed="${e.pain === v}">${l}</button>`).join('')}</div></div>`;
+  if (e.pain >= 7) h += '<p class="xs redflag">Stop this lift for today. Sharp or worsening pain is worth getting checked.</p>';
+  return `<div class="injnote ${ip.act}">${h}</div>`;
 }
 function actChips(a) { // a WHOOP activity as one line of chips (v1.36)
   const c = [a.str != null && `<span class="strain">strain ${fmt(a.str, 1)}</span>`, a.ahr && `avg ${fmt(a.ahr, 0)} bpm`, a.kcal && `${fmt(a.kcal, 0)} kcal`].filter(Boolean);
@@ -2165,7 +2502,7 @@ function vHistory() {
   let h = `<div class="page-h"><div><div class="eyebrow">${ws.filter(w => !w.rest).length} sessions logged</div><h1>History</h1></div>
     <div class="seg" role="group" aria-label="View"><button class="${ui.hist !== 'notes' ? 'on' : ''}" data-act="histview" data-v="sessions">Sessions</button><button class="${ui.hist === 'notes' ? 'on' : ''}" data-act="histview" data-v="notes">Notes${nNotes ? ` ${nNotes}` : ''}</button></div></div>`;
   if (ui.hist === 'notes') return h + vNotes();
-  h += `<button class="link" data-act="pastlog" style="align-self:flex-start">+ Log a past day</button>`;
+  h += `<div class="btnrow" style="justify-content:space-between"><button class="link" data-act="pastlog">+ Log a past day</button><button class="link" data-act="go" data-tab="friends">Friends${friendList().length ? ` (${friendList().length})` : ''}</button></div>`;
   if (!ws.length) return h + `<section class="card"><p class="dim">Sessions you log appear here, grouped by week. Tap one to open or edit it.</p></section>`;
   h += calendarHTML(ws);
   // search and session filter, applied in place (filterHist in boot.js) so the keyboard stays up
@@ -2304,7 +2641,7 @@ function vStrength() {
   const yLab = !scored ? 'Best reps per session' : m === 'reps' ? 'Reps at the heaviest load of each session' : m === 'rel' ? 'Estimated 1RM ÷ trend body weight' : m === 'top' ? `Heaviest set per session (${u === 'plates' ? 'plates / side' : u === 'bw' ? 'kg added' : 'kg'})` : m === 'vol' ? `Session volume (${unit} × reps, working sets)` : `Estimated 1RM per session (${u === 'plates' ? 'plates / side' : u === 'bw' ? 'kg, body weight included' : 'kg'})`;
   const recent = lixEx(pick).list.slice(-6).reverse();
   const cards = [];
-  cards.push({ k: 'chart', t: 'Lift chart', h: `<section class="card" id="liftchart"><label class="fl">Lift<select class="in" id="liftpick" data-in="lift">${ids.map(id => `<option value="${id}" ${id === pick ? 'selected' : ''}>${esc(exDef(id).name)}</option>`).join('')}</select></label>
+  cards.push({ k: 'chart', t: 'Lift chart', h: `<section class="card" id="liftchart"><label class="fl">Lift<select class="in" id="liftpick" data-in="lift">${exOpts(ids, pick)}</select></label>
     ${scored ? `<div class="seg full" role="group" aria-label="Measure">${mets.map(k => `<button class="${k === m ? 'on' : ''}" data-act="liftm" data-v="${k}">${LIFT_M[k]}</button>`).join('')}</div>` : ''}<span class="small dim">${esc(yLab)}</span>
     ${chartHTML({ h: 170, ...ax, refY: null, yPad: padY, yFmt: v => m === 'rel' ? fmt(v, 2) + '×' : fmt(v, u === 'plates' && m !== 'vol' && m !== 'reps' ? 2 : 0), series: [{ color: 'var(--s1)', pts: ser.map(p => ({ x: xi(p.date), y: p.y })), dots: true, r: 3.5, end: true }], hoverXs: ser.map(p => xi(p.date)), tip: x => { const p = ser.find(q => xi(q.date) === x); return p ? `<b>${esc(fmtDate(p.date))}</b><br>${esc(fmtSet(pick, p.top))} · ${esc(m === 'e1rm' ? scoreTxt(pick, p.y) : m === 'vol' ? fmt(p.y, 0) + ' ' + unit + ' × reps' : m === 'reps' ? p.y + ' reps at ' + fmtLoad(pick, p.mw) + (u === 'kg' ? ' kg' : '') : m === 'rel' ? fmt(p.y, 2) + '× body weight' : fmtLoad(pick, p.y) + (u === 'kg' ? ' kg' : ''))}` : ''; }, empty: 'No sets logged for this lift yet', label: 'Lift trend' })}
     ${recent.length ? `<div class="sec"><span class="eyebrow">Recent sessions</span><ul class="exlist recent">${recent.map(x => `<li><span class="mono xs">${esc(fmtD(x.date))}</span><span class="rx">${esc(setsTxt(pick, x.sets))}</span></li>`).join('')}</ul></div>` : ''}</section>` });
@@ -2393,9 +2730,10 @@ function vBody() {
   let h = `<div class="page-h"><div><div class="eyebrow">Recovery · energy · trends</div><h1>Body</h1></div></div>`;
   h += freshHTML() + partialCard() + energyCard();
   const cards = [{ k: 'trends', t: 'Trends', h: explorerHTML() }, { k: 'alcohol', t: 'Alcohol and recovery', h: alcoholCard() }];
-  const ra = recoveryAfter().filter(r => r.n >= 2).sort((a, b) => b.avg - a.avg);
-  if (ra.length >= 2) cards.push({ k: 'recafter', t: 'Recovery the morning after', h: `<section class="card"><div class="card-h"><h2>Recovery the morning after</h2><span class="eyebrow">all time</span></div><p class="xs muted">Average next-day WHOOP recovery after each session type. Small samples move a lot; read it as a hint.</p>
-    <ul class="hbars">${ra.map(r => `<li><span class="lab">${esc(r.k)}</span><span class="trk"><span class="fill" style="width:${Math.max(2, r.avg)}%;background:var(--${recTone(r.avg)})"></span></span><span class="v">${fmt(r.avg, 0)}% <span class="muted">${r.n}×</span></span></li>`).join('')}</ul></section>` });
+  const raAll = recoveryAfter(), ra = raAll.filter(r => r.n >= 2).sort((a, b) => b.avg - a.avg), nAlc = sum(raAll.map(r => r.alc));
+  const alcAvg = nAlc ? sum(raAll.map(r => r.alc * (r.alcAvg || 0))) / nAlc : null; // any session, then a drink: for comparison
+  if (ra.length >= 2) cards.push({ k: 'recafter', t: 'Recovery the morning after', h: `<section class="card"><div class="card-h"><h2>Recovery the morning after</h2><span class="eyebrow">all time</span></div><p class="xs muted">Average next-day WHOOP recovery after each session type. Small samples move a lot; read it as a hint.${nAlc ? ` Mornings after alcohol are left out and shown on their own.` : ''}</p>
+    <ul class="hbars">${ra.map(r => `<li><span class="lab">${esc(r.k)}</span><span class="trk"><span class="fill" style="width:${Math.max(2, r.avg)}%;background:var(--${recTone(r.avg)})"></span></span><span class="v">${fmt(r.avg, 0)}% <span class="muted">${r.n}×</span></span></li>`).join('')}${nAlc >= 2 ? `<li class="alcrow"><span class="lab">After alcohol</span><span class="trk"><span class="fill" style="width:${Math.max(2, alcAvg)}%;background:var(--${recTone(alcAvg)})"></span></span><span class="v">${fmt(alcAvg, 0)}% <span class="muted">${nAlc}×</span></span></li>` : ''}</ul></section>` });
   const nW = ui.weeksAll ? 26 : 8, wrows = weekRows(nW).filter(r => r.sessions || r.rec != null || r.kcal != null || r.tw != null);
   if (wrows.length) {
     const c = (v, d = 0, u = '') => v == null ? '<span class="muted">–</span>' : fmt(v, d) + u;
@@ -2462,7 +2800,7 @@ function vPlan() {
         <div class="dlist" data-list="item" data-id="${sid}">${sd.items.map((it, j) => { const d = exDef(it.ex); return `<div class="ed-item" data-dragitem data-j="${j}"><span class="grip" data-grip="item" aria-label="Drag to reorder ${esc(d.name)}" role="button" tabindex="-1">${ICON.grip}</span><span class="nm">${esc(d.name)}<small>${esc(GROUPS[d.g] || '')} · ${d.lo}–${d.hi} reps</small></span>
           <input class="in" id="ss_${sid}_${j}" inputmode="numeric" data-in="isets" data-id="${sid}" data-j="${j}" value="${defSets(it.ex)}" aria-label="Sets for ${esc(d.name)}">
           <button class="ed-x" data-act="remitem" data-id="${sid}" data-j="${j}" aria-label="Remove ${esc(d.name)}">${ICON.x}</button></div>`; }).join('')}</div>
-        <label class="fl">Add exercise<select class="in" id="sa_${sid}" data-in="additem" data-id="${sid}"><option value="">Choose…</option>${Object.entries(S().ex).sort((a, b) => a[1].name.localeCompare(b[1].name)).map(([id, x]) => `<option value="${id}">${esc(x.name)}</option>`).join('')}</select></label>
+        <label class="fl">Add exercise<select class="in" id="sa_${sid}" data-in="additem" data-id="${sid}"><option value="">Choose…</option>${exOpts(Object.keys(S().ex).filter(id => S().ex[id].name))}</select></label>
         <div class="btnrow" style="justify-content:flex-end">${delBtn(sid)}</div></div>`;
     }
     h += `</section>`;
@@ -2506,7 +2844,7 @@ function progressionCard() {
     <div class="btnrow" style="justify-content:space-between"><span class="xs muted">Today's Aim follows</span><div class="seg" role="group" aria-label="Goal"><button class="${grow ? '' : 'on'}" data-act="goal" data-v="hold">Maintenance</button><button class="${grow ? 'on' : ''}" data-act="goal" data-v="grow">Overload</button></div></div>
     <div class="btnrow" style="justify-content:space-between"><span class="xs muted">Overload gain a week</span><div class="seg" role="group" aria-label="Weekly gain">${rates.map(([r, l]) => `<button class="${Math.abs(rate - r) < 1e-9 ? 'on' : ''}" data-act="prograte" data-v="${r}">${l}</button>`).join('')}</div></div>
     ${grow && cutCheck() ? (() => { const c = cutCheck(); return `<p class="small warnnote">Your trend weight is falling about ${fmt(Math.abs(c.wk), 2)} kg a week (${fmt(Math.abs(c.pct), 1)}%). In a deficit like that strength usually holds but gains slow down (Murphy &amp; Koehler, 2022), so Overload at +${fmt(rate * 100, 2)}%/wk may outrun you. Maintenance, or the 0.25% rate, fits better until the cut ends.</p>`; })() : ''}
-    <label class="fl">Lift<select class="in" id="proglift" data-in="proglift">${ids.map(id => `<option value="${id}" ${id === pick ? 'selected' : ''}>${esc(exDef(id).name)}</option>`).join('')}</select></label>
+    <label class="fl">Lift<select class="in" id="proglift" data-in="proglift">${exOpts(ids, pick)}</select></label>
     ${plan ? `<div class="tblwrap"><table class="tbl goal"><thead><tr><th>Week</th><th class="n ${grow ? '' : 'act'}">Maintenance</th><th class="n ${grow ? 'act' : ''}">Overload</th><th class="n">Gain</th></tr></thead><tbody>
       ${plan.map(p => `<tr><td>Week ${p.k}</td><td class="n ${grow ? '' : 'act'}">${hold ? esc(suggestTxt(pick, hold)) : '–'}</td><td class="n ${grow ? 'act' : ''}">${esc(suggestTxt(pick, p))}</td><td class="n">+${(p.g * 100).toFixed(1)}%</td></tr>`).join('')}
     </tbody></table></div>` : ''}
@@ -2560,7 +2898,7 @@ function vData() {
   h += `<p class="xs muted" style="text-align:center">Orbit v${esc(APP_VERSION)}${ui.update ? ` · <button class="link" data-act="update">v${esc(ui.update)} is ready, update</button>` : ''}</p>`;
   return h;
 }
-const VIEWS = { today: vToday, log: vLog, history: vHistory, strength: vStrength, body: vBody, plan: vPlan, data: vData };
+const VIEWS = { today: vToday, log: vLog, history: vHistory, strength: vStrength, body: vBody, plan: vPlan, data: vData, injuries: vInjuries, friends: vFriends };
 /* ============================================================
    PERSISTENCE — browser copy + private claude.ai storage
    Cloud layout (per viewer, private): data/users/<id>/settings
@@ -2792,7 +3130,7 @@ function render(force) {
     if (Math.abs(scrollY0() - y) > 1) scrollToY(y); // a re-render keeps your place; changing tabs scrolls to the top in go()
   }
   v.classList.toggle('cols', ['strength', 'body', 'data'].includes(ui.tab) || (ui.tab === 'today' && !(STATE.w[today()] && (!STATE.w[today()].fin || ui.editToday)) && !ui.dayOff)); // two columns on wide screens (CSS decides when)
-  document.querySelectorAll('.tabs [data-tab]').forEach(b => b.setAttribute('aria-current', b.dataset.tab === (ui.tab === 'log' ? 'history' : ui.tab) ? 'page' : 'false'));
+  document.querySelectorAll('.tabs [data-tab]').forEach(b => b.setAttribute('aria-current', b.dataset.tab === ({ log: 'history', friends: 'history', injuries: 'today' }[ui.tab] || ui.tab) ? 'page' : 'false'));
   const g = $('#gear'); g.setAttribute('aria-current', ui.tab === 'data' ? 'page' : 'false'); g.setAttribute('aria-label', ui.tab === 'data' ? 'Back' : 'Settings: sync, imports and backups');
   renderSync(); renderMark(); renderUpdate(); renderFab(); renderReorder();
   fadeCheck();
@@ -2866,7 +3204,9 @@ function go(tab) {
   if (tab === 'data' && ui.tab === 'data') tab = ui.prevTab || 'today'; else if (tab === 'data') ui.prevTab = ui.tab;
   if (tab === 'today') ui.logDate = null;
   if (tab !== 'log') ui.logEdit = null; // a past log goes back to read-only once you leave it (v1.46)
+  if (tab !== 'injuries') ui.injForm = null; if (tab !== 'friends') { ui.frAdd = false; ui.frEdit = null; }
   ui.tab = tab; ui.confirm = null; ui.pickSess = null; ui.editEx = null;
+  if (tab === 'friends') setTimeout(frStale, 0); // links older than 10 minutes are read again
   resetScroll(); render(true); if (logging()) wakeLock();
 }
 let toastT;
@@ -2895,6 +3235,11 @@ function sweepCardio() { // WHOOP's cardio often lands after a session is done (
 }
 function sweepEmpty() { for (const d of Object.keys(STATE.w)) if (d < today()) dropEmpty(d); } // sessions started and never used on earlier days
 function dropEmpty(date) { if (emptyW(STATE.w[date])) { delete STATE.w[date]; saveW(date); return true; } return false; }
+function injReturn() { // back to where an injury was logged from (a log card mid-workout), else the Injuries list
+  const b = ui.injBack; ui.injBack = null; resetScroll();
+  if (b && b.tab && b.tab !== 'injuries') { const { logDate, logEdit, editToday } = b; go(b.tab); if (b.tab === 'log') { ui.logDate = logDate; ui.logEdit = logEdit; } if (b.tab === 'today') ui.editToday = editToday; render(true); return; }
+  render(true);
+}
 const ACT = {
   go: el => go(el.dataset.tab),
   start: el => {
@@ -2934,6 +3279,46 @@ const ACT = {
   updlater: () => { ui.updLater = ui.update; renderUpdate(); },
   edittoday: () => { ui.editToday = true; render(true); },
   pastlog: () => { ui.logDate = addDays(today(), -1); ui.pickSess = null; go('log'); },
+  todayex: () => { ui.todayEx = !ui.todayEx; render(true); },
+  exnoterem: el => { const w = logW(), i = +el.dataset.e, e = w?.ex[i]; if (!e) return; delete e.note; ui.exNote = null; saveW(w.date); render(true); }, // v1.57: a note added by mistake
+  expain: el => { const w = logW(), e = w?.ex[+el.dataset.e], v = +el.dataset.v; if (!e) return; if (e.pain === v) delete e.pain; else e.pain = v; saveW(w.date); render(true); if (v >= 5 && e.pain === v) toast('Noted. Next time this lift is lighter.'); },
+  injswap: el => { const w = logW(), i = +el.dataset.e, e = w?.ex[i], id = el.dataset.id; if (!e || !id) return; const from = exDef(e.id).name;
+    w.ex[i] = { id, sets: prefill(id, e.sets.filter(s => s.t !== 'w').length || defSets(id), w.date) }; saveW(w.date); toast(`Swapped ${esc(from)} for ${esc(exDef(id).name)}`); render(true); },
+  injnew: el => { // from a lift that hurts: the area it loads most is picked
+    const ex = el.dataset.id; let area = null; if (ex) { let best = 0; for (const a of Object.keys(INJ_AREAS)) { const L = injLvl(ex, a); if (L > best) { best = L; area = a; } } }
+    ui.injForm = { area, side: 'right', sev: null, start: today(), note: '', ex: {} }; ui.injBack = ui.tab === 'injuries' ? null : { tab: ui.tab, logDate: ui.logDate, logEdit: ui.logEdit, editToday: ui.editToday };
+    if (ui.tab === 'injuries') { resetScroll(); render(true); } else go('injuries'); },
+  injset: el => { const f = ui.injForm; if (!f) return; f[el.dataset.k] = el.dataset.v; render(true); },
+  injedit: el => { const i = S().inj?.[el.dataset.id]; if (!i) return; ui.injForm = { ...clone(i), id: el.dataset.id, ex: clone(i.ex || {}) }; ui.injBack = null; resetScroll(); render(true); },
+  injcancel: () => { ui.injForm = null; injReturn(); },
+  injsave: () => {
+    const f = ui.injForm; if (!f?.area || !f.sev) return; flushField();
+    const id = f.id || 'i' + Date.now().toString(36), old = S().inj?.[id] || {};
+    const rec = { ...old, area: f.area, sev: f.sev, start: f.start && f.start <= today() ? f.start : today(), note: (f.note || '').trim(), ex: f.ex || {} };
+    if (INJ_SIDED.has(f.area)) rec.side = f.side || 'right'; else delete rec.side; if (!rec.note) delete rec.note;
+    S().inj = { ...(S().inj || {}), [id]: rec }; ui.injForm = null; saveSettings();
+    toast(f.id ? 'Injury updated' : `${esc(injLabel(rec))} logged. Your Aims are adjusted.`); injReturn(); },
+  injheal: el => { const i = S().inj?.[el.dataset.id]; if (!i) return; i.end = today(); saveSettings(); toast(`${esc(injLabel(i))} marked healed. Aims are back to normal.`); render(true); },
+  injreopen: el => { const i = S().inj?.[el.dataset.id]; if (!i) return; delete i.end; saveSettings(); render(true); },
+  injdel: el => { const id = el.dataset.id; if (ui.confirm !== 'injdel' + id) { ui.confirm = 'injdel' + id; render(true); return; } delete S().inj[id]; if (!Object.keys(S().inj).length) delete S().inj; ui.confirm = null; saveSettings(); render(true); },
+  injex: el => { const i = S().inj?.[el.dataset.id]; if (!i) return; i.ex = { ...(i.ex || {}) }; if (el.dataset.v) i.ex[el.dataset.k] = el.dataset.v; else delete i.ex[el.dataset.k]; saveSettings(); render(true); },
+  fradd: () => { ui.frAdd = !ui.frAdd; render(true); },
+  frpick: el => { ui.fr = el.dataset.id; ui.frOpen = null; ui.frEdit = null; render(true); },
+  fropen: el => { ui.frOpen = ui.frOpen === el.dataset.k ? null : el.dataset.k; render(true); },
+  frall: () => { ui.frAll = !ui.frAll; render(true); },
+  frrefresh: el => frFetch(el.dataset.id),
+  fredit: el => { ui.frEdit = ui.frEdit === el.dataset.id ? null : el.dataset.id; ui.confirm = null; render(true); },
+  frsave: () => {
+    const name = ($('#frname')?.value || '').trim().slice(0, 30), url = ($('#frurl')?.value || '').trim();
+    if (!/^https:\/\/\S+$/.test(url)) { toast('Paste an https link to his file, or open the file instead', 'bad'); return; }
+    const id = 'f' + Date.now().toString(36); S().friends = { ...(S().friends || {}), [id]: { name, url } }; saveSettings();
+    ui.fr = id; ui.frAdd = false; render(true); frFetch(id); },
+  frupd: el => { const f = S().friends?.[el.dataset.id]; if (!f) return; const url = ($('#freurl')?.value || '').trim();
+    if (url && !/^https:\/\/\S+$/.test(url)) { toast('That link needs to start with https://', 'bad'); return; }
+    f.name = ($('#frename')?.value || '').trim().slice(0, 30); const ch = url !== (f.url || ''); if (url) f.url = url; else delete f.url;
+    ui.frEdit = null; saveSettings(); render(true); if (ch && url) frFetch(el.dataset.id); },
+  frdel: el => { const id = el.dataset.id; if (ui.confirm !== 'frdel' + id) { ui.confirm = 'frdel' + id; render(true); return; }
+    delete S().friends[id]; delete frCache()[id]; frStore(); ui.confirm = null; ui.frEdit = null; ui.fr = null; saveSettings(); render(true); },
   exhist: el => { const i = +el.dataset.e; ui.exHist = ui.exHist === i ? null : i; render(true); },
   liftsel: el => { if (ui.lift === el.dataset.id) { ui.lift = null; render(true); return; } ui.lift = el.dataset.id; render(true); const c = $('#liftchart'); if (c && c.getBoundingClientRect().top < ($('.top')?.getBoundingClientRect().bottom || 0)) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); },
   liftgo: el => { ui.lift = el.dataset.id; go('strength'); },
@@ -3064,6 +3449,16 @@ function setRest(date, on) { // plan or unplan a one-off rest day; past dates dr
 }
 const INP = {
   restadd: el => { if (el.value) setRest(el.value, true); },
+  injstart: el => { if (ui.injForm) ui.injForm.start = el.value; },
+  injnote: el => { if (ui.injForm) ui.injForm.note = el.value; },
+  injadd: el => { const i = S().inj?.[el.dataset.id], id = el.value; if (!i || !id) return; i.ex = { ...(i.ex || {}), [id]: 'adj' }; saveSettings(); toast(`${esc(exDef(id).name)} added`); render(true); },
+  frfile: async el => {
+    const f = el.files?.[0]; if (!f) return;
+    try { const parsed = frParse(JSON.parse(await f.text())); let id = el.dataset.id;
+      if (!id) { id = 'f' + Date.now().toString(36); S().friends = { ...(S().friends || {}), [id]: { name: ($('#frname')?.value || '').trim().slice(0, 30) || parsed.name || '' } }; saveSettings(); }
+      frKeep(id, parsed); ui.fr = id; ui.frAdd = false; ui.frEdit = null; toast(`${parsed.sessions.length} sessions loaded`); render(true); }
+    catch (e) { toast(esc(e instanceof SyntaxError ? 'That file isn’t JSON.' : e.message || 'That file couldn’t be read.'), 'bad'); el.value = ''; }
+  },
   w: el => setInput(el, true),
   r: el => setInput(el, true),
   swapex: el => { const id = el.value, w = logW(), e = w?.ex[+el.dataset.e]; if (!id || !e) return; const from = exDef(e.id).name;

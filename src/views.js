@@ -21,8 +21,15 @@ function deltaTxt(v, base, d = 0, unit = '', invert = false) {
   const better = invert ? diff < 0 : diff > 0;
   return `<span class="delta" style="color:var(${better ? '--good-ink' : '--warn-ink'})">${diff > 0 ? '+' : '−'}${fmt(Math.abs(diff), d)}${unit} vs 30-day</span>`;
 }
+/* Exercise dropdowns (v1.57): grouped by muscle in the app's usual order, like the Body metric picker. `first` puts one
+   muscle's group on top (Swap: the lift's own muscle). */
+function exOpts(ids, sel, first) {
+  const by = {}; for (const id of ids) { const g = GROUPS[exDef(id).g] ? exDef(id).g : 'other'; (by[g] = by[g] || []).push(id); }
+  const gs = GROUP_ORDER.filter(g => by[g]).sort((a, b) => (b === first) - (a === first));
+  return gs.map(g => `<optgroup label="${esc(GROUPS[g])}">${by[g].sort((a, b) => exDef(a).name.localeCompare(exDef(b).name)).map(id => `<option value="${id}" ${id === sel ? 'selected' : ''}>${esc(exDef(id).name)}</option>`).join('')}</optgroup>`).join('');
+}
 function rxTxt(it) { const d = exDef(it.ex); return `${defSets(it.ex)} × ${d.lo}${d.hi > d.lo ? '–' + d.hi : ''}`; }
-function prevLine(exId, before, sid) { const sg = suggest(exId, before, usualCtx(exId, sid)), l = lastLine(exId, before); return [sg ? `<b class="aimtxt">Aim ${esc(suggestTxt(exId, sg))}</b>` : '', esc(l)].filter(Boolean).join(' · '); }
+function prevLine(exId, before, sid) { const sg = suggest(exId, before, usualCtx(exId, sid)), l = lastLine(exId, before); return [sg && sg.inj?.act !== 'skip' ? `<b class="aimtxt">Aim ${esc(suggestTxt(exId, sg))}</b>` : '', esc(l)].filter(Boolean).join(' · '); }
 function lastLine(exId, before) {
   const ix = lixEx(exId), n = nBefore(ix.list, before); // Best counts logged sets only; stated maxes just seed the Aim
   const b = n ? ix.logged[n - 1] : null; // logged sets only, same rule as new bests (v1.50)
@@ -56,6 +63,11 @@ function pastDayHTML(d) {
     ${prs.length ? `<div class="chips">${prs.slice(0, 6).map(p => `<span class="pill acc">${esc(exDef(p.id).name)} ${esc(fmtSet(p.id, p.s))}</span>`).join('')}</div>` : ''}
     <button class="btn wide ghost" data-act="openlog" data-d="${d}">Open log</button></section>`;
 }
+function injTag(exId, d) { const p = injPlan(exId, d); return p && p.act !== 'watch' ? ` <span class="injtag ${p.act}">${{ hold: 'Held', light: 'Lighter', skip: 'Skip' }[p.act]}</span>` : ''; } // injury marker on planned lifts (v1.57)
+function planList(its, d, sid, cardio = true) {
+  return `<ul class="exlist">${its.map(it => `<li><span>${esc(exDef(it.ex).name)}${injTag(it.ex, d)}</span><span class="rx">${rxTxt(it)}</span><span class="lt">${prevLine(it.ex, d, sid)}</span></li>`).join('')}
+      ${cardio ? `<li><span>${esc(S().cardio.name)}</span><span class="rx">${S().cardio.min} min</span></li>` : ''}</ul>`;
+}
 function futureDayHTML(d, off) {
   const u = upcoming(off + 1)[off], sid = u.s, sd = sessDef(sid), o = order(), idx = o.indexOf(sid);
   if (sid === '_rest' || isRestSlot(sid)) return `<section class="card hero"><div class="card-h"><span class="eyebrow">${u.planned ? 'Planned rest' : 'Rest from your rotation'}</span></div>
@@ -65,15 +77,15 @@ function futureDayHTML(d, off) {
   return `<section class="card hero"><div class="card-h"><span class="eyebrow">Planned · ${idx + 1} of ${o.length}</span></div>
     <div class="rot">${o.map((id, i) => `<i class="${i === idx ? 'on' : ''}"></i>`).join('')}</div>
     <div><h1>${esc(sd.name)}</h1><p class="focus">${esc(sd.focus || '')}</p></div>
-    <ul class="exlist">${sd.items.filter(it => S().ex[it.ex]).map(it => `<li><span>${esc(exDef(it.ex).name)}</span><span class="rx">${rxTxt(it)}</span><span class="lt">${prevLine(it.ex, d, sid)}</span></li>`).join('')}
-      <li><span>${esc(S().cardio.name)}</span><span class="rx">${S().cardio.min} min</span></li></ul>
+    ${planList(sd.items.filter(it => S().ex[it.ex]), d, sid)}
     <div class="btnrow" style="justify-content:space-between"><span class="xs muted">Assumes you train each day until then.</span><button class="link dim" data-act="reston" data-date="${d}">Rest this day</button></div></section>`;
 }
 function vToday() {
   if (ui.dayOff) return vDay(ui.dayOff);
   const t = today(), w = STATE.w[t], sid = w ? w.s : sessionFor(t), sd = sessDef(sid), o = order(), idx = o.indexOf(sid);
   let h = `<div class="page-h day"><div><div class="eyebrow">${esc(fmtDow(t))} ${esc(fmtDate(t, { year: 'numeric' }))}</div><h1>Today</h1></div><div class="hdr-r">${(() => { const n = streak(); return n ? `<span class="pill plain streak" data-live="streak" title="${n} day${n === 1 ? '' : 's'} in a row with a session or rest day logged" aria-label="Streak: ${n} day${n === 1 ? '' : 's'}">${ICON.flame}<b>${n}</b></span>` : ''; })()}${dayNav(0)}</div></div>`;
-  const tail = () => whoopCard() + stripHTML() + weekCard();
+  h += injBannerHTML(t);
+  const tail = () => whoopCard() + stripHTML() + weekCard() + (injActive(t).length ? '' : '<button class="link dim" data-act="injnew" style="align-self:center">Log an injury</button>');
   if (w && (!w.fin || ui.editToday)) return h + logBody(t) + stripHTML() + weekCard(); // the log, until you press Done (no Recovery card while logging, v1.36)
   if (w) return h + doneHero(w, idx, o) + tail();
   if (!sd) return h + `<section class="card"><p>Your programme has no sessions. Add one in Plan.</p><button class="btn" data-act="go" data-tab="plan">Open Plan</button></section>`;
@@ -83,8 +95,10 @@ function vToday() {
     <div class="rot">${o.map((id, i) => `<i class="${i === idx ? 'on' : i < idx ? 'done' : ''}"></i>`).join('')}</div>
     <div><h1>${esc(sd.name)}</h1><p class="focus">${esc(sd.focus || '')}</p></div>
     <button class="btn wide" data-act="start" data-id="${sid}">Log ${esc(sd.name)}</button>
-    <ul class="exlist">${sd.items.filter(it => S().ex[it.ex]).map(it => `<li><span>${esc(exDef(it.ex).name)}</span><span class="rx">${rxTxt(it)}</span><span class="lt">${prevLine(it.ex, t, sid)}</span></li>`).join('')}
-      <li><span>${esc(S().cardio.name)}</span><span class="rx">${S().cardio.min} min</span></li></ul>
+    ${(() => { // v1.57: folded on Today so Recovery sits higher; past and coming days show the list open
+      const its = sd.items.filter(it => S().ex[it.ex]), open = !!ui.todayEx, adj = its.filter(it => { const q = injPlan(it.ex, t); return q && q.act !== 'watch'; }).length;
+      return `<button class="exsum" data-act="todayex" aria-expanded="${open}"><span>${its.length} exercise${its.length === 1 ? '' : 's'} · ${esc(S().cardio.name)}${adj ? ` · <b class="tn-warn">${adj} adjusted for injury</b>` : ''}</span><span class="chev">${ICON.down}</span></button>
+        ${open ? planList(its, t, sid) : ''}`; })()}
     ${ui.pickSess === 'today' ? `<div class="sec"><span class="xs muted">Do a different session today. The rotation carries on from whichever you log.</span><div class="chips">${trainIds().map(id => `<button class="chip ${id === sid ? 'on' : ''}" data-act="setnext" data-id="${id}">${esc(sessDef(id).name)}</button>`).join('')}</div></div>`
       : `<div class="btnrow" style="justify-content:space-between"><button class="link" data-act="picktoday">Change today's session</button><button class="link dim" data-act="restday">Rest day instead</button></div>`}</section>`;
   return h + tail();
@@ -186,6 +200,62 @@ function whoopCard(day) {
     <span class="rsrc">WHOOP · ${isT ? 'today' : esc(fmtDate(t))}</span></section>`;
 }
 
+/* ---------- Injuries (v1.57) ---------- */
+function injBannerHTML(d) { // Today: what's active and how much of today's session it changes
+  const act = injActive(d); if (!act.length) return '';
+  const w = STATE.w[d], sid = w && !w.rest ? w.s : sessionFor(d), ids = w && !w.rest ? (w.ex || []).map(e => e.id) : (sessDef(sid)?.items || []).map(it => it.ex);
+  const n = ids.filter(id => { const p = injPlan(id, d); return p && p.act !== 'watch'; }).length;
+  return `<section class="card injbanner"><div class="card-h"><span class="eyebrow">Injury</span><button class="link" data-act="go" data-tab="injuries">Manage</button></div>
+    ${act.map(i => `<p><b>${esc(injLabel(i))}</b> · ${esc(INJ_SEV[i.sev]?.[0] || '')} · since ${esc(fmtD(i.start))}</p>`).join('')}
+    ${n ? `<p class="small dim">${n} lift${n === 1 ? '' : 's'} in ${esc(slotName(sid) || 'today\u2019s session')} adjusted.</p>` : ''}</section>`;
+}
+const INJ_ACT = { watch: 'Pain check', hold: 'No increases', light: 'Lighter', skip: 'Skip' };
+function injEffects(inj, d) { // per training session: the lifts this injury changes
+  const out = [];
+  for (const sid of trainIds()) { const rows = []; for (const it of sessDef(sid).items) { if (!S().ex[it.ex]) continue; const v = injVerdict(it.ex, inj, d, true); if (v) rows.push({ id: it.ex, v }); } if (rows.length) out.push({ sid, rows }); }
+  return out;
+}
+function vInjuries() {
+  if (ui.injForm) return injFormHTML();
+  const t = today(), all = injList(), act = all.filter(i => !i.end || i.end > t), done = all.filter(i => i.end && i.end <= t);
+  let h = `<button class="link" data-act="go" data-tab="today" style="align-self:flex-start">‹ Today</button>
+    <div class="page-h"><div><div class="eyebrow">Train around it</div><h1>Injuries</h1></div><button class="btn sm" data-act="injnew">Log one</button></div>
+    ${act.length ? '' : `<section class="card"><p class="small dim">Log where it hurts and how bad it is. Lifts that load it get lighter, held or skipped, with a pain check after each one, and those sessions don\u2019t count against your strength. Sharp, swelling or worsening pain is worth getting checked.</p></section>`}`;
+  for (const i of act) {
+    const eff = injEffects(i, t), inSess = new Set(eff.flatMap(e => e.rows.map(r => r.id)));
+    const others = Object.keys(S().ex).filter(id => S().ex[id].name && !inSess.has(id) && !injVerdict(id, i, t, false));
+    const pains = []; for (const id of new Set([...inSess, ...Object.keys(i.ex || {})])) for (const x of painHist(id, i, addDays(t, 1))) pains.push({ id, ...x });
+    pains.sort((a, b) => a.date < b.date ? 1 : -1);
+    h += `<section class="card"><div class="card-h"><h2>${esc(injLabel(i))}</h2>${pill(i.sev === 'niggle' ? 'warn' : 'bad', INJ_SEV[i.sev]?.[0] || '')}</div>
+      <p class="xs muted">Since ${esc(fmtDow(i.start))} ${esc(fmtD(i.start))} · ${diffDays(i.start, t) + 1} day${diffDays(i.start, t) ? 's' : ''}</p>
+      ${i.note ? `<p class="small">${esc(i.note)}</p>` : ''}
+      ${eff.length ? eff.map(e => `<div class="sec"><span class="xs muted">${esc(sessDef(e.sid).name)}</span><ul class="exlist injfx">${e.rows.map(r => `<li><span>${esc(exDef(r.id).name)}</span><span class="rx"><span class="injtag ${r.v.act}">${INJ_ACT[r.v.act]}</span></span>
+        <span class="lt">${i.ex?.[r.id] ? `<button class="link inline" data-act="injex" data-id="${i.id}" data-k="${r.id}" data-v="">${i.ex[r.id] === 'keep' ? 'Adjust it again' : 'Remove'}</button>` : r.v.act !== 'watch' ? `<button class="link inline" data-act="injex" data-id="${i.id}" data-k="${r.id}" data-v="keep">Doesn\u2019t hurt: train it normally</button>` : ''}</span></li>`).join('')}</ul></div>`).join('') : '<p class="small dim">None of your Plan lifts load this area.</p>'}
+      ${others.length ? `<label class="fl">Something else hurts?<select class="in" data-in="injadd" data-id="${i.id}"><option value="">Add a lift\u2026</option>${exOpts(others)}</select></label>` : ''}
+      ${pains.length ? `<div class="sec"><span class="xs muted">Pain logged after lifts</span><ul class="exlist recent">${pains.slice(0, 8).map(p => `<li><span>${esc(exDef(p.id).name)}<small class="xs muted"> · ${esc(fmtD(p.date))}</small></span><span class="rx"><span class="pp p${p.pain}">${esc(PAIN_LV.find(x => x[0] === p.pain)?.[1] || p.pain)}</span></span></li>`).join('')}</ul></div>` : ''}
+      <div class="btnrow" style="justify-content:space-between"><button class="btn sm ghost" data-act="injedit" data-id="${i.id}">Edit</button><button class="btn sm" data-act="injheal" data-id="${i.id}">It\u2019s healed</button></div></section>`;
+  }
+  if (done.length) h += `<section class="card flat"><div class="card-h"><h2>Healed</h2></div><ul class="exlist">${done.map(i => `<li><span>${esc(injLabel(i))} <small class="xs muted">${esc(INJ_SEV[i.sev]?.[0] || '')}</small></span><span class="rx">${esc(fmtD(i.start))} \u2013 ${esc(fmtD(i.end))}</span>
+    <span class="lt"><button class="link inline" data-act="injreopen" data-id="${i.id}">Hurting again</button> · <button class="link inline danger" data-act="injdel" data-id="${i.id}">${ui.confirm === 'injdel' + i.id ? 'Tap again to delete' : 'Delete'}</button></span></li>`).join('')}</ul></section>`;
+  return h;
+}
+function injFormHTML() {
+  const f = ui.injForm, t = today(), chip = (k, v, l) => `<button type="button" class="chip ${f[k] === v ? 'on' : ''}" data-act="injset" data-k="${k}" data-v="${v}">${esc(l)}</button>`;
+  let h = `<button class="link" data-act="injcancel" style="align-self:flex-start">‹ ${f.id ? 'Injuries' : 'Back'}</button>
+    <div class="page-h"><div><div class="eyebrow">${f.id ? 'Edit' : 'New'}</div><h1>Injury</h1></div></div>
+    <section class="card"><div class="fl"><span>Where</span><div class="chips">${Object.entries(INJ_AREAS).map(([k, l]) => chip('area', k, l)).join('')}</div></div>
+    ${INJ_SIDED.has(f.area) ? `<div class="fl"><span>Side</span><div class="chips">${chip('side', 'left', 'Left')}${chip('side', 'right', 'Right')}${chip('side', 'both', 'Both')}</div></div>` : ''}
+    <div class="fl"><span>How bad</span><div class="sev">${Object.entries(INJ_SEV).map(([k, [l, d]]) => `<button type="button" class="sevb ${f.sev === k ? 'on' : ''}" data-act="injset" data-k="sev" data-v="${k}"><b>${esc(l)}</b><span>${esc(d)}</span></button>`).join('')}</div></div>
+    <div class="fields" style="grid-template-columns:minmax(0,1fr)"><label class="fl">Started<input class="in" type="date" id="injstart" data-in="injstart" value="${f.start}" max="${t}"></label>
+    <label class="fl">Notes or physio advice<textarea class="in" id="injnote" data-in="injnote" placeholder="Optional, e.g. no overhead pressing for 2 weeks">${esc(f.note || '')}</textarea></label></div></section>`;
+  if (f.area && f.sev) {
+    const eff = injEffects({ ...f, ex: f.ex || {} }, t);
+    h += `<section class="card flat"><div class="card-h"><h2>What changes</h2></div>${eff.length ? eff.map(e => `<div class="sec"><span class="xs muted">${esc(sessDef(e.sid).name)}</span><ul class="exlist injfx">${e.rows.map(r => `<li><span>${esc(exDef(r.id).name)}</span><span class="rx"><span class="injtag ${r.v.act}">${INJ_ACT[r.v.act]}</span></span></li>`).join('')}</ul></div>`).join('') : '<p class="small dim">None of your Plan lifts load this area.</p>'}
+      ${f.sev === 'noload' ? '<p class="xs redflag">If any load on it hurts, it\u2019s worth getting it looked at.</p>' : ''}</section>`;
+  }
+  return h + `<button class="btn wide" data-act="injsave" ${f.area && f.sev ? '' : 'disabled'}>${f.id ? 'Save changes' : 'Save injury'}</button>`;
+}
+
 /* ---------- Log: one day's session. Today's renders inside Today; past days open from History ---------- */
 function vLog() {
   const d = ui.logDate || today(), t = today();
@@ -215,7 +285,7 @@ function logBody(d) {
     if (!sd) return h + `<section class="card"><p>Add a session in Plan first.</p></section>`;
     h += `<section class="card"><div class="card-h"><span class="eyebrow">No session on this day</span>${isRestSlot(due) ? pill('', 'Planned rest') : ''}</div>
       <div class="chips">${o.map(id => `<button class="chip ${id === sid ? 'on' : ''}" data-act="picksess" data-id="${id}">${esc(sessDef(id).name)}</button>`).join('')}</div>
-      <ul class="exlist">${sd.items.filter(it => S().ex[it.ex]).map(it => `<li><span>${esc(exDef(it.ex).name)}</span><span class="rx">${rxTxt(it)}</span><span class="lt">${prevLine(it.ex, d, sid)}</span></li>`).join('')}</ul>
+      ${planList(sd.items.filter(it => S().ex[it.ex]), d, sid, false)}
       <button class="btn wide" data-act="start" data-id="${sid}">Log ${esc(sd.name)}</button>
       <button class="link dim" data-act="restday" style="align-self:flex-start">Mark as a rest day</button></section>`;
     return h;
@@ -261,7 +331,7 @@ function readLogHTML(w) { // a past day's log to look at: nothing here can be ch
 }
 /* Add exercise (v1.36): a searchable list ranked for the day: the session's own muscles, then muscles its lifts also work
    and the same movement pattern (push, pull, legs), then abs, then the rest; most recently used first within each. */
-const PATTERN = { chest: 'push', delt_f: 'push', delt_s: 'push', triceps: 'push', back: 'pull', biceps: 'pull', delt_r: 'pull', quads: 'legs', hams: 'legs', calves: 'legs' };
+// PATTERN (push, pull, legs by muscle) lives in engine.js since v1.57
 function pickerHTML(w) {
   if (!ui.pick) return `<button class="btn ghost wide" data-act="pickopen">+ Exercise</button>`;
   const inW = new Set(w.ex.map(e => e.id)), sd = sessDef(w.s);
@@ -288,11 +358,11 @@ function exHistHTML(exId, before) { // the last few sessions of a lift, for a qu
     <button class="link" data-act="liftgo" data-id="${exId}">Strength trend</button></div>`;
 }
 function exMoreHTML(w, e, i) { // swap keeps the slot and set count; same muscle group listed first
-  const inW = new Set(w.ex.map(x => x.id)), g = exDef(e.id).g, all = Object.entries(S().ex).filter(([id]) => !inW.has(id)).sort((a, b) => a[1].name.localeCompare(b[1].name));
-  const same = all.filter(([, x]) => x.g === g), rest = all.filter(([, x]) => x.g !== g), opt = ([id, x]) => `<option value="${id}">${esc(x.name)}</option>`;
-  return `<div class="ex-more"><label class="fl">Swap for<select class="in" id="swap${i}" data-in="swapex" data-e="${i}"><option value="">Choose…</option>${same.length ? `<optgroup label="${esc(GROUPS[g] || 'Same group')}">${same.map(opt).join('')}</optgroup>` : ''}<optgroup label="Everything else">${rest.map(opt).join('')}</optgroup></select></label>
+  const inW = new Set(w.ex.map(x => x.id)), ids = Object.keys(S().ex).filter(id => !inW.has(id) && S().ex[id].name);
+  return `<div class="ex-more"><label class="fl">Swap for<select class="in" id="swap${i}" data-in="swapex" data-e="${i}"><option value="">Choose…</option>${exOpts(ids, null, exDef(e.id).g)}</select></label>
     ${doneSets(e).length ? `<p class="xs muted">Swapping clears the sets logged for ${esc(exDef(e.id).name)}.</p>` : ''}
-    <div class="btnrow" style="justify-content:space-between">${e.sets.length > 1 ? `<button class="link dim" data-act="remset" data-e="${i}">Remove last set</button>` : '<span></span>'}<button class="link danger" data-act="remex" data-e="${i}">Remove exercise</button></div></div>`;
+    <div class="btnrow" style="justify-content:space-between">${e.sets.length > 1 ? `<button class="link dim" data-act="remset" data-e="${i}">Remove last set</button>` : '<span></span>'}<button class="link danger" data-act="remex" data-e="${i}">Remove exercise</button></div>
+    ${injPlan(e.id, w.date) ? '' : `<button class="link dim" data-act="injnew" data-id="${e.id}" style="align-self:flex-start">Hurts? Log an injury</button>`}</div>`;
 }
 function orderLine(w, i) { // v1.43: the lift is in another slot than usual, and the Aim allows for it
   const id = w.ex[i].id, f = ordNote(id, ctxLog(w, i), w.s); if (!f) return '';
@@ -316,14 +386,25 @@ function exCard(w, e, i, prSet) {
   const meta = def.note ? esc(def.note) : ""; // v1.56: Last and Best live under each set row now, not here
   return `<section class="card ex" id="ex${i}" data-dragitem data-i="${i}"><div class="ex-h">${w.ex.length > 1 ? `<span class="grip" data-grip="ex" aria-label="Drag to reorder ${esc(def.name)}" role="button" tabindex="-1">${ICON.grip}</span>` : ''}<button class="ex-name" data-act="exhist" data-e="${i}" aria-expanded="${open}"><h3>${esc(def.name)}</h3><span class="chev">${ICON.down}</span></button><span class="rx">${def.lo}${def.hi > def.lo ? '–' + def.hi : ''} reps</span></div>
     ${open ? exHistHTML(e.id, w.date) : ''}
-    ${sg ? `<p class="aim"><b>Aim ${esc(suggestTxt(e.id, sg))}</b>${nWork > 1 && back?.back ? `, then ${esc(fmtLoad(e.id, back.w))}${def.u === 'kg' ? ' kg' : ''}` : ''} · ${sg.rir} rep${sg.rir === 1 ? '' : 's'} in reserve${S().goal === 'grow' ? ' · overload' : ''}</p>` : ''}
+    ${injCardHTML(w, e, i)}
+    ${sg && sg.inj?.act !== 'skip' ? `<p class="aim"><b>Aim ${esc(suggestTxt(e.id, sg))}</b>${nWork > 1 && back?.back ? `, then ${esc(fmtLoad(e.id, back.w))}${def.u === 'kg' ? ' kg' : ''}` : ''} · ${sg.rir} rep${sg.rir === 1 ? '' : 's'} in reserve${sg.inj ? (sg.f < 1 ? ` · ${fmt(sg.f * 100, 0)}% for the injury` : sg.inj.act === 'hold' ? ' · held for the injury' : '') : S().goal === 'grow' ? ' · overload' : ''}</p>` : ''}
     ${sg ? orderLine(w, i) : ''}
     ${meta ? `<p class="ex-meta">${meta}</p>` : ''}
     ${(() => { const ln = e.note == null ? lastExerciseNote(e.id, w.date) : null; return ln ? `<p class="ex-lastnote">Note from ${esc(fmtDate(ln.date))}: ${esc(ln.note)}</p>` : ''; })()}
     <div class="sets"><div class="set hdr"><span>Set</span><span>${esc(u.col)}</span><span>Reps</span><span></span></div>${rows}</div>
-    ${e.note != null || ui.exNote === i ? `<label class="fl">Exercise note<textarea class="in exnote" id="xn${i}" data-in="exnote" data-e="${i}" placeholder="Seat height, grip, how it felt">${esc(e.note || '')}</textarea></label>` : ''}
+    ${e.note != null || ui.exNote === i ? `<div class="fl"><span class="flrow"><label for="xn${i}">Exercise note</label><button class="link dim xnrem" data-act="exnoterem" data-e="${i}">Remove note</button></span><textarea class="in exnote" id="xn${i}" data-in="exnote" data-e="${i}" placeholder="Seat height, grip, how it felt">${esc(e.note || '')}</textarea></div>` : ''}
     <div class="ex-foot"><button class="link" data-act="addset" data-e="${i}">+ Set</button>${sg && sg.w > 0 && def.u !== 'bw' ? `<button class="link dim" data-act="addwarm" data-e="${i}">+ Warm-up</button>` : ''}${e.note == null && ui.exNote !== i ? `<button class="link dim" data-act="exnote" data-e="${i}">+ Note</button>` : ''}<button class="link dim more" data-act="exmore" data-e="${i}" aria-expanded="${ui.exMore === i}" aria-label="More for ${esc(def.name)}">${ui.exMore === i ? 'Close' : 'More'}</button></div>
     ${ui.exMore === i ? exMoreHTML(w, e, i) : ''}</section>`;
+}
+/* Injury on a log card (v1.57): what changed and why, a pain check after the lift, and gentler swaps when it's skipped. */
+function injCardHTML(w, e, i) {
+  const ip = injPlan(e.id, w.date); if (!ip) return '';
+  let h = `<p>${esc(ip.why)}${ip.lastPain >= 5 && ip.act !== 'skip' ? ' It hurt last time, so lighter again.' : ''}</p>`;
+  if (ip.act === 'skip') { const sw = injSwaps(e.id, w.date, new Set(w.ex.map(x => x.id)));
+    h += sw.length ? `<div class="chips">${sw.map(id => `<button class="chip" data-act="injswap" data-e="${i}" data-id="${id}">Swap for ${esc(exDef(id).name)}</button>`).join('')}</div>` : '<p class="xs">No gentler lift for this muscle in your list, so leave it out today.</p>'; }
+  h += `<div class="painchk"><span>Pain during it?</span><div class="chips four">${PAIN_LV.map(([v, l]) => `<button class="chip ${e.pain === v ? 'on' : ''}${v >= 5 ? ' hot' : ''}" data-act="expain" data-e="${i}" data-v="${v}" aria-pressed="${e.pain === v}">${l}</button>`).join('')}</div></div>`;
+  if (e.pain >= 7) h += '<p class="xs redflag">Stop this lift for today. Sharp or worsening pain is worth getting checked.</p>';
+  return `<div class="injnote ${ip.act}">${h}</div>`;
 }
 function actChips(a) { // a WHOOP activity as one line of chips (v1.36)
   const c = [a.str != null && `<span class="strain">strain ${fmt(a.str, 1)}</span>`, a.ahr && `avg ${fmt(a.ahr, 0)} bpm`, a.kcal && `${fmt(a.kcal, 0)} kcal`].filter(Boolean);
@@ -348,7 +429,7 @@ function vHistory() {
   let h = `<div class="page-h"><div><div class="eyebrow">${ws.filter(w => !w.rest).length} sessions logged</div><h1>History</h1></div>
     <div class="seg" role="group" aria-label="View"><button class="${ui.hist !== 'notes' ? 'on' : ''}" data-act="histview" data-v="sessions">Sessions</button><button class="${ui.hist === 'notes' ? 'on' : ''}" data-act="histview" data-v="notes">Notes${nNotes ? ` ${nNotes}` : ''}</button></div></div>`;
   if (ui.hist === 'notes') return h + vNotes();
-  h += `<button class="link" data-act="pastlog" style="align-self:flex-start">+ Log a past day</button>`;
+  h += `<div class="btnrow" style="justify-content:space-between"><button class="link" data-act="pastlog">+ Log a past day</button><button class="link" data-act="go" data-tab="friends">Friends${friendList().length ? ` (${friendList().length})` : ''}</button></div>`;
   if (!ws.length) return h + `<section class="card"><p class="dim">Sessions you log appear here, grouped by week. Tap one to open or edit it.</p></section>`;
   h += calendarHTML(ws);
   // search and session filter, applied in place (filterHist in boot.js) so the keyboard stays up
@@ -487,7 +568,7 @@ function vStrength() {
   const yLab = !scored ? 'Best reps per session' : m === 'reps' ? 'Reps at the heaviest load of each session' : m === 'rel' ? 'Estimated 1RM ÷ trend body weight' : m === 'top' ? `Heaviest set per session (${u === 'plates' ? 'plates / side' : u === 'bw' ? 'kg added' : 'kg'})` : m === 'vol' ? `Session volume (${unit} × reps, working sets)` : `Estimated 1RM per session (${u === 'plates' ? 'plates / side' : u === 'bw' ? 'kg, body weight included' : 'kg'})`;
   const recent = lixEx(pick).list.slice(-6).reverse();
   const cards = [];
-  cards.push({ k: 'chart', t: 'Lift chart', h: `<section class="card" id="liftchart"><label class="fl">Lift<select class="in" id="liftpick" data-in="lift">${ids.map(id => `<option value="${id}" ${id === pick ? 'selected' : ''}>${esc(exDef(id).name)}</option>`).join('')}</select></label>
+  cards.push({ k: 'chart', t: 'Lift chart', h: `<section class="card" id="liftchart"><label class="fl">Lift<select class="in" id="liftpick" data-in="lift">${exOpts(ids, pick)}</select></label>
     ${scored ? `<div class="seg full" role="group" aria-label="Measure">${mets.map(k => `<button class="${k === m ? 'on' : ''}" data-act="liftm" data-v="${k}">${LIFT_M[k]}</button>`).join('')}</div>` : ''}<span class="small dim">${esc(yLab)}</span>
     ${chartHTML({ h: 170, ...ax, refY: null, yPad: padY, yFmt: v => m === 'rel' ? fmt(v, 2) + '×' : fmt(v, u === 'plates' && m !== 'vol' && m !== 'reps' ? 2 : 0), series: [{ color: 'var(--s1)', pts: ser.map(p => ({ x: xi(p.date), y: p.y })), dots: true, r: 3.5, end: true }], hoverXs: ser.map(p => xi(p.date)), tip: x => { const p = ser.find(q => xi(q.date) === x); return p ? `<b>${esc(fmtDate(p.date))}</b><br>${esc(fmtSet(pick, p.top))} · ${esc(m === 'e1rm' ? scoreTxt(pick, p.y) : m === 'vol' ? fmt(p.y, 0) + ' ' + unit + ' × reps' : m === 'reps' ? p.y + ' reps at ' + fmtLoad(pick, p.mw) + (u === 'kg' ? ' kg' : '') : m === 'rel' ? fmt(p.y, 2) + '× body weight' : fmtLoad(pick, p.y) + (u === 'kg' ? ' kg' : ''))}` : ''; }, empty: 'No sets logged for this lift yet', label: 'Lift trend' })}
     ${recent.length ? `<div class="sec"><span class="eyebrow">Recent sessions</span><ul class="exlist recent">${recent.map(x => `<li><span class="mono xs">${esc(fmtD(x.date))}</span><span class="rx">${esc(setsTxt(pick, x.sets))}</span></li>`).join('')}</ul></div>` : ''}</section>` });
@@ -576,9 +657,10 @@ function vBody() {
   let h = `<div class="page-h"><div><div class="eyebrow">Recovery · energy · trends</div><h1>Body</h1></div></div>`;
   h += freshHTML() + partialCard() + energyCard();
   const cards = [{ k: 'trends', t: 'Trends', h: explorerHTML() }, { k: 'alcohol', t: 'Alcohol and recovery', h: alcoholCard() }];
-  const ra = recoveryAfter().filter(r => r.n >= 2).sort((a, b) => b.avg - a.avg);
-  if (ra.length >= 2) cards.push({ k: 'recafter', t: 'Recovery the morning after', h: `<section class="card"><div class="card-h"><h2>Recovery the morning after</h2><span class="eyebrow">all time</span></div><p class="xs muted">Average next-day WHOOP recovery after each session type. Small samples move a lot; read it as a hint.</p>
-    <ul class="hbars">${ra.map(r => `<li><span class="lab">${esc(r.k)}</span><span class="trk"><span class="fill" style="width:${Math.max(2, r.avg)}%;background:var(--${recTone(r.avg)})"></span></span><span class="v">${fmt(r.avg, 0)}% <span class="muted">${r.n}×</span></span></li>`).join('')}</ul></section>` });
+  const raAll = recoveryAfter(), ra = raAll.filter(r => r.n >= 2).sort((a, b) => b.avg - a.avg), nAlc = sum(raAll.map(r => r.alc));
+  const alcAvg = nAlc ? sum(raAll.map(r => r.alc * (r.alcAvg || 0))) / nAlc : null; // any session, then a drink: for comparison
+  if (ra.length >= 2) cards.push({ k: 'recafter', t: 'Recovery the morning after', h: `<section class="card"><div class="card-h"><h2>Recovery the morning after</h2><span class="eyebrow">all time</span></div><p class="xs muted">Average next-day WHOOP recovery after each session type. Small samples move a lot; read it as a hint.${nAlc ? ` Mornings after alcohol are left out and shown on their own.` : ''}</p>
+    <ul class="hbars">${ra.map(r => `<li><span class="lab">${esc(r.k)}</span><span class="trk"><span class="fill" style="width:${Math.max(2, r.avg)}%;background:var(--${recTone(r.avg)})"></span></span><span class="v">${fmt(r.avg, 0)}% <span class="muted">${r.n}×</span></span></li>`).join('')}${nAlc >= 2 ? `<li class="alcrow"><span class="lab">After alcohol</span><span class="trk"><span class="fill" style="width:${Math.max(2, alcAvg)}%;background:var(--${recTone(alcAvg)})"></span></span><span class="v">${fmt(alcAvg, 0)}% <span class="muted">${nAlc}×</span></span></li>` : ''}</ul></section>` });
   const nW = ui.weeksAll ? 26 : 8, wrows = weekRows(nW).filter(r => r.sessions || r.rec != null || r.kcal != null || r.tw != null);
   if (wrows.length) {
     const c = (v, d = 0, u = '') => v == null ? '<span class="muted">–</span>' : fmt(v, d) + u;
@@ -645,7 +727,7 @@ function vPlan() {
         <div class="dlist" data-list="item" data-id="${sid}">${sd.items.map((it, j) => { const d = exDef(it.ex); return `<div class="ed-item" data-dragitem data-j="${j}"><span class="grip" data-grip="item" aria-label="Drag to reorder ${esc(d.name)}" role="button" tabindex="-1">${ICON.grip}</span><span class="nm">${esc(d.name)}<small>${esc(GROUPS[d.g] || '')} · ${d.lo}–${d.hi} reps</small></span>
           <input class="in" id="ss_${sid}_${j}" inputmode="numeric" data-in="isets" data-id="${sid}" data-j="${j}" value="${defSets(it.ex)}" aria-label="Sets for ${esc(d.name)}">
           <button class="ed-x" data-act="remitem" data-id="${sid}" data-j="${j}" aria-label="Remove ${esc(d.name)}">${ICON.x}</button></div>`; }).join('')}</div>
-        <label class="fl">Add exercise<select class="in" id="sa_${sid}" data-in="additem" data-id="${sid}"><option value="">Choose…</option>${Object.entries(S().ex).sort((a, b) => a[1].name.localeCompare(b[1].name)).map(([id, x]) => `<option value="${id}">${esc(x.name)}</option>`).join('')}</select></label>
+        <label class="fl">Add exercise<select class="in" id="sa_${sid}" data-in="additem" data-id="${sid}"><option value="">Choose…</option>${exOpts(Object.keys(S().ex).filter(id => S().ex[id].name))}</select></label>
         <div class="btnrow" style="justify-content:flex-end">${delBtn(sid)}</div></div>`;
     }
     h += `</section>`;
@@ -689,7 +771,7 @@ function progressionCard() {
     <div class="btnrow" style="justify-content:space-between"><span class="xs muted">Today's Aim follows</span><div class="seg" role="group" aria-label="Goal"><button class="${grow ? '' : 'on'}" data-act="goal" data-v="hold">Maintenance</button><button class="${grow ? 'on' : ''}" data-act="goal" data-v="grow">Overload</button></div></div>
     <div class="btnrow" style="justify-content:space-between"><span class="xs muted">Overload gain a week</span><div class="seg" role="group" aria-label="Weekly gain">${rates.map(([r, l]) => `<button class="${Math.abs(rate - r) < 1e-9 ? 'on' : ''}" data-act="prograte" data-v="${r}">${l}</button>`).join('')}</div></div>
     ${grow && cutCheck() ? (() => { const c = cutCheck(); return `<p class="small warnnote">Your trend weight is falling about ${fmt(Math.abs(c.wk), 2)} kg a week (${fmt(Math.abs(c.pct), 1)}%). In a deficit like that strength usually holds but gains slow down (Murphy &amp; Koehler, 2022), so Overload at +${fmt(rate * 100, 2)}%/wk may outrun you. Maintenance, or the 0.25% rate, fits better until the cut ends.</p>`; })() : ''}
-    <label class="fl">Lift<select class="in" id="proglift" data-in="proglift">${ids.map(id => `<option value="${id}" ${id === pick ? 'selected' : ''}>${esc(exDef(id).name)}</option>`).join('')}</select></label>
+    <label class="fl">Lift<select class="in" id="proglift" data-in="proglift">${exOpts(ids, pick)}</select></label>
     ${plan ? `<div class="tblwrap"><table class="tbl goal"><thead><tr><th>Week</th><th class="n ${grow ? '' : 'act'}">Maintenance</th><th class="n ${grow ? 'act' : ''}">Overload</th><th class="n">Gain</th></tr></thead><tbody>
       ${plan.map(p => `<tr><td>Week ${p.k}</td><td class="n ${grow ? '' : 'act'}">${hold ? esc(suggestTxt(pick, hold)) : '–'}</td><td class="n ${grow ? 'act' : ''}">${esc(suggestTxt(pick, p))}</td><td class="n">+${(p.g * 100).toFixed(1)}%</td></tr>`).join('')}
     </tbody></table></div>` : ''}
@@ -743,4 +825,4 @@ function vData() {
   h += `<p class="xs muted" style="text-align:center">Orbit v${esc(APP_VERSION)}${ui.update ? ` · <button class="link" data-act="update">v${esc(ui.update)} is ready, update</button>` : ''}</p>`;
   return h;
 }
-const VIEWS = { today: vToday, log: vLog, history: vHistory, strength: vStrength, body: vBody, plan: vPlan, data: vData };
+const VIEWS = { today: vToday, log: vLog, history: vHistory, strength: vStrength, body: vBody, plan: vPlan, data: vData, injuries: vInjuries, friends: vFriends };

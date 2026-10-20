@@ -229,7 +229,7 @@ function render(force) {
     if (Math.abs(scrollY0() - y) > 1) scrollToY(y); // a re-render keeps your place; changing tabs scrolls to the top in go()
   }
   v.classList.toggle('cols', ['strength', 'body', 'data'].includes(ui.tab) || (ui.tab === 'today' && !(STATE.w[today()] && (!STATE.w[today()].fin || ui.editToday)) && !ui.dayOff)); // two columns on wide screens (CSS decides when)
-  document.querySelectorAll('.tabs [data-tab]').forEach(b => b.setAttribute('aria-current', b.dataset.tab === (ui.tab === 'log' ? 'history' : ui.tab) ? 'page' : 'false'));
+  document.querySelectorAll('.tabs [data-tab]').forEach(b => b.setAttribute('aria-current', b.dataset.tab === ({ log: 'history', friends: 'history', injuries: 'today' }[ui.tab] || ui.tab) ? 'page' : 'false'));
   const g = $('#gear'); g.setAttribute('aria-current', ui.tab === 'data' ? 'page' : 'false'); g.setAttribute('aria-label', ui.tab === 'data' ? 'Back' : 'Settings: sync, imports and backups');
   renderSync(); renderMark(); renderUpdate(); renderFab(); renderReorder();
   fadeCheck();
@@ -303,7 +303,9 @@ function go(tab) {
   if (tab === 'data' && ui.tab === 'data') tab = ui.prevTab || 'today'; else if (tab === 'data') ui.prevTab = ui.tab;
   if (tab === 'today') ui.logDate = null;
   if (tab !== 'log') ui.logEdit = null; // a past log goes back to read-only once you leave it (v1.46)
+  if (tab !== 'injuries') ui.injForm = null; if (tab !== 'friends') { ui.frAdd = false; ui.frEdit = null; }
   ui.tab = tab; ui.confirm = null; ui.pickSess = null; ui.editEx = null;
+  if (tab === 'friends') setTimeout(frStale, 0); // links older than 10 minutes are read again
   resetScroll(); render(true); if (logging()) wakeLock();
 }
 let toastT;
@@ -332,6 +334,11 @@ function sweepCardio() { // WHOOP's cardio often lands after a session is done (
 }
 function sweepEmpty() { for (const d of Object.keys(STATE.w)) if (d < today()) dropEmpty(d); } // sessions started and never used on earlier days
 function dropEmpty(date) { if (emptyW(STATE.w[date])) { delete STATE.w[date]; saveW(date); return true; } return false; }
+function injReturn() { // back to where an injury was logged from (a log card mid-workout), else the Injuries list
+  const b = ui.injBack; ui.injBack = null; resetScroll();
+  if (b && b.tab && b.tab !== 'injuries') { const { logDate, logEdit, editToday } = b; go(b.tab); if (b.tab === 'log') { ui.logDate = logDate; ui.logEdit = logEdit; } if (b.tab === 'today') ui.editToday = editToday; render(true); return; }
+  render(true);
+}
 const ACT = {
   go: el => go(el.dataset.tab),
   start: el => {
@@ -371,6 +378,46 @@ const ACT = {
   updlater: () => { ui.updLater = ui.update; renderUpdate(); },
   edittoday: () => { ui.editToday = true; render(true); },
   pastlog: () => { ui.logDate = addDays(today(), -1); ui.pickSess = null; go('log'); },
+  todayex: () => { ui.todayEx = !ui.todayEx; render(true); },
+  exnoterem: el => { const w = logW(), i = +el.dataset.e, e = w?.ex[i]; if (!e) return; delete e.note; ui.exNote = null; saveW(w.date); render(true); }, // v1.57: a note added by mistake
+  expain: el => { const w = logW(), e = w?.ex[+el.dataset.e], v = +el.dataset.v; if (!e) return; if (e.pain === v) delete e.pain; else e.pain = v; saveW(w.date); render(true); if (v >= 5 && e.pain === v) toast('Noted. Next time this lift is lighter.'); },
+  injswap: el => { const w = logW(), i = +el.dataset.e, e = w?.ex[i], id = el.dataset.id; if (!e || !id) return; const from = exDef(e.id).name;
+    w.ex[i] = { id, sets: prefill(id, e.sets.filter(s => s.t !== 'w').length || defSets(id), w.date) }; saveW(w.date); toast(`Swapped ${esc(from)} for ${esc(exDef(id).name)}`); render(true); },
+  injnew: el => { // from a lift that hurts: the area it loads most is picked
+    const ex = el.dataset.id; let area = null; if (ex) { let best = 0; for (const a of Object.keys(INJ_AREAS)) { const L = injLvl(ex, a); if (L > best) { best = L; area = a; } } }
+    ui.injForm = { area, side: 'right', sev: null, start: today(), note: '', ex: {} }; ui.injBack = ui.tab === 'injuries' ? null : { tab: ui.tab, logDate: ui.logDate, logEdit: ui.logEdit, editToday: ui.editToday };
+    if (ui.tab === 'injuries') { resetScroll(); render(true); } else go('injuries'); },
+  injset: el => { const f = ui.injForm; if (!f) return; f[el.dataset.k] = el.dataset.v; render(true); },
+  injedit: el => { const i = S().inj?.[el.dataset.id]; if (!i) return; ui.injForm = { ...clone(i), id: el.dataset.id, ex: clone(i.ex || {}) }; ui.injBack = null; resetScroll(); render(true); },
+  injcancel: () => { ui.injForm = null; injReturn(); },
+  injsave: () => {
+    const f = ui.injForm; if (!f?.area || !f.sev) return; flushField();
+    const id = f.id || 'i' + Date.now().toString(36), old = S().inj?.[id] || {};
+    const rec = { ...old, area: f.area, sev: f.sev, start: f.start && f.start <= today() ? f.start : today(), note: (f.note || '').trim(), ex: f.ex || {} };
+    if (INJ_SIDED.has(f.area)) rec.side = f.side || 'right'; else delete rec.side; if (!rec.note) delete rec.note;
+    S().inj = { ...(S().inj || {}), [id]: rec }; ui.injForm = null; saveSettings();
+    toast(f.id ? 'Injury updated' : `${esc(injLabel(rec))} logged. Your Aims are adjusted.`); injReturn(); },
+  injheal: el => { const i = S().inj?.[el.dataset.id]; if (!i) return; i.end = today(); saveSettings(); toast(`${esc(injLabel(i))} marked healed. Aims are back to normal.`); render(true); },
+  injreopen: el => { const i = S().inj?.[el.dataset.id]; if (!i) return; delete i.end; saveSettings(); render(true); },
+  injdel: el => { const id = el.dataset.id; if (ui.confirm !== 'injdel' + id) { ui.confirm = 'injdel' + id; render(true); return; } delete S().inj[id]; if (!Object.keys(S().inj).length) delete S().inj; ui.confirm = null; saveSettings(); render(true); },
+  injex: el => { const i = S().inj?.[el.dataset.id]; if (!i) return; i.ex = { ...(i.ex || {}) }; if (el.dataset.v) i.ex[el.dataset.k] = el.dataset.v; else delete i.ex[el.dataset.k]; saveSettings(); render(true); },
+  fradd: () => { ui.frAdd = !ui.frAdd; render(true); },
+  frpick: el => { ui.fr = el.dataset.id; ui.frOpen = null; ui.frEdit = null; render(true); },
+  fropen: el => { ui.frOpen = ui.frOpen === el.dataset.k ? null : el.dataset.k; render(true); },
+  frall: () => { ui.frAll = !ui.frAll; render(true); },
+  frrefresh: el => frFetch(el.dataset.id),
+  fredit: el => { ui.frEdit = ui.frEdit === el.dataset.id ? null : el.dataset.id; ui.confirm = null; render(true); },
+  frsave: () => {
+    const name = ($('#frname')?.value || '').trim().slice(0, 30), url = ($('#frurl')?.value || '').trim();
+    if (!/^https:\/\/\S+$/.test(url)) { toast('Paste an https link to his file, or open the file instead', 'bad'); return; }
+    const id = 'f' + Date.now().toString(36); S().friends = { ...(S().friends || {}), [id]: { name, url } }; saveSettings();
+    ui.fr = id; ui.frAdd = false; render(true); frFetch(id); },
+  frupd: el => { const f = S().friends?.[el.dataset.id]; if (!f) return; const url = ($('#freurl')?.value || '').trim();
+    if (url && !/^https:\/\/\S+$/.test(url)) { toast('That link needs to start with https://', 'bad'); return; }
+    f.name = ($('#frename')?.value || '').trim().slice(0, 30); const ch = url !== (f.url || ''); if (url) f.url = url; else delete f.url;
+    ui.frEdit = null; saveSettings(); render(true); if (ch && url) frFetch(el.dataset.id); },
+  frdel: el => { const id = el.dataset.id; if (ui.confirm !== 'frdel' + id) { ui.confirm = 'frdel' + id; render(true); return; }
+    delete S().friends[id]; delete frCache()[id]; frStore(); ui.confirm = null; ui.frEdit = null; ui.fr = null; saveSettings(); render(true); },
   exhist: el => { const i = +el.dataset.e; ui.exHist = ui.exHist === i ? null : i; render(true); },
   liftsel: el => { if (ui.lift === el.dataset.id) { ui.lift = null; render(true); return; } ui.lift = el.dataset.id; render(true); const c = $('#liftchart'); if (c && c.getBoundingClientRect().top < ($('.top')?.getBoundingClientRect().bottom || 0)) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); },
   liftgo: el => { ui.lift = el.dataset.id; go('strength'); },
@@ -501,6 +548,16 @@ function setRest(date, on) { // plan or unplan a one-off rest day; past dates dr
 }
 const INP = {
   restadd: el => { if (el.value) setRest(el.value, true); },
+  injstart: el => { if (ui.injForm) ui.injForm.start = el.value; },
+  injnote: el => { if (ui.injForm) ui.injForm.note = el.value; },
+  injadd: el => { const i = S().inj?.[el.dataset.id], id = el.value; if (!i || !id) return; i.ex = { ...(i.ex || {}), [id]: 'adj' }; saveSettings(); toast(`${esc(exDef(id).name)} added`); render(true); },
+  frfile: async el => {
+    const f = el.files?.[0]; if (!f) return;
+    try { const parsed = frParse(JSON.parse(await f.text())); let id = el.dataset.id;
+      if (!id) { id = 'f' + Date.now().toString(36); S().friends = { ...(S().friends || {}), [id]: { name: ($('#frname')?.value || '').trim().slice(0, 30) || parsed.name || '' } }; saveSettings(); }
+      frKeep(id, parsed); ui.fr = id; ui.frAdd = false; ui.frEdit = null; toast(`${parsed.sessions.length} sessions loaded`); render(true); }
+    catch (e) { toast(esc(e instanceof SyntaxError ? 'That file isn’t JSON.' : e.message || 'That file couldn’t be read.'), 'bad'); el.value = ''; }
+  },
   w: el => setInput(el, true),
   r: el => setInput(el, true),
   swapex: el => { const id = el.value, w = logW(), e = w?.ex[+el.dataset.e]; if (!id || !e) return; const from = exDef(e.id).name;

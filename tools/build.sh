@@ -7,7 +7,7 @@ cd "$(dirname "$0")/.."
 # Version: the number in VERSION (bump it every time you ship). Shown at the bottom of the Data screen; version.json
 # lets the home-screen app notice a newer build and offer to reload.
 VER=$(cat VERSION)
-JS="src/core.js src/engine.js src/imports.js src/charts.js src/explorer.js src/notes.js src/views.js src/boot.js"
+JS="src/core.js src/engine.js src/imports.js src/charts.js src/explorer.js src/notes.js src/friends.js src/views.js src/boot.js"
 mkdir -p dist
 { cat src/head.html; cat src/body.html; echo '<script>'; cat $JS; echo '</script>'; } > dist/artifact.html
 { cat src/gh-head.html; cat src/head.html; echo '</head>'; echo '<body>'; cat src/body.html; echo '<script>'; cat $JS src/gh.js; echo '</script>'; echo '</body>'; echo '</html>'; } > index.html

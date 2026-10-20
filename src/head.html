@@ -490,4 +490,29 @@ body:has(#updp) .fab { bottom: calc(var(--tabh) + max(8px, calc(env(safe-area-in
 .toast.pr { border-color: var(--accent); } .toast.bad { border-color: var(--bad); }
 @media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
 @media (max-width: 380px) { .hero h1 { font-size: 32px; } .set { grid-template-columns: 22px minmax(0, 1fr) minmax(0, 1fr) 18px; gap: 6px; } .hbars li { grid-template-columns: 80px minmax(0, 1fr) minmax(56px, max-content); } .stats { gap: 8px; } .stat b { font-size: 21px; } }
+/* v1.57: Today's folded exercise list, injuries, friends */
+.exsum { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink-2); font-size: 13.5px; text-align: left; min-height: 44px; }
+.exsum b { font-weight: 600; } .exsum[aria-expanded="true"] .chev { transform: rotate(180deg); }
+.tn-warn { color: var(--warn-ink); }
+.injtag { display: inline-block; margin-left: 6px; font-family: var(--f-body); font-size: 11.5px; font-weight: 600; padding: 1px 7px; border-radius: 99px; vertical-align: 1px; white-space: nowrap; background: var(--surface-2); color: var(--ink-2); }
+.injtag.hold { background: var(--warn-soft); color: var(--warn-ink); } .injtag.light { background: var(--warn-soft); color: var(--warn-ink); } .injtag.skip { background: var(--bad-soft); color: var(--bad-ink); }
+.exlist.injfx li .rx .injtag { margin-left: 0; }
+.injnote { display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: var(--ink-2); background: var(--warn-soft); border-radius: 10px; padding: 10px 12px; }
+.injnote.skip { background: var(--bad-soft); } .injnote p { margin: 0; }
+.painchk { display: flex; flex-direction: column; gap: 6px; } .painchk > span { font-size: 12px; color: var(--ink-3); }
+.chips.four { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; } .chips.four .chip { padding: 6px 4px; min-height: 40px; }
+.chip.hot.on { background: var(--bad); border-color: var(--bad); color: #fff; }
+.redflag { color: var(--bad-ink); margin: 0; }
+.injbanner { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); } .injbanner p { margin: 0; font-size: 14px; }
+.sev { display: grid; gap: 6px; }
+.sevb { text-align: left; display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; min-height: 52px; border-radius: 10px; border: 1px solid var(--line-2); background: transparent; color: var(--ink); }
+.sevb b { font-weight: 600; font-size: 14.5px; } .sevb span { font-size: 12.5px; color: var(--ink-3); }
+.sevb.on { background: var(--ink); color: var(--bg); border-color: var(--ink); } .sevb.on span { color: inherit; opacity: .75; }
+.pp { font-family: var(--f-body); font-size: 11.5px; font-weight: 600; padding: 1px 7px; border-radius: 99px; background: var(--good-soft); color: var(--good-ink); }
+.pp.p2 { background: var(--warn-soft); color: var(--warn-ink); } .pp.p5, .pp.p7 { background: var(--bad-soft); color: var(--bad-ink); }
+.link.inline { min-height: 0; padding: 0; font-size: 12.5px; }
+.flrow { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; } .flrow label { color: var(--ink-3); }
+.xnrem { min-height: 30px; padding: 0; font-size: 12.5px; }
+.frrow .chev { justify-self: end; } .frrow[aria-expanded="true"] .chev { transform: rotate(180deg); }
+.frdet { margin-top: -2px; }
 </style>
