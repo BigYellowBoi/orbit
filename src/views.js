@@ -97,7 +97,7 @@ function vToday() {
     <button class="btn wide" data-act="start" data-id="${sid}">Log ${esc(sd.name)}</button>
     ${(() => { // v1.57: folded on Today so Recovery sits higher; past and coming days show the list open
       const its = sd.items.filter(it => S().ex[it.ex]), open = !!ui.todayEx, adj = its.filter(it => { const q = injPlan(it.ex, t); return q && q.act !== 'watch'; }).length;
-      return `<button class="exsum" data-act="todayex" aria-expanded="${open}"><span>${its.length} exercise${its.length === 1 ? '' : 's'} · ${esc(S().cardio.name)}${adj ? ` · <b class="tn-warn">${adj} adjusted for injury</b>` : ''}</span><span class="chev">${ICON.down}</span></button>
+      return `<button class="exsum" data-act="todayex" aria-expanded="${open}"><span>${its.length} exercise${its.length === 1 ? '' : 's'} · ${esc(S().cardio.name)}${adj ? ` · <b class="tn-inj">${adj} adjusted for injury</b>` : ''}</span><span class="chev">${ICON.down}</span></button>
         ${open ? planList(its, t, sid) : ''}`; })()}
     ${ui.pickSess === 'today' ? `<div class="sec"><span class="xs muted">Do a different session today. The rotation carries on from whichever you log.</span><div class="chips">${trainIds().map(id => `<button class="chip ${id === sid ? 'on' : ''}" data-act="setnext" data-id="${id}">${esc(sessDef(id).name)}</button>`).join('')}</div></div>`
       : `<div class="btnrow" style="justify-content:space-between"><button class="link" data-act="picktoday">Change today's session</button><button class="link dim" data-act="restday">Rest day instead</button></div>`}</section>`;
