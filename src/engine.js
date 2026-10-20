@@ -416,15 +416,19 @@ function whoopCardio(date, name) { // WHOOP activities matching a cardio type
   const near = a => liftEnd >= 0 && mins(a.t) != null && mins(a.t) >= liftEnd - 10 && mins(a.t) <= liftEnd + 20;
   return (STATE.d[date]?.acts || []).filter(a => re.test(a.n) && (liftEnd >= 0 ? near(a) : /stair|climb|tread/i.test(a.n)));
 }
+function whoopCardioMin(date) { return Math.round(sum(Object.keys(CARDIO_RE).flatMap(n => whoopCardio(date, n)).map(a => a.min || 0))); }
 function autoCardio(w) { // fill cardio from WHOOP unless you've set it yourself; returns true if it changed
-  if (!w || w.cardioOff) return false; // WHOOP has the final say over hand-entered cardio; only removing cardio opts out
+  if (!w) return false; // WHOOP has the final say over hand-entered cardio
+  if (w.cardioOff) { // removed by hand (v1.64): stays off unless WHOOP brings in cardio it didn't have when you removed it
+    if (typeof w.cardioOff !== 'object' || whoopCardioMin(w.date) <= (w.cardioOff.at || 0)) return false;
+  }
   const cur = w.cardio?.name || S().cardio.name, order = [cur, ...Object.keys(CARDIO_RE).filter(n => n !== cur)];
   for (const name of order) {
     const acts = whoopCardio(w.date, name), min = Math.round(sum(acts.map(a => a.min || 0)));
     if (!min) continue;
     const next = { name, min, lvl: w.cardio?.lvl ?? null, done: true, src: 'whoop' };
     if (JSON.stringify(next) === JSON.stringify(w.cardio)) return false;
-    w.cardio = next; return true;
+    w.cardio = next; delete w.cardioOff; return true;
   }
   return false;
 }

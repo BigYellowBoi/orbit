@@ -38,6 +38,8 @@ const active = p => p.evaluate(() => document.activeElement?.id || null);
     ok((await sets(p, ex)).join() === before.join(), 'removing both leaves the working sets exactly as they were');
     await p.waitForTimeout(800); ok(await p.evaluate(ex => JSON.parse(localStorage.getItem('rotation-logbook-v1')).w[today()].ex[ex].sets.length, ex) === before.length, 'removal is saved');
 
+    ok(!/Workout duration/.test(await p.textContent('#view')) && /Cardio and duration/.test(await p.textContent('#view')), 'v1.64: cardio and duration folded');
+    await p.click('[data-act="extras"]');
     ok(/Workout duration/.test(await p.textContent('#view')), 'duration reads Workout duration');
 
     // the v1.40 keyboard bar is gone (iOS has its own field arrows)

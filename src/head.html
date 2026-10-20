@@ -518,4 +518,13 @@ body:has(#updp) .fab { bottom: calc(var(--tabh) + max(8px, calc(env(safe-area-in
 .xnrem { min-height: 30px; padding: 0; font-size: 12.5px; }
 .frrow .chev { justify-self: end; } .frrow[aria-expanded="true"] .chev { transform: rotate(180deg); }
 .frdet { margin-top: -2px; }
+/* v1.64: swipe a set row to delete; folded cardio row; summary without cardio */
+.swr { position: relative; touch-action: pan-y; overflow: hidden; margin: -3px; padding: 3px; }
+.swr > .set { background: var(--surface); }
+.setdel { position: absolute; top: 3px; bottom: 3px; right: 3px; width: 64px; max-height: 52px; border: 0; border-radius: 10px; background: var(--bad); color: #fff; display: grid; place-items: center; opacity: 0; pointer-events: none; transition: opacity .15s; }
+.swr.open .setdel { opacity: 1; pointer-events: auto; }
+.stats.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.sesslg { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 7px; vertical-align: 1px; }
+.ordl li .rx { font-variant-numeric: tabular-nums; }
+.rmd { display: block; font-size: 11.5px; color: var(--ink-3); font-weight: 400; }
 </style>

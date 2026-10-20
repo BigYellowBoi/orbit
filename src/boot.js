@@ -438,7 +438,10 @@ const ACT = {
     delete S().friends[id]; delete frCache()[id]; frStore(); ui.confirm = null; ui.frEdit = null; ui.fr = null; saveSettings(); render(true); },
   exhist: el => { const i = +el.dataset.e; ui.exHist = ui.exHist === i ? null : i; render(true); },
   liftsel: el => { if (ui.lift === el.dataset.id) { ui.lift = null; render(true); return; } ui.lift = el.dataset.id; render(true); const c = $('#liftchart'); if (c && c.getBoundingClientRect().top < ($('.top')?.getBoundingClientRect().bottom || 0)) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); },
-  liftgo: el => { ui.lift = el.dataset.id; go('strength'); },
+  liftgo: el => { ui.lift = el.dataset.id; go('strength'); // v1.64: wherever the chart card sits in his card order, bring it into view
+    const c = $('#liftchart'); if (c) { const top = ($('.top')?.getBoundingClientRect().bottom || 0) + 8; scrollToY(Math.max(0, scrollY0() + c.getBoundingClientRect().top - top)); } },
+  extras: () => { ui.extrasOpen = !ui.extrasOpen; render(true); },
+  delset: el => { const w = logW(), i = +el.dataset.e, j = +el.dataset.s, e = w?.ex[i]; if (!e?.sets[j]) return; e.sets.splice(j, 1); swOpen = null; saveW(w.date); render(true); },
   addset: el => { const w = logW(), e = w.ex[+el.dataset.e]; const l = e.sets[e.sets.length - 1]; e.sets.push({ w: null, r: null, pw: l ? (l.w ?? l.pw) : null, pr: l ? (l.r ?? l.pr) : null, done: false }); saveW(w.date); render(true); setTimeout(() => $(`#r${el.dataset.e}_${e.sets.length - 1}`)?.focus(), 30); },
   settype: el => { const w = logW(), e = w?.ex[+el.dataset.e], st = e?.sets[+el.dataset.s]; if (!st) return; // Normal → Warm-up → Drop → Normal
     st.t = !st.t ? 'w' : st.t === 'w' ? 'd' : undefined; if (!st.t) delete st.t; saveW(w.date); render(true); },
@@ -453,9 +456,9 @@ const ACT = {
   remset: el => { const w = logW(), e = w.ex[+el.dataset.e]; if (e.sets.length > 1) e.sets.pop(); ui.exMore = null; saveW(w.date); render(true); }, // More closes after it (v1.44)
   remex: el => { const w = logW(), i = +el.dataset.e, e = w.ex[i]; if (doneSets(e).length && ui.confirm !== 'remex' + i) { ui.confirm = 'remex' + i; toast('Tap Remove again to drop logged sets'); return; } w.ex.splice(i, 1); ui.confirm = null; ui.exMore = null; saveW(w.date); render(true); },
   cardiotype: el => { const w = logW(), name = el.dataset.v, wm = Math.round(sum(whoopCardio(w.date, name).map(a => a.min || 0)));
-    w.cardioOff = false; w.cardio = { ...(w.cardio || { min: S().cardio.min, lvl: null, done: false }), name, manual: true }; if (wm) { w.cardio.min = wm; w.cardio.done = true; w.cardio.src = 'whoop'; }
+    delete w.cardioOff; w.cardio = { ...(w.cardio || { min: S().cardio.min, lvl: null, done: false }), name, manual: true }; if (wm) { w.cardio.min = wm; w.cardio.done = true; w.cardio.src = 'whoop'; }
     saveW(w.date); render(true); },
-  cardiorem: () => { const w = logW(); w.cardio = null; w.cardioOff = true; saveW(w.date); render(true); },
+  cardiorem: () => { const w = logW(); w.cardio = null; w.cardioOff = { at: whoopCardioMin(w.date) }; saveW(w.date); render(true); },
   cardiowhoop: el => { const w = logW(); w.cardio = w.cardio || { name: S().cardio.name }; w.cardio.min = +el.dataset.v; w.cardio.done = true; w.cardio.src = 'whoop'; saveW(w.date); render(true); },
   cardio: () => { const w = logW(); w.cardio = w.cardio || { name: S().cardio.name, min: S().cardio.min }; w.cardio.min = num($('#cmin')?.value) ?? w.cardio.min; w.cardio.done = !w.cardio.done; w.cardio.manual = true; saveW(w.date); render(true); },
   confirm: el => { ui.confirm = el.dataset.v || null; render(true); },
@@ -703,6 +706,32 @@ function setInput(el, final) {
   else if (final && row && !s.done) row.classList.remove('pr');
 }
 document.addEventListener('input', ev => { const el = ev.target; if (el.matches && el.matches('.set .in')) setInput(el, false); });
+/* ---------- swipe a set row left to delete it (v1.64, touch only; iOS style) ----------
+   The row slides with the finger once the move is clearly sideways; past halfway it stays open on a Delete button.
+   Rows have touch-action: pan-y, so vertical moves still scroll. Any other tap closes an open row. */
+let sw = null, swOpen = null, swSkip = 0;
+const SW_W = 76;
+function swSet(row, x, anim) { const r = row.querySelector('.set'); if (!r) return; r.style.transition = anim ? 'transform .18s ease' : 'none'; r.style.transform = x ? `translateX(${x}px)` : ''; row.classList.toggle('open', x < 0); }
+function swClose(except) { if (swOpen && swOpen !== except && swOpen.isConnected) swSet(swOpen, 0, true); if (swOpen !== except) swOpen = null; }
+document.addEventListener('pointerdown', ev => {
+  const row = ev.target.closest('.swr');
+  if (swOpen && (!row || row !== swOpen) && !ev.target.closest('.setdel')) { swClose(); swSkip = Date.now(); } // a tap elsewhere just closes the open row
+  if (!row || ev.pointerType === 'mouse' || ev.target.closest('.setdel')) { sw = null; return; }
+  sw = { row, x0: ev.clientX, y0: ev.clientY, base: row === swOpen ? -SW_W : 0, on: false, pid: ev.pointerId };
+}, true);
+document.addEventListener('pointermove', ev => {
+  if (!sw || ev.pointerId !== sw.pid) return; const dx = ev.clientX - sw.x0, dy = ev.clientY - sw.y0;
+  if (!sw.on) { if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { sw = null; return; } if (Math.abs(dx) < 10) return; sw.on = true; swClose(sw.row); const a = document.activeElement; if (a && sw.row.contains(a)) a.blur(); }
+  swSet(sw.row, Math.max(-SW_W - 30, Math.min(0, sw.base + dx)), false);
+});
+function swEnd(ev) {
+  if (!sw || (ev && ev.pointerId !== sw.pid)) return; const s0 = sw; sw = null; if (!s0.on) return;
+  const dx = (ev?.clientX ?? s0.x0) - s0.x0, open = ev && ev.type !== 'pointercancel' ? s0.base + dx < -SW_W / 2 : s0.base < 0;
+  swSet(s0.row, open ? -SW_W : 0, true); swOpen = open ? s0.row : null; swSkip = Date.now();
+}
+document.addEventListener('pointerup', swEnd, true); document.addEventListener('pointercancel', swEnd, true);
+document.addEventListener('click', ev => { if (Date.now() - swSkip < 400 && !ev.target.closest('.setdel')) { ev.preventDefault(); ev.stopPropagation(); } }, true); // the tap that ended a swipe or closed a row does nothing else
+document.addEventListener('focusin', ev => { if (Date.now() - swSkip < 400 && ev.target.closest?.('.swr')) ev.target.blur(); });
 /* ---------- a picked day in Coming up: any other tap drops it and today is highlighted again ----------
    Done in place (no re-render) and only once the tap's click has landed, so whatever you tapped still works. */
 let pickTap = null, pickT = null;

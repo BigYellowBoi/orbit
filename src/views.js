@@ -13,7 +13,7 @@ function sessStats(w) {
   const top = s => hasStr ? (s && s.str != null ? `<em class="sstr">strain ${fmt(s.str, 1)}</em>` : '<em class="sstr" aria-hidden="true">&nbsp;</em>') : '';
   const under = s => hasT ? (s && s.from ? `<em class="stime">${esc(s.from)}${s.to ? ` – ${esc(s.to)}` : ''}</em>` : '<em class="stime" aria-hidden="true">&nbsp;</em>') : '';
   const cell = (v, unit, label, s) => `<div class="stat" data-live="${esc(label)}">${top(s)}<b>${v}${unit ? `<small>${esc(unit)}</small>` : ''}</b>${under(s)}<span>${esc(label)}</span></div>`;
-  return `<div class="stats">${cell(st.sets, '', 'sets')}${cell(dur ? fmtDur(dur) : '–', '', dur && wl ? whoopActs(w.date, LIFT_RE)[0].n : 'duration', lift)}${cell(st.cardio || '–', st.cardio ? 'min' : '', w.cardio?.name || 'Cardio', car)}</div>`;
+  return `<div class="stats${st.cardio ? '' : ' two'}">${cell(st.sets, '', 'sets')}${cell(dur ? fmtDur(dur) : '–', '', dur && wl ? whoopActs(w.date, LIFT_RE)[0].n : 'duration', lift)}${st.cardio ? cell(st.cardio, 'min', w.cardio?.name || 'Cardio', car) : ''}</div>`; // v1.64: no cardio, no cardio cell
 }
 function deltaTxt(v, base, d = 0, unit = '', invert = false) {
   if (v == null || base == null) return '';
@@ -308,12 +308,19 @@ function logBody(d) {
   const prSet = new Set(prsIn(w).map(p => p.s));
   h += `<div class="exs" data-list="logex">${w.ex.map((e, i) => exCard(w, e, i, prSet)).join('')}</div>`; // drag handles reorder this day's exercises (v1.39)
   h += pickerHTML(w);
-  h += cardioCard(w);
-  h += `<section class="card">${wl != null ? `<div class="fl"><span>Workout duration</span><b class="roval">${esc(fmtDur(wl * 60))} <small>WHOOP</small></b></div>` : `<label class="fl">Workout duration (min)<input class="in" id="wdur" inputmode="numeric" data-in="durmin" value="${w.durMin ?? ''}" placeholder="optional"></label>`}
-    <label class="fl">Session notes<textarea class="in" id="wnote" data-in="note" placeholder="Anything worth remembering next time">${esc(w.note || '')}</textarea></label></section>`;
+  h += extrasHTML(w, wl);
+  h += `<section class="card"><label class="fl">Session notes<textarea class="in" id="wnote" data-in="note" placeholder="Anything worth remembering next time">${esc(w.note || '')}</textarea></label></section>`;
   h += empty ? `<button class="btn wide" data-act="logdone">Done</button>` : doneBtn;
   h += `<button class="link danger delw" data-act="delw1" style="align-self:flex-start">Delete this session</button>`; // two taps (v1.36)
   return h;
+}
+/* v1.64: cardio and workout duration fold into one row (WHOOP fills both); open it to pick the cardio type or type minutes. */
+function extrasHTML(w, wl) {
+  const c = w.cardio, open = !!ui.extrasOpen, dur = sessDur(w);
+  const bits = [c === null ? 'no cardio' : c?.done ? `${c.name} ${fmt(c.min || 0, 0)} min${c.src === 'whoop' ? ' (WHOOP)' : ''}` : `${(c?.name || S().cardio.name)} not logged`, dur ? `${fmtDur(dur)}${wl != null ? ' (WHOOP)' : ''}` : ''].filter(Boolean);
+  let h = `<button class="exsum" data-act="extras" aria-expanded="${open}"><span>Cardio and duration · ${esc(bits.join(' · '))}</span><span class="chev">${ICON.down}</span></button>`;
+  if (!open) return h;
+  return h + cardioCard(w) + `<section class="card">${wl != null ? `<div class="fl"><span>Workout duration</span><b class="roval">${esc(fmtDur(wl * 60))} <small>WHOOP</small></b></div>` : `<label class="fl">Workout duration (min)<input class="in" id="wdur" inputmode="numeric" data-in="durmin" value="${w.durMin ?? ''}" placeholder="optional"></label>`}</section>`;
 }
 function readLogHTML(w) { // a past day's log to look at: nothing here can be changed until Edit
   const edit = `<button class="btn sm ghost" data-act="logedit">Edit</button>`, note = (w.note || '').trim();
@@ -383,10 +390,10 @@ function exCard(w, e, i, prSet) {
     const warm = s.t === 'w', a = rowAim(e, j, w.date, sg), kk = warm ? null : k++, prev = !warm && last ? last.sets[kk] : null;
     const tag = warm ? 'W' : s.t === 'd' ? 'D' : String(kk + 1), lbl = warm ? 'warm-up' : s.t === 'd' ? 'drop set' : 'working set';
     const box = (key, val, phv, im, aria) => `<div class="stp"><button class="sb" data-act="step" data-e="${i}" data-s="${j}" data-k="${key}" data-d="-1" tabindex="-1" aria-label="${aria} down">−</button><input class="in" id="${key}${i}_${j}" inputmode="${im}" enterkeyhint="next" data-in="${key}" data-e="${i}" data-s="${j}" value="${val ?? ''}" placeholder="${phv}" aria-label="Set ${j + 1} ${aria}"><button class="sb" data-act="step" data-e="${i}" data-s="${j}" data-k="${key}" data-d="1" tabindex="-1" aria-label="${aria} up">+</button></div>`;
-    return `<div class="set ${s.done ? 'done' : ''} ${prSet.has(s) ? 'pr' : ''} ${warm ? 'warm' : ''} ${s.t === 'd' ? 'dset' : ''}" id="row${i}_${j}"><button class="sn" data-act="settype" data-e="${i}" data-s="${j}" aria-label="Set ${j + 1}: ${lbl}. Tap to change">${tag}</button>
+    return `<div class="swr" data-e="${i}" data-s="${j}"><button class="setdel" data-act="delset" data-e="${i}" data-s="${j}" tabindex="-1" aria-label="Delete set ${j + 1}">${ICON.trash}</button><div class="set ${s.done ? 'done' : ''} ${prSet.has(s) ? 'pr' : ''} ${warm ? 'warm' : ''} ${s.t === 'd' ? 'dset' : ''}" id="row${i}_${j}"><button class="sn" data-act="settype" data-e="${i}" data-s="${j}" aria-label="Set ${j + 1}: ${lbl}. Tap to change">${tag}</button>
       ${box('w', s.w, ph(a ? a.w : s.pw, def.u === 'bw' ? '0' : '–'), 'decimal', esc(u.label))}
       ${box('r', s.r, ph(a ? a.r : s.pr, '–'), 'numeric', 'reps')}
-      ${warm ? `<button class="mark rmw" data-act="remwarm" data-e="${i}" data-s="${j}" tabindex="-1" aria-label="Remove this warm-up">×</button>` : `<span class="mark" aria-hidden="true">${ICON.tick}</span>`}${prev ? `<span class="lastset">Last ${esc(fmtSet(e.id, prev))}</span>` : ''}</div>`;
+      ${warm ? `<button class="mark rmw" data-act="remwarm" data-e="${i}" data-s="${j}" tabindex="-1" aria-label="Remove this warm-up">×</button>` : `<span class="mark" aria-hidden="true">${ICON.tick}</span>`}${prev ? `<span class="lastset">Last ${esc(fmtSet(e.id, prev))}</span>` : ''}</div></div>`;
   }).join('');
   const meta = def.note ? esc(def.note) : ""; // v1.56: Last and Best live under each set row now, not here
   return `<section class="card ex" id="ex${i}" data-dragitem data-i="${i}"><div class="ex-h">${w.ex.length > 1 ? `<span class="grip" data-grip="ex" aria-label="Drag to reorder ${esc(def.name)}" role="button" tabindex="-1">${ICON.grip}</span>` : ''}<button class="ex-name" data-act="exhist" data-e="${i}" aria-expanded="${open}"><h3>${esc(def.name)}</h3><span class="chev">${ICON.down}</span></button><span class="rx">${def.lo}${def.hi > def.lo ? '–' + def.hi : ''} reps</span></div>
@@ -453,18 +460,21 @@ function vHistory() {
     const st = wStats(w), prs = prsIn(w).length, rec = dayVal(w.date, 'rec'), str = dayVal(w.date, 'str');
     const hq = [sessName(w), ...(w.ex || []).filter(e => doneSets(e).length).map(e => exDef(e.id).name), w.note || '', ...(w.ex || []).map(e => e.note || '')].join(' ').toLowerCase();
     h += `<button class="hrow" data-act="openlog" data-d="${w.date}" data-q="${esc(hq)}" data-s="${esc(w.rest ? '_rest' : w.s)}"><span class="hdate"><b>${esc(w.date.slice(8))}</b><small>${esc(fmtDow(w.date))}</small></span>
-      <span class="hmain"><b${w.rest ? ' class="dim"' : ''}>${esc(sessName(w))}</b><small>${w.rest ? (st.cardio ? `${st.cardio} min ${esc(w.cardio.name.toLowerCase())}` : 'No training') : `${st.sets} sets`}${sessDur(w) ? ` · ${fmtDur(sessDur(w))}` : ''}${!w.rest && st.cardio ? ` · ${st.cardio} min ${esc(w.cardio.name.toLowerCase())}` : ''}${prs ? ` · ${prs} best${prs > 1 ? 's' : ''}` : ''}</small></span>
+      <span class="hmain"><b${w.rest ? ' class="dim"' : ''}>${w.rest ? '' : `<i class="sesslg" style="background:${sessCol(w.s)}"></i>`}${esc(sessName(w))}</b><small>${w.rest ? (st.cardio ? `${st.cardio} min ${esc(w.cardio.name.toLowerCase())}` : 'No training') : `${st.sets} sets`}${sessDur(w) ? ` · ${fmtDur(sessDur(w))}` : ''}${!w.rest && st.cardio ? ` · ${st.cardio} min ${esc(w.cardio.name.toLowerCase())}` : ''}${prs ? ` · ${prs} best${prs > 1 ? 's' : ''}` : ''}</small></span>
       ${rec != null || str != null ? `<span class="hwh">${rec != null ? `<b class="tn-${recTone(rec)}" aria-label="Recovery ${Math.round(rec)}%">${Math.round(rec)}%</b>` : ''}${str != null ? `<b class="strain" aria-label="Strain ${fmt(str, 1)}">${fmt(str, 1)}</b>` : ''}</span>` : '<span></span>'}${w.note && w.note.trim() ? `<span class="hnote">${esc(w.note.trim())}</span>` : ''}</button>`;
   }
   return h + `</div>`;
 }
 
 /* Calendar (v1.36): a month of training days, a dot per session coloured by its place in the rotation; tap to open. */
+/* Session colours (v1.64, his pick): Push 1 red, Pull green, Push 2 blue, Legs white; any other session takes the next free one. */
+const SESS_COL = { push1: '#ff5a6e', pull: '#3ddc84', push2: '#4aa3ff', legs: '#eef0f4' }, SESS_PAL = ['var(--s1)', 'var(--s2)', 'var(--warn)', 'var(--s3)'];
+function sessCol(id) { if (SESS_COL[id]) return SESS_COL[id]; const others = order().filter(x => !SESS_COL[x] && !isRestSlot(x)); return SESS_PAL[Math.max(0, others.indexOf(id)) % SESS_PAL.length]; }
 function calendarHTML(ws) {
   const t = today(), [y, m] = t.split('-').map(Number), off = ui.calOff || 0, mm = ((m - 1 + off) % 12 + 12) % 12, yy = y + Math.floor((m - 1 + off) / 12);
   const first = `${yy}-${pad(mm + 1)}-01`, days = new Date(Date.UTC(yy, mm + 1, 0)).getUTCDate(), lead = dowMon(first), by = {};
   for (const w of ws) if (w.date.startsWith(first.slice(0, 7))) by[w.date] = w;
-  const o = order(), PAL = ['var(--s1)', 'var(--s2)', 'var(--s3)', 'var(--strain)', 'var(--warn)'], pc = id => PAL[Math.max(0, o.indexOf(id)) % PAL.length], col = w => w.rest ? 'var(--ink-3)' : pc(w.s);
+  const o = order(), pc = sessCol, col = w => w.rest ? 'var(--ink-3)' : pc(w.s);
   let cells = Array.from({ length: lead }, () => '<span></span>').join('');
   for (let i = 1; i <= days; i++) { const d = `${first.slice(0, 8)}${pad(i)}`, w = by[d];
     cells += w ? `<button class="cd${d === t ? ' now' : ''}" data-act="openlog" data-d="${d}" title="${esc(sessName(w))}"><b>${i}</b><i style="background:${col(w)}"></i></button>` : `<span class="cd${d === t ? ' now' : ''}${d > t ? ' fut' : ''}"><b>${i}</b></span>`; }
@@ -495,16 +505,22 @@ function liftMetric(id, m) {
 }
 /* Rep maxes (v1.37): the heaviest load you've lifted for at least each rep count, with the date, beside what your best
    e1RM predicts for that count (Epley, the same formula as everywhere else), rounded down to the lift's step. */
+/* Rep maxes (v1.64, rewritten to read plainly): one line per rep count. Best = heaviest you've lifted for at least that
+   many reps (dim when it came from a set with more reps); Estimate = what your best set says you could do. Best in green
+   when it already beats the estimate. Rows: 1 rep, then 2 below your range to 2 above. */
 function repMaxHTML(id) {
   const d = exDef(id), list = lixEx(id).list; if (!list.length || (d.u === 'bw' && !bwScored(id))) return '';
-  const all = list.flatMap(x => x.sets.map(s => ({ ...s, date: x.date }))), maxR = Math.min(15, Math.max(d.hi + 2, ...all.map(s => s.r)));
+  const all = list.flatMap(x => x.sets.map(s => ({ ...s, date: x.date })));
   const best = list.reduce((a, x) => !a || x.sc > a.sc ? x : a, null), st = exStep(id), bwk = d.u === 'bw' ? (bwAt(null) || 0) * bwShare(id) : 0;
   const est = r => { const w = best.sc / (1 + r / 30) - bwk; return w > 0 ? Math.floor(w / st + 1e-6) * st : 0; };
-  const rows = []; for (let r = 1; r <= maxR; r++) { const c = all.filter(s => s.r >= r).sort((a, b) => (b.w || 0) - (a.w || 0) || (a.date < b.date ? -1 : 1))[0]; rows.push({ r, c }); }
-  const ld = w => `${fmtLoad(id, w)}${d.u === 'kg' ? ' kg' : ''}`, inRange = r => r >= d.lo && r <= d.hi;
-  return `<section class="card"><div class="card-h"><h2>Rep maxes</h2><span class="eyebrow">${esc(d.name)}</span></div><div class="tblwrap"><table class="tbl repmax"><thead><tr><th>Reps</th><th class="n">Best logged</th><th class="n">Date</th><th class="n">Predicted</th></tr></thead><tbody>
-    ${rows.map(({ r, c }) => `<tr class="${inRange(r) ? 'rng' : ''}"><td>${r}</td><td class="n">${c ? esc(ld(c.w || 0)) + (c.r > r ? ` <span class="xs muted">(${c.r})</span>` : '') : '<span class="muted">–</span>'}</td><td class="n xs muted">${c ? esc(fmtD(c.date)) : ''}</td><td class="n dim">${esc(ld(est(r)))}</td></tr>`).join('')}
-    </tbody></table></div>${infoHTML(`Best logged: the heaviest load you've done for at least that many reps (the reps actually done in brackets). Predicted: from your best estimated 1RM. Your ${d.lo}–${d.hi} rep range is highlighted.`)}</section>`;
+  const lo = Math.max(2, d.lo - 2), reps = [1, ...Array.from({ length: Math.min(15, d.hi + 2) - lo + 1 }, (_, k) => lo + k)];
+  const ld = w => `${fmtLoad(id, w)}${d.u === 'kg' ? ' kg' : d.u === 'plates' ? ' pl' : ''}`, inRange = r => r >= d.lo && r <= d.hi;
+  const rows = reps.map(r => { const c = all.filter(s => s.r >= r).sort((a, b) => (b.w || 0) - (a.w || 0) || (a.date < b.date ? -1 : 1))[0], e = est(r);
+    const cls = !c ? '' : (c.w || 0) >= e ? 'better' : c.r > r ? 'muted' : '';
+    return `<tr class="${inRange(r) ? 'rng' : ''}"><td>${r}</td><td class="n${cls ? ' ' + cls : ''}"${c ? ` title="${esc(fmtSet(id, c))} on ${esc(fmtD(c.date))}"` : ''}>${c ? esc(ld(c.w || 0)) : '<span class="muted">–</span>'}</td><td class="n dim">${esc(ld(e))}</td></tr>`; }).join('');
+  return `<section class="card"><div class="card-h"><h2>Rep maxes</h2><span class="eyebrow">${esc(d.name)}</span></div>
+    <p class="xs muted">Best: the heaviest you've lifted for that many reps (grey when it came from a set with more reps). Estimate: what your best set says you could do. Green: already past the estimate.</p>
+    <div class="tblwrap"><table class="tbl repmax"><thead><tr><th>Reps</th><th class="n">Best</th><th class="n">Estimate</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
 }
 /* Weekly sets per muscle (v1.37): a heatmap of the last 12 weeks, same counting as Volume, coloured by the research bands */
 function heatHTML() {
@@ -541,15 +557,16 @@ function recPerfHTML() {
     ${infoHTML(`Each dot is a session: the average of its lifts' best estimated 1RM against the median of that lift's previous 3 sessions, so 0% is a typical day for you. Line: the straight-line fit (r = ${fmt(r, 2)}${n < 15 ? '; with under 15 sessions treat it as a hint' : ''}).`)}</section>`;
 }
 /* Exercise order (v1.43): what the model has learned, per lift (see EXERCISE ORDER in engine.js) */
+/* Exercise order (v1.64, rewritten as a list): how much weaker each lift is in its usual place than if done first, and
+   what that comes from. */
 function orderHTML() {
   const M = ordModel(), ids = liftIds().filter(id => M.by[id]); if (!ids.length) return '';
-  const pct = v => `${v > 0.0005 ? '−' : ''}${fmt(v * 100, 1)}%`;
-  const rows = ids.map(id => { const b = M.by[id], u = usualCtx(id), cost = 1 - ordFactor(id, u);
-    return `<tr><td>${esc(exDef(id).name)}</td><td class="n">${pct(b.k)}</td><td class="n">${u.G ? pct(cost) : '<span class="muted">first</span>'}</td><td class="n">${b.chg ? `${b.chg} move${b.chg === 1 ? '' : 's'}` : '<span class="muted">pooled</span>'}</td></tr>`; }).join('');
-  return `<section class="card"><div class="card-h"><h2>Exercise order</h2><span class="eyebrow">${ids.filter(id => M.by[id].chg).length} lifts moved</span></div>
-    <div class="tblwrap"><table class="tbl"><thead><tr><th>Lift</th><th class="n">Per set before</th><th class="n">Usual slot</th><th class="n">Learned from</th></tr></thead><tbody>${rows}</tbody></table></div>
-    <span class="xs muted">Plus ${pct(M.kG)} per set of anything before it.</span>
-    ${infoHTML(`Per set before: strength lost for each set before it that works the same muscles (a lift that only partly shares them counts in part). Usual slot: what your Plan order costs against doing it first. The Aim uses these, so a lift done earlier or later than usual gets a heavier or lighter Aim, and old sessions from another slot still count fairly. Lifts that have never moved use the pooled value, which shifts as moved lifts teach it. It learns from the order of the cards in each log, so drag them into the order you actually did them.`)}</section>`;
+  const rows = ids.map(id => { const b = M.by[id], cost = 1 - ordFactor(id, usualCtx(id)), s = usualSid(id), slot = s ? sessDef(s).items.filter(it => S().ex[it.ex]).findIndex(it => it.ex === id) + 1 : 0;
+    const v = slot <= 1 ? '<span class="muted">done first</span>' : cost >= 0.0005 ? `−${fmt(cost * 100, 1)}%` : '<span class="muted">no cost</span>';
+    return `<li><span>${esc(exDef(id).name)}</span><span class="rx">${v}</span><span class="lt">${slot ? `Usually ${ordinal(slot)} · ` : ''}${b.chg ? `learned from ${b.chg} move${b.chg === 1 ? '' : 's'}` : 'never moved, so the average'}</span></li>`; }).join('');
+  return `<section class="card"><div class="card-h"><h2>Exercise order</h2><span class="eyebrow">vs doing it first</span></div>
+    <p class="xs muted">How much weaker each lift is in its usual spot than if you did it first. Learned from the times you've done lifts in a different order; Aims adjust when you change it.</p>
+    <ul class="exlist recent ordl">${rows}</ul></section>`;
 }
 /* New bests over time (v1.37): count per week for 12 weeks, then the latest ones with how far each beat the old best */
 function prTimelineHTML() {
