@@ -297,6 +297,8 @@ function go(tab) {
   flushField(); // v1.61: a field mid-typing is saved before the screen changes (iOS doesn't always fire change when it goes)
   const leaving = ui.tab === 'today' && tab !== 'today' && logOpen() ? { y: scrollY0(), editToday: ui.editToday, exNote: ui.exNote, exHist: ui.exHist, exMore: ui.exMore, pick: ui.pick, date: today() } : null;
   if (leaving) ui.logPlace = leaving;
+  // v1.62: the same for a past day's log being edited (from History): leave it for another tab and the History tab brings you back into it
+  if (ui.tab === 'log' && tab !== 'log' && ui.logDate && ui.logEdit === ui.logDate) ui.pastPlace = tab === 'history' ? null : { y: scrollY0(), date: ui.logDate, exNote: ui.exNote, exHist: ui.exHist, exMore: ui.exMore, pick: ui.pick };
   if (tab === 'log' && (!ui.logDate || ui.logDate >= today())) { tab = 'today'; ui.editToday = true; } // today's log lives on Today
   if (ui.tab === 'today' && tab !== 'today') ui.editToday = false;
   if (ui.tab === 'strength' && tab !== 'strength') ui.lift = null; // a picked lift lasts while you stay on Strength
@@ -306,16 +308,19 @@ function go(tab) {
   if (tab === 'today') ui.dayOff = 0; // the Today tab always brings you back to today // leaving a tab drops its search and an unfinished reorder ui.restPick = null; // exercise search lasts while you stay on Plan
   if (tab === 'body' && ui.tab !== 'body') { ui.metric = 'rec'; ui.per = 'M'; ui.off = 0; }
   if (tab === 'data' && ui.tab === 'data') tab = ui.prevTab || 'today'; else if (tab === 'data') ui.prevTab = ui.tab;
+  let backPast = null; const pp = ui.pastPlace;
+  if (pp && ((tab === 'history' && ui.tab !== 'log') || (tab === 'log' && ui.tab === 'data' && ui.logDate === pp.date))) { ui.pastPlace = null; if (STATE.w[pp.date] && !emptyW(STATE.w[pp.date])) { backPast = pp; tab = 'log'; ui.logDate = pp.date; } }
   if (tab === 'today') ui.logDate = null;
   if (tab !== 'log') ui.logEdit = null; // a past log goes back to read-only once you leave it (v1.46)
   if (tab !== 'injuries') ui.injForm = null; if (tab !== 'friends') { ui.frAdd = false; ui.frEdit = null; }
   const prevTab = ui.tab; ui.tab = tab; ui.confirm = null; ui.pickSess = null; ui.editEx = null;
   if (tab === 'friends') setTimeout(frStale, 0); // links older than 10 minutes are read again
+  if (backPast) { ui.logEdit = backPast.date; ui.exNote = backPast.exNote; ui.exHist = backPast.exHist; ui.exMore = backPast.exMore; ui.pick = backPast.pick; }
   const back = tab === 'today' && ui.logPlace && !leaving && prevTab !== 'today' && ui.logPlace.date === today() && STATE.w[today()] ? ui.logPlace : null;
   if (back) { ui.editToday = back.editToday; ui.exNote = back.exNote; ui.exHist = back.exHist; ui.exMore = back.exMore; ui.pick = back.pick; }
   if (tab === 'today') ui.logPlace = null;
   resetScroll(); render(true); if (logging()) wakeLock();
-  if (back && logOpen()) { const y = back.y; scrollToY(y); requestAnimationFrame(() => { if (Math.abs(scrollY0() - y) > 1) scrollToY(y); }); }
+  if (backPast || (back && logOpen())) { const y = (backPast || back).y; scrollToY(y); requestAnimationFrame(() => { if (Math.abs(scrollY0() - y) > 1) scrollToY(y); }); }
 }
 let toastT;
 function toast(html, kind) { const t = $('#toast'); t.innerHTML = html; t.className = 'toast show ' + (kind || ''); clearTimeout(toastT); toastT = setTimeout(() => t.className = 'toast', kind === 'pr' ? 4000 : 2600); }
