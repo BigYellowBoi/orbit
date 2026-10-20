@@ -10,7 +10,8 @@
 <meta name="theme-color" content="#0a0c0f">
 <meta name="robots" content="noindex">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="32x32" href="icon-any-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-any-192.png">
 <link rel="manifest" href="manifest.webmanifest">
 <script>/* No zooming (Louis's call, v1.16): maximum-scale stops iOS zooming in on a focused input, the gesture events stop
    pinch zoom (iOS ignores user-scalable=no on its own), and touch-action: manipulation below stops double-tap zoom. */
@@ -687,7 +688,7 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.64'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.65'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
