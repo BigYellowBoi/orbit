@@ -470,15 +470,16 @@ function doneByGroup(from, to, frac = true) {
   return out;
 }
 
-/* Volume this week with what's still to come (v1.67): Monday to Sunday, like the heatmap. Done is every ticked working set
-   this week (an in-progress log counts), split into direct and half credit. Planned is the rest: today's unticked working
-   sets (or today's Plan session if nothing is logged yet) and the rotation sessions upcoming() puts on the remaining days,
-   rest slots included, at defSets() each. Same credit as doneByGroup. Next Monday's session is kept apart (next) so a
-   muscle never looks behind only because the week is ending. */
+/* Volume around today (v1.68, was Monday to Sunday in v1.67): a rolling 7 days, the last 3, today and the next 3, so the
+   next few sessions always show and there is no week end to fall off. Done is every ticked working set from 3 days ago to
+   today (an in-progress log counts), split into direct and half credit. Planned is today's unticked working sets (or
+   today's Plan session if nothing is logged yet) and the rotation sessions upcoming() puts on the next 3 days, rest slots
+   included, at defSets() each. Same credit as doneByGroup. */
+const VOL_BACK = 3, VOL_AHEAD = 3;
 function volWeek(t = today()) {
-  const ws = weekStart(t), we = addDays(ws, 6), mon = addDays(we, 1), by = {}, rows = {}, sess = [];
+  const ws = addDays(t, -VOL_BACK), we = addDays(t, VOL_AHEAD), by = {}, rows = {}, sess = [];
   const add = (id, n, date, kind) => { if (!n) return; const d = exDef(id);
-    const one = (g, k, sec) => { const x = by[g] = by[g] || { dir: 0, ind: 0, plan: 0, next: 0 }; x[kind === 'done' ? (sec ? 'ind' : 'dir') : kind] += n * k;
+    const one = (g, k, sec) => { const x = by[g] = by[g] || { dir: 0, ind: 0, plan: 0 }; x[kind === 'done' ? (sec ? 'ind' : 'dir') : kind] += n * k;
       const key = [g, id, date, sec, kind].join('|'), r = rows[key] = rows[key] || { g, id, date, sec, kind, sets: 0, credit: 0 }; r.sets += n; r.credit += n * k; };
     one(d.g, 1, false); for (const g of d.g2 || SECONDARY[id] || []) if (g !== d.g) one(g, 0.5, true);
   };
@@ -488,13 +489,12 @@ function volWeek(t = today()) {
     for (const e of rec.ex || []) { const k = (e.sets || []).filter(s => s.t !== 'w' && !(s.done && s.r > 0)).length; add(e.id, k, t, 'plan'); n += k; }
     if (n) sess.push({ date: t, s: rec.s });
   }
-  for (const x of upcoming(8 - dowMon(t))) { // today through next Monday
-    if (x.date === t && rec) continue; if (x.date > mon) break;
-    const sd = sessDef(x.s), kind = x.date > we ? 'next' : 'plan';
-    if (kind === 'plan') sess.push({ date: x.date, s: x.s });
-    if (sd && !sd.rest) for (const it of sd.items) if (S().ex[it.ex]) add(it.ex, defSets(it.ex), x.date, kind);
+  for (const x of upcoming(VOL_AHEAD + 1)) { // today through 3 days ahead
+    if (x.date === t && rec) continue;
+    const sd = sessDef(x.s); sess.push({ date: x.date, s: x.s });
+    if (sd && !sd.rest) for (const it of sd.items) if (S().ex[it.ex]) add(it.ex, defSets(it.ex), x.date, 'plan');
   }
-  const order = { done: 0, plan: 1, next: 2 }, list = Object.values(rows).sort((a, b) => order[a.kind] - order[b.kind] || (a.date < b.date ? -1 : a.date > b.date ? 1 : 0) || b.credit - a.credit || a.sec - b.sec);
+  const order = { done: 0, plan: 1 }, list = Object.values(rows).sort((a, b) => order[a.kind] - order[b.kind] || (a.date < b.date ? -1 : a.date > b.date ? 1 : 0) || b.credit - a.credit || a.sec - b.sec);
   const detail = {}; for (const r of list) (detail[r.g] = detail[r.g] || []).push(r);
   return { ws, we, by, detail, sess };
 }

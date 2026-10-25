@@ -443,40 +443,39 @@ if (load().injPlan) {
   }
 }
 
-/* ---------- Volume this week with planned sets (v1.67) ---------- */
+/* ---------- Volume around today with planned sets (v1.67, rolling window v1.68) ---------- */
 if (load().volWeek) {
-  const E = load(), t = E.today(), mon = E.weekStart(t), sun = E.addDays(mon, 6), nextMon = E.addDays(sun, 1); // t is Tue 13 Oct 2026
+  const E = load(), t = E.today(), D = k => E.addDays(t, k); // t is Tue 13 Oct 2026; the window is Sat 10 to Fri 16
   const set = (w, r, done) => ({ w, r, done });
-  E.STATE.w[mon] = { date: mon, s: 'push1', fin: true, ex: [{ id: 'chest_press', sets: [set(3, 8, true), set(3, 8, true), { t: 'w', w: 1, r: 8, done: true }] }] };
-  E.STATE.w[E.addDays(mon, -1)] = { date: E.addDays(mon, -1), s: 'legs', fin: true, ex: [{ id: 'chest_press', sets: [set(3, 8, true)] }] }; // last week: out
+  E.STATE.w[D(-1)] = { date: D(-1), s: 'push1', fin: true, ex: [{ id: 'chest_press', sets: [set(3, 8, true), set(3, 8, true), { t: 'w', w: 1, r: 8, done: true }] }] };
+  E.STATE.w[D(-4)] = { date: D(-4), s: 'legs', fin: true, ex: [{ id: 'chest_press', sets: [set(3, 8, true)] }] }; // 4 days back: out
   const today = { date: t, s: 'pull', ex: [{ id: 'pulldown', sets: [set(90, 8, true), set(90, null, false), { t: 'w', w: 40, r: null, done: false }] }] };
   E.STATE.w[t] = today; E.bump();
   let v = E.volWeek();
-  ok(v.ws === mon && v.we === sun, 'Volume covers the calendar week, Monday to Sunday');
-  ok(v.by.chest.dir === 2 && v.by.triceps.ind === 1 && v.by.delt_f.ind === 1, 'done sets: direct count 1, secondaries half; warm-ups and last week left out');
+  ok(v.ws === D(-3) && v.we === D(3), 'Volume covers the last 3 days, today and the next 3');
+  ok(v.by.chest.dir === 2 && v.by.triceps.ind === 1 && v.by.delt_f.ind === 1, 'done sets: direct count 1, secondaries half; warm-ups and days before the window left out');
   ok(v.by.back.dir === 1 && v.by.biceps.ind === 0.5, "today's ticked sets count as done");
   const todayPlan = v.detail.back.filter(r => r.kind === 'plan' && r.date === t);
   ok(todayPlan.length === 1 && todayPlan[0].sets === 1, "today's unticked working set counts as planned (the warm-up doesn't)");
-  ok(v.sess.map(x => x.date).join() === [t, ...[1, 2, 3, 4, 5].map(k => E.addDays(t, k))].join() && v.sess.map(x => x.s).join() === 'pull,push2,legs,push1,pull,push2', `planned sessions: rest of today, then the rotation to Sunday (${v.sess.map(x => x.s).join()})`);
+  ok(v.sess.map(x => x.date).join() === [0, 1, 2, 3].map(D).join() && v.sess.map(x => x.s).join() === 'pull,push2,legs,push1', `planned sessions: rest of today, then the next 3 days of the rotation (${v.sess.map(x => x.s).join()})`);
   const all = Object.values(v.detail).flat();
-  ok(all.every(r => r.kind === 'done' ? r.date <= t : r.kind === 'plan' ? r.date >= t && r.date <= sun : r.date === nextMon), 'done rows are this week up to today, planned rows the rest of the week, next rows next Monday');
+  ok(all.every(r => r.kind === 'done' ? r.date >= D(-3) && r.date <= t : r.kind === 'plan' && r.date >= t && r.date <= D(3)), 'done rows run up to today, planned rows from today to 3 days ahead');
   const sumK = (g, k) => (v.detail[g] || []).filter(r => r.kind === k).reduce((a, r) => a + r.credit, 0);
-  ok(Object.keys(v.by).every(g => Math.abs(sumK(g, 'plan') - v.by[g].plan) < 1e-9 && Math.abs(sumK(g, 'next') - v.by[g].next) < 1e-9), 'the breakdown adds up to the bars');
+  ok(Object.keys(v.by).every(g => Math.abs(sumK(g, 'plan') - v.by[g].plan) < 1e-9 && Math.abs(sumK(g, 'done') - v.by[g].dir - v.by[g].ind) < 1e-9), 'the breakdown adds up to the bars');
   ok(v.by.triceps.plan > 0 && v.detail.triceps.some(r => r.kind === 'plan' && r.sec), 'planned compounds give their secondary muscles half credit');
-  ok(v.detail.quads?.some(r => r.kind === 'next') && v.by.quads.next > 0, `next Monday's Legs shows apart as +${v.by.quads?.next} Mon`);
+  ok(v.by.quads?.plan > 0, "Thursday's Legs counts as planned");
   const before = v.by.back.dir + v.by.back.plan;
   today.ex[0].sets[1] = set(90, 8, true); E.bump(); v = E.volWeek();
   ok(v.by.back.dir === 2 && v.by.back.dir + v.by.back.plan === before, 'ticking a set moves it from planned to done; the total stays');
   today.fin = true; E.bump(); v = E.volWeek();
   ok(!v.detail.back.some(r => r.kind === 'plan' && r.date === t), "a finished session's leftover sets aren't planned any more");
-  E.S().restPlan = [E.addDays(t, 1)]; E.bump(); v = E.volWeek();
-  ok(v.sess[0].s === '_rest' && v.sess[1].s === 'push2', 'a planned rest day pushes the sessions back and the caption follows');
+  E.S().restPlan = [D(1)]; E.bump(); v = E.volWeek();
+  ok(v.sess[0].date === D(1) && v.sess[0].s === '_rest' && v.sess[1].s === 'push2', 'a planned rest day pushes the sessions back and the caption follows');
   E.S().restPlan = [];
-  E.setNow(Date.UTC(2026, 9, 18, 2)); E.bump(); v = E.volWeek();
-  ok(v.ws === mon && v.sess.length === 1 && v.sess[0].date === sun && Object.values(v.detail).flat().every(r => r.kind !== 'plan' || r.date === sun), 'on Sunday only the rest of Sunday is planned');
-  ok(Object.values(v.by).some(x => x.next > 0), "on Sunday, Monday's session still shows as next");
-  E.setNow(Date.UTC(2026, 9, 19, 2)); E.bump(); v = E.volWeek();
-  ok(v.ws === nextMon && !v.by.chest?.dir, 'a new week starts empty on Monday');
+  // his case: Sunday, Legs logged, Pull tomorrow. The week ending must not hide Monday's Pull.
+  const sun = '2026-10-18'; E.setNow(Date.UTC(2026, 9, 18, 2)); E.STATE.w[sun] = { date: sun, s: 'legs', fin: true, ex: [{ id: 'hack', sets: [set(2, 8, true)] }] }; E.bump(); v = E.volWeek();
+  ok(v.sess[0].date === E.addDays(sun, 1) && v.sess[0].s === E.sessionFor(E.addDays(sun, 1)) && v.sess.length === 3, `on Sunday the next 3 days are planned (${v.sess.map(x => x.s).join()})`);
+  ok(v.sess.some(x => x.s === 'pull') && v.by.biceps.plan > 0 && v.detail.biceps.some(r => r.kind === 'plan' && r.date > sun), "Sunday: the coming Pull gives biceps planned sets");
 }
 
 /* ---------- finished sessions and Done gating (v1.67) ---------- */
