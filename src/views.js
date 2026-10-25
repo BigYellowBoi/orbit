@@ -108,15 +108,15 @@ function doneHero(w, idx, o) { // today after Done: a summary, with the log one 
     <div><h1>Rest</h1><p class="focus">${isRestSlot(w.s) ? 'Planned rest from your rotation.' : 'The rotation waits.'} Tomorrow: ${esc(slotName(upcoming(2)[1].s))}.</p></div>
     ${w.cardio?.done ? `<p class="small dim">${esc(w.cardio.name)} · ${w.cardio.min || 0} min</p>` : ''}
     <div class="btnrow" style="justify-content:space-between"><button class="btn sm ghost" data-act="edittoday">${w.cardio?.done || w.note ? 'Edit day' : 'Log cardio or notes'}</button><button class="link dim" data-act="unrest">Undo rest day</button></div></section>`;
-  const st = wStats(w), dur = sessDur(w), prs = prsIn(w);
+  const prs = prsIn(w);
   return `<section class="card hero${ui.justDone ? ' just' : ''}"><div class="card-h"><span class="eyebrow">Logged today · ${idx + 1} of ${o.length}</span>${pill('good', 'Done')}</div>
     <div class="rot">${o.map((id, i) => `<i class="${i === idx ? 'on' : i < idx ? 'done' : ''}"></i>`).join('')}</div>
     <div><h1>${esc(sessName(w))}</h1><p class="focus">${esc(sessDef(w.s)?.focus || '')}</p></div>
     ${sessStats(w)}
-    ${(() => { // against the last time this session was done (v1.36)
-      const prev = workoutsSorted().filter(x => x.s === w.s && x.date < w.date && !x.rest && wStats(x).sets).pop(); if (!prev) return '';
-      const p = wStats(prev), ds = st.sets - p.sets, dt = (st.kg - p.kg) / 1000, sg = v => (v > 0 ? '+' : v < 0 ? '−' : '±') + fmt(Math.abs(v), 1);
-      return `<p class="small dim">Against ${esc(sessName(prev))} on ${esc(fmtDate(prev.date))}: ${sg(ds)} set${Math.abs(ds) === 1 ? '' : 's'} · ${sg(dt)} t tonnage${prs.length ? ` · ${prs.length} new best${prs.length > 1 ? 's' : ''}` : ''}</p>`; })()}
+    ${(() => { // v1.70: working sets against their Aims (replaced the tonnage comparison with the last same session)
+      const a = aimsMet(w), nb = prs.length ? ` · ${prs.length} new best${prs.length > 1 ? 's' : ''}` : ''; if (!a.n) return nb ? `<p class="small dim">${nb.slice(3)}</p>` : '';
+      const sh = a.short.slice(0, 3).map(x => `${exDef(x.id).name} set ${x.k}`).join(', ') + (a.short.length > 3 ? ` +${a.short.length - 3}` : '');
+      return `<p class="small dim">Aims: ${a.met === a.n ? `all ${a.n} sets met` : `${a.met} of ${a.n} sets met · ${a.short.length} short (${esc(sh)})`}${nb}</p>`; })()}
     ${prs.length ? `<div class="chips">${prs.slice(0, 6).map(p => `<span class="pill acc">${esc(exDef(p.id).name)} ${esc(fmtSet(p.id, p.s))}</span>`).join('')}</div>` : ''}
     <button class="btn wide ghost" data-act="edittoday">Edit log</button></section>`;
 }
