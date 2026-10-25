@@ -20,8 +20,10 @@ const ok = (c, msg) => { if (c) passes++; else { fails++; console.log('FAIL', ms
   await tab('today'); await p.waitForTimeout(100); ok(await y() === 0, 'tapping Today while on it goes to the top');
   await p.evaluate(() => scrollToY(600)); await p.click('#gear'); await p.waitForTimeout(100); await p.click('#gear'); await p.waitForTimeout(150);
   ok(Math.abs(await y() - 600) <= 1, 'Settings and back keeps the place');
+  await p.evaluate(() => { for (const e of STATE.w[today()].ex) for (const s of e.sets) { s.w = s.w ?? 20; s.r = s.r || 8; s.done = true; } saveW(today()); render(true); }); // v1.67: Done needs every set filled
   await p.click('[data-act="logdone"]'); await p.waitForTimeout(100); await p.evaluate(() => scrollToY(200));
   await tab('body'); await tab('today'); await p.waitForTimeout(100); ok(await y() === 0, 'finished log: Today starts at the top');
+  await p.evaluate(() => { delete STATE.w[today()]; saveW(today()); render(true); }); // v1.67: a filled session is kept by Done, so clear it to start again
   await p.click('[data-act="start"]'); await p.waitForSelector('.card.ex');
   await p.evaluate(() => { const ta = document.querySelector('#wnote'); ta.focus(); ta.value = 'mid edit'; }); // typed, no change event
   await tab('history'); ok(await p.evaluate(() => STATE.w[today()].note) === 'mid edit', 'a field mid-typing is saved on a tab switch');

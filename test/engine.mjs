@@ -12,6 +12,7 @@ const core = fs.readFileSync(path.join(root, 'src/core.js'), 'utf8');
 const engineSrc = fs.readFileSync(path.join(root, 'src/engine.js'), 'utf8');
 const EXPOSE = `globalThis.E = { STATE, S, streak: typeof streak !== 'undefined' ? streak : null, today, addDays, diffDays, sessionFor, upcoming, lastFor, bestBefore, bestSet, records, hasHistory, hasRef,
   liftSeries, maintenance, strengthRef, suggest, setAim, cutCheck, progression, prsIn, setScore, e1rm, exRir, exStep, derived, xpRun: typeof xpRun !== "undefined" ? xpRun : null, XP: typeof XP !== "undefined" ? XP : null, partialFlags: typeof partialFlags !== "undefined" ? partialFlags : null, warmup: typeof warmup !== "undefined" ? warmup : null, rowAim: typeof rowAim !== "undefined" ? rowAim : null, doneSets, planWeekly, wStats, fmtSet, dayVal, scoreTxt, newWorkout, restRecord, sessDef, exDef, ordModel: typeof ordModel !== "undefined" ? ordModel : null, ordFactor: typeof ordFactor !== "undefined" ? ordFactor : null, overlap: typeof overlap !== "undefined" ? overlap : null, ctxLog: typeof ctxLog !== "undefined" ? ctxLog : null, usualCtx: typeof usualCtx !== "undefined" ? usualCtx : null, aimIn: typeof aimIn !== "undefined" ? aimIn : null, refScore, exRir, snapBase: typeof snapBase !== "undefined" ? snapBase : null, baseCtx: typeof baseCtx !== "undefined" ? baseCtx : null, moveEx: typeof moveEx !== "undefined" ? moveEx : null, injPlan: typeof injPlan !== "undefined" ? injPlan : null, injLvl: typeof injLvl !== "undefined" ? injLvl : null, injSwaps: typeof injSwaps !== "undefined" ? injSwaps : null, lixEx, movedIdx: typeof movedIdx !== "undefined" ? movedIdx : null,
+  volWeek: typeof volWeek !== 'undefined' ? volWeek : null, isFin: typeof isFin !== 'undefined' ? isFin : null, allFilled: typeof allFilled !== 'undefined' ? allFilled : null, FIN_FROM: typeof FIN_FROM !== 'undefined' ? FIN_FROM : null, weekStart,
   bump: () => { STATE.v++; } };`;
 
 function load(engine = engineSrc) {
@@ -440,6 +441,59 @@ if (load().injPlan) {
     ok(out.ex.hammer.sets === 4, 'hammer: a tie (4 and 2), so the first session in rotation order wins');
     ok(out.sets1x === 1 && ctx.mig(out).ex.spider.sets === 3, 'runs once');
   }
+}
+
+/* ---------- Volume this week with planned sets (v1.67) ---------- */
+if (load().volWeek) {
+  const E = load(), t = E.today(), mon = E.weekStart(t), sun = E.addDays(mon, 6), nextMon = E.addDays(sun, 1); // t is Tue 13 Oct 2026
+  const set = (w, r, done) => ({ w, r, done });
+  E.STATE.w[mon] = { date: mon, s: 'push1', fin: true, ex: [{ id: 'chest_press', sets: [set(3, 8, true), set(3, 8, true), { t: 'w', w: 1, r: 8, done: true }] }] };
+  E.STATE.w[E.addDays(mon, -1)] = { date: E.addDays(mon, -1), s: 'legs', fin: true, ex: [{ id: 'chest_press', sets: [set(3, 8, true)] }] }; // last week: out
+  const today = { date: t, s: 'pull', ex: [{ id: 'pulldown', sets: [set(90, 8, true), set(90, null, false), { t: 'w', w: 40, r: null, done: false }] }] };
+  E.STATE.w[t] = today; E.bump();
+  let v = E.volWeek();
+  ok(v.ws === mon && v.we === sun, 'Volume covers the calendar week, Monday to Sunday');
+  ok(v.by.chest.dir === 2 && v.by.triceps.ind === 1 && v.by.delt_f.ind === 1, 'done sets: direct count 1, secondaries half; warm-ups and last week left out');
+  ok(v.by.back.dir === 1 && v.by.biceps.ind === 0.5, "today's ticked sets count as done");
+  const todayPlan = v.detail.back.filter(r => r.kind === 'plan' && r.date === t);
+  ok(todayPlan.length === 1 && todayPlan[0].sets === 1, "today's unticked working set counts as planned (the warm-up doesn't)");
+  ok(v.sess.map(x => x.date).join() === [t, ...[1, 2, 3, 4, 5].map(k => E.addDays(t, k))].join() && v.sess.map(x => x.s).join() === 'pull,push2,legs,push1,pull,push2', `planned sessions: rest of today, then the rotation to Sunday (${v.sess.map(x => x.s).join()})`);
+  const all = Object.values(v.detail).flat();
+  ok(all.every(r => r.kind === 'done' ? r.date <= t : r.kind === 'plan' ? r.date >= t && r.date <= sun : r.date === nextMon), 'done rows are this week up to today, planned rows the rest of the week, next rows next Monday');
+  const sumK = (g, k) => (v.detail[g] || []).filter(r => r.kind === k).reduce((a, r) => a + r.credit, 0);
+  ok(Object.keys(v.by).every(g => Math.abs(sumK(g, 'plan') - v.by[g].plan) < 1e-9 && Math.abs(sumK(g, 'next') - v.by[g].next) < 1e-9), 'the breakdown adds up to the bars');
+  ok(v.by.triceps.plan > 0 && v.detail.triceps.some(r => r.kind === 'plan' && r.sec), 'planned compounds give their secondary muscles half credit');
+  ok(v.detail.quads?.some(r => r.kind === 'next') && v.by.quads.next > 0, `next Monday's Legs shows apart as +${v.by.quads?.next} Mon`);
+  const before = v.by.back.dir + v.by.back.plan;
+  today.ex[0].sets[1] = set(90, 8, true); E.bump(); v = E.volWeek();
+  ok(v.by.back.dir === 2 && v.by.back.dir + v.by.back.plan === before, 'ticking a set moves it from planned to done; the total stays');
+  today.fin = true; E.bump(); v = E.volWeek();
+  ok(!v.detail.back.some(r => r.kind === 'plan' && r.date === t), "a finished session's leftover sets aren't planned any more");
+  E.S().restPlan = [E.addDays(t, 1)]; E.bump(); v = E.volWeek();
+  ok(v.sess[0].s === '_rest' && v.sess[1].s === 'push2', 'a planned rest day pushes the sessions back and the caption follows');
+  E.S().restPlan = [];
+  E.setNow(Date.UTC(2026, 9, 18, 2)); E.bump(); v = E.volWeek();
+  ok(v.ws === mon && v.sess.length === 1 && v.sess[0].date === sun && Object.values(v.detail).flat().every(r => r.kind !== 'plan' || r.date === sun), 'on Sunday only the rest of Sunday is planned');
+  ok(Object.values(v.by).some(x => x.next > 0), "on Sunday, Monday's session still shows as next");
+  E.setNow(Date.UTC(2026, 9, 19, 2)); E.bump(); v = E.volWeek();
+  ok(v.ws === nextMon && !v.by.chest?.dir, 'a new week starts empty on Monday');
+}
+
+/* ---------- finished sessions and Done gating (v1.67) ---------- */
+if (load().isFin) {
+  const E = load(), F = E.FIN_FROM, before = E.addDays(F, -1);
+  ok(E.isFin({ date: before, s: 'push1', ex: [] }), 'a log from before the release with no fin flag counts as finished');
+  ok(!E.isFin({ date: F, s: 'push1', ex: [] }) && !E.isFin({ date: E.addDays(F, 3), s: 'push1', ex: [] }), 'a newer log without fin is in progress');
+  ok(E.isFin({ date: F, s: 'push1', fin: true, ex: [] }), 'Done (fin) finishes it');
+  ok(E.isFin({ date: F, s: 'r1', rest: true, ex: [] }), 'a rest day has nothing to fill and counts as finished');
+  const w = (...ex) => ({ date: F, s: 'push1', ex });
+  ok(!E.allFilled(w({ id: 'chest_press', sets: [{ w: 3, r: 8, done: true }, { w: null, r: null }] })), 'an empty set keeps Done away');
+  ok(!E.allFilled(w({ id: 'chest_press', sets: [{ w: null, r: 8 }] })), 'reps without a weight is not filled for a loaded lift');
+  ok(!E.allFilled(w({ id: 'chest_press', sets: [{ w: 3, r: null }] })), 'a weight without reps is not filled');
+  ok(E.allFilled(w({ id: 'chest_press', sets: [{ w: 3, r: 8, done: true }, { t: 'w', w: 1, r: 8, done: true }] })), 'every set filled, warm-ups included, gives Done');
+  const bwId = Object.keys(E.S().ex).find(id => E.exDef(id).u === 'bw') || 'ab_roller';
+  ok(E.exDef(bwId).u === 'bw' && E.allFilled(w({ id: bwId, sets: [{ w: null, r: 12, done: true }] })), `a bodyweight lift (${bwId}) needs reps only`);
+  ok(E.allFilled(w({ id: 'chest_press', sets: [] })) && E.allFilled(w()), 'a removed set or exercise counts as filled');
 }
 
 console.log(`${passes} passed, ${fails} failed`);

@@ -27,7 +27,8 @@ const ok = (c, msg) => { if (c) passes++; else { fails++; console.log('FAIL', ms
   // cardio and duration folded; removing cardio drops it from the summary
   ok(await p.locator('#cmin').count() === 0 && /Cardio and duration/.test(await p.locator('[data-act="extras"]').innerText()), 'cardio folded by default');
   await p.evaluate(() => document.activeElement.blur()); await p.waitForTimeout(100); await p.click('[data-act="extras"]'); await p.click('[data-act="cardiorem"]');
-  await p.fill('#r0_0', '9'); await p.click('[data-act="logdone"]'); await p.waitForSelector('.hero.just, .hero');
+  await p.fill('#r0_0', '9'); await p.evaluate(() => { for (const e of STATE.w[today()].ex) for (const s of e.sets) { s.w = s.w ?? 20; s.r = s.r || 8; s.done = true; } saveW(today()); render(true); }); // v1.67: Done needs every set filled
+  await p.click('[data-act="logdone"]'); await p.waitForSelector('.hero.just, .hero');
   ok(await p.locator('.hero .stats .stat').count() === 2, 'summary: sets and duration only');
   await p.evaluate(() => { STATE.d[today()] = { acts: [{ n: 'Stairmaster', t: '18:30', min: 24 }] }; bump(); sweepCardio(); render(true); });
   ok(await p.locator('.hero .stats .stat').count() === 3 && /24/.test(await p.locator('.hero .stats').innerText()), 'WHOOP cardio after removal: it comes back');

@@ -271,11 +271,13 @@ function sessTopTxt(w) { // the session bar's line: done working sets of all wor
   const sd = sessDef(w.s), st = wStats(w), n = sum((w.ex || []).map(e => e.sets.filter(x => x.t !== 'w').length));
   return `${sd?.focus ? sd.focus + ' · ' : ''}${st.sets} / ${n} sets${st.kg ? ` · ${fmt(st.kg / 1000, 1)} t moved` : ''}`;
 }
+// v1.67: today's log offers Done only once every set has weight and reps; until then Save keeps it in progress
+function endBtn(w) { return allFilled(w) ? `<button class="btn wide" id="logend" data-act="logdone">Done</button>` : `<button class="btn wide" id="logend" data-act="logkeep">Save</button>`; }
 function logBody(d) {
   const w = STATE.w[d], t = today(), past = d < t;
   let h = '';
   if (past && w && !emptyW(w) && ui.logEdit !== d) return readLogHTML(w); // v1.46: a past day opens read-only; Edit unlocks it
-  const saveBtn = `<button class="btn sm" data-act="logsave">Save</button>`, doneBtn = past ? `<button class="btn wide" data-act="logsave">Save</button>` : `<button class="btn wide" data-act="logdone">Done</button>`;
+  const saveBtn = `<button class="btn sm" data-act="logsave">Save</button>`, doneBtn = past ? `<button class="btn wide" data-act="logsave">Save</button>` : endBtn(w);
   if (w && w.rest) {
     if (autoCardio(w)) saveW(w.date);
     h += `<section class="card"><div class="card-h"><h2>Rest day</h2>${past ? saveBtn : isRestSlot(w.s) ? pill('', 'Planned') : pill('', 'Logged')}</div><p class="small dim">No lifting logged.${d === t ? ` ${isRestSlot(w.s) ? 'Planned rest from your rotation.' : 'The rotation waits.'} Tomorrow: ${esc(slotName(sessionFor(addDays(d, 1))))}.` : ''} Cardio and notes are optional.</p>
@@ -310,7 +312,7 @@ function logBody(d) {
   h += pickerHTML(w);
   h += extrasHTML(w, wl);
   h += `<section class="card"><label class="fl">Session notes<textarea class="in" id="wnote" data-in="note" placeholder="Anything worth remembering next time">${esc(w.note || '')}</textarea></label></section>`;
-  h += empty ? `<button class="btn wide" data-act="logdone">Done</button>` : doneBtn;
+  h += doneBtn;
   h += `<button class="link danger delw" data-act="delw1" style="align-self:flex-start">Delete this session</button>`; // two taps (v1.36)
   return h;
 }
@@ -437,7 +439,7 @@ function cardioCard(w) {
 
 /* ---------- History ---------- */
 function vHistory() {
-  const ws = workoutsSorted().reverse().filter(w => !emptyW(w)), nNotes = noteEntries().length;
+  const ws = workoutsSorted().reverse().filter(w => !emptyW(w) && isFin(w)), nNotes = noteEntries().length;
   let h = `<div class="page-h"><div><div class="eyebrow">${ws.filter(w => !w.rest).length} sessions logged</div><h1>History</h1></div>
     <div class="seg" role="group" aria-label="View"><button class="${ui.hist !== 'notes' ? 'on' : ''}" data-act="histview" data-v="sessions">Sessions</button><button class="${ui.hist === 'notes' ? 'on' : ''}" data-act="histview" data-v="notes">Notes${nNotes ? ` ${nNotes}` : ''}</button></div></div>`;
   if (ui.hist === 'notes') return h + vNotes();
@@ -612,23 +614,31 @@ function vStrength() {
   // Bands from research, not from the plan: ~3 hard sets a week held size and strength in younger adults (Bickel et al., 2011:
   // a ninth of the training dose, one set of each of three exercises once a week); 10-20 a week is the usual growth range,
   // with diminishing returns above it (Schoenfeld et al., 2017; Pelland et al., 2024).
-  const HOLD = 3, GLO = 10, GHI = 20, plan = planWeekly(S().prog), done = doneByGroup(addDays(t, -6), t), gs = GROUP_ORDER.filter(g => plan[g] || done[g]);
-  const mx = Math.max(GHI + 2, ...gs.map(g => done[g] || 0)), pc = v => v / mx * 100;
-  // a muscle whose session is still coming in the next 2 days isn't behind, it's due: grey, not amber (v1.36)
-  const due = new Set(upcoming(3).filter(x => !x.done && sessDef(x.s)).flatMap(x => sessDef(x.s).items.flatMap(it => [exDef(it.ex).g, ...(exDef(it.ex).g2 || SECONDARY[it.ex] || [])])));
-  const tone = (n, g) => n < HOLD ? (due.has(g) ? 'due' : 'warn') : n >= GLO ? 'good' : '';
-  cards.push({ k: 'volume', t: 'Volume, last 7 days', h: `<section class="sec" data-card="volume"><div class="sec-h"><span class="eyebrow">Volume · last 7 days</span></div><section class="card"><div class="legend"><span><i class="ln" style="background:var(--s1);height:8px;width:12px"></i>Sets done</span><span><i class="tk"></i>Hold, ~${HOLD}</span><span><i class="bandk"></i>Grow, ${GLO}–${GHI}</span></div>
-    <ul class="hbars">${gs.map(g => { const n = done[g] || 0, tn = tone(n, g); return `<li><span class="lab">${esc(GROUPS[g])}</span><span class="trk"><span class="band" style="left:${pc(GLO)}%;width:${pc(GHI) - pc(GLO)}%"></span><span class="fill" style="width:${pc(Math.min(n, mx))}%"></span><span class="tgt" style="left:calc(${pc(HOLD)}% - 1px)"></span></span><span class="v ${tn ? 'tn-' + tn : ''}"${tn === 'due' ? ' title="Its session is coming up"' : ''}>${fmt(n, 1)}</span></li>`; }).join('')}</ul>
-    ${infoHTML('Hard sets per muscle over the last 7 days; compounds count half for the muscles they also work, and warm-ups don\'t count. About 3 a week holds (Bickel et al., 2011); 10–20 grows (Schoenfeld et al., 2017; Pelland et al., 2024). Grey: that muscle\'s session is due in the next 2 days.')}</section></section>` });
+  const HOLD = 3, GLO = 10, GHI = 20, vw = volWeek(t), plan = planWeekly(S().prog), gs = GROUP_ORDER.filter(g => plan[g] || vw.by[g]);
+  const V = g => vw.by[g] || { dir: 0, ind: 0, plan: 0, next: 0 };
+  const mx = Math.max(GHI + 2, ...gs.map(g => V(g).dir + V(g).ind + V(g).plan)), pc = v => v / mx * 100;
+  // v1.67: calendar week with the rest of it projected. Solid = done, lighter = done at half credit, outlined = planned.
+  // The band stays soft: no warning colour below it, the bar's place against it says enough.
+  const seg = (cls, from, n) => n > 0 ? `<span class="${cls}" style="left:${pc(from)}%;width:${pc(Math.min(n, mx - from))}%"></span>` : '';
+  const dayLab = d => d === t ? 'Today' : fmtDow(d);
+  const capt = vw.sess.length ? `Planned: ${vw.sess.map(x => `${dayLab(x.date)} ${esc(slotName(x.s))}`).join(', ')}` : 'Nothing more planned this week';
+  cards.push({ k: 'volume', t: 'Volume, this week', h: `<section class="sec" data-card="volume"><div class="sec-h"><span class="eyebrow">Volume · this week</span><span class="xs muted">${esc(fmtDate(vw.ws))} – ${esc(fmtDate(vw.we))}</span></div><section class="card"><div class="legend"><span><i class="vk dir"></i>Done</span><span><i class="vk ind"></i>Done, half credit</span><span><i class="vk plan"></i>Planned</span><span><i class="tk"></i>Hold, ~${HOLD}</span><span><i class="bandk"></i>Grow, ${GLO}–${GHI}</span></div>
+    <ul class="hbars proj">${gs.map(g => { const v = V(g), done = v.dir + v.ind;
+      return `<li data-act="volg" data-g="${g}" role="button" tabindex="0" class="${ui.volG === g ? 'on' : ''}" aria-label="${esc(GROUPS[g])}: ${fmt(done, 1)} done, ${fmt(v.plan, 1)} planned. Show breakdown"><span class="lab">${esc(GROUPS[g])}</span><span class="v">${fmt(done, 1)} done${v.plan ? ` <span class="pl">+ ${fmt(v.plan, 1)} planned</span>` : ''}${v.next ? ` <span class="nx">+${fmt(v.next, 1)} Mon</span>` : ''}</span>
+        <span class="trk"><span class="band" style="left:${pc(GLO)}%;width:${pc(GHI) - pc(GLO)}%"></span>${seg('fill', 0, v.dir)}${seg('fill ind', v.dir, v.ind)}${seg('fill plan', done, v.plan)}<span class="tgt" style="left:calc(${pc(HOLD)}% - 1px)"></span></span></li>`; }).join('')}</ul>
+    <p class="xs muted vcap">${capt}</p>
+    ${infoHTML('Hard sets per muscle this week (Monday to Sunday); compounds count half for the muscles they also work, and warm-ups don\'t count. Planned is the rest of today\'s sets and the sessions your rotation puts on the days left, at each exercise\'s set count; it turns solid as you tick sets. +Mon: next Monday\'s session. Tap a bar for its exercises. About 3 a week holds (Bickel et al., 2011); 10–20 grows (Schoenfeld et al., 2017; Pelland et al., 2024).')}</section></section>` });
   cards.push({ k: 'repmax', t: 'Rep maxes', h: repMaxHTML(pick) });
   cards.push({ k: 'heat', t: 'Weekly sets by muscle', h: heatHTML() });
   cards.push({ k: 'prs', t: 'New bests', h: prTimelineHTML() });
   cards.push({ k: 'recperf', t: 'Recovery and performance', h: recPerfHTML() });
   cards.push({ k: 'order', t: 'Exercise order', h: orderHTML() });
-  const det = doneByGroupDetail(addDays(t, -6), t), dg = GROUP_ORDER.filter(g => det[g]);
-  if (dg.length) cards.push({ k: 'volsrc', t: 'Volume breakdown', h: `<section class="sec" data-card="volsrc"><div class="sec-h"><span class="eyebrow">Volume breakdown · last 7 days</span></div><section class="card"><div class="tblwrap"><table class="tbl volsrc"><thead><tr><th>Exercise</th><th class="n">Sets</th><th class="n">Counts</th></tr></thead>
-    ${dg.map(g => `<tbody><tr class="grp"><th scope="rowgroup">${esc(GROUPS[g])}</th><td></td><td class="n">${fmt(sum(det[g].map(r => r.credit)), 1)}</td></tr>
-      ${det[g].map(r => `<tr${r.sec ? ' class="sec2"' : ''}><td>${esc(exDef(r.id).name)}${r.sec ? ' <span class="xs muted">· half</span>' : ''}</td><td class="n">${r.sets}</td><td class="n">${fmt(r.credit, 1)}</td></tr>`).join('')}</tbody>`).join('')}
+  // the breakdown behind the Volume bars: this week's exercises per muscle, the day each is done or planned, direct or half
+  const det = vw.detail, dg = GROUP_ORDER.filter(g => det[g] && (!ui.volG || ui.volG === g));
+  const kindLab = r => r.kind === 'done' ? dayLab(r.date) : r.kind === 'next' ? `${fmtDow(r.date)}, next week` : `${dayLab(r.date)}, planned`;
+  if (dg.length) cards.push({ k: 'volsrc', t: 'Volume breakdown', h: `<section class="sec" data-card="volsrc"><div class="sec-h"><span class="eyebrow">Volume breakdown · this week${ui.volG ? ` · ${esc(GROUPS[ui.volG])}` : ''}</span>${ui.volG ? '<button class="link" data-act="volg" data-g="">All muscles</button>' : ''}</div><section class="card"><div class="tblwrap"><table class="tbl volsrc"><thead><tr><th>Exercise</th><th>Day</th><th class="n">Sets</th><th class="n">Counts</th></tr></thead>
+    ${dg.map(g => { const v = V(g); return `<tbody><tr class="grp"><th scope="rowgroup" colspan="2">${esc(GROUPS[g])}</th><td></td><td class="n">${fmt(v.dir + v.ind, 1)}${v.plan ? `<span class="pl"> + ${fmt(v.plan, 1)}</span>` : ''}</td></tr>
+      ${det[g].map(r => `<tr class="${r.sec ? 'sec2' : ''}${r.kind !== 'done' ? ' plan' : ''}"><td>${esc(exDef(r.id).name)} <span class="xs muted">· ${r.sec ? 'half' : 'direct'}</span></td><td class="dy">${esc(kindLab(r))}</td><td class="n">${r.sets}</td><td class="n">${fmt(r.credit, 1)}</td></tr>`).join('')}</tbody>`; }).join('')}
     </table></div></section></section>` });
   return h + arrange('strength', cards);
 }
@@ -765,7 +775,7 @@ function vPlan() {
   h += `<section class="sec"><div class="sec-h"><span class="eyebrow">Exercises</span><button class="link" data-act="newex">+ Exercise</button></div><section class="card">
     <div class="srch">${ICON.search}<input class="in left" id="exq" type="text" inputmode="search" enterkeyhint="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search by name or muscle" aria-label="Search exercises" value="${esc(q)}"><button class="srch-x" id="exqx" data-act="exqclear" aria-label="Clear search" ${q ? '' : 'hidden'}>${ICON.x}</button></div>
     <ul class="rows exlist" id="exlist">
-    ${exs.map(([id, x]) => { const hide = ui.editEx !== id && !exMatch(exHay(x), q) ? ' hidden' : '', hay = ` data-q="${esc(exHay(x))}"`; return ui.editEx === id ? `<li style="display:block" data-edit="1"${hay}>${exEditor(id, x)}</li>` : `<li${hay}${hide}><span>${esc(x.name)}</span><button class="link" data-act="editex" data-id="${id}">Edit</button><span class="sub">${esc(GROUPS[x.g] || '')} · ${esc(UNITS[x.u]?.label || x.u)} · ${x.lo}–${x.hi} reps${x.base && x.base.r ? ` · max ${esc(fmtSet(id, x.base))}` : ''}</span></li>`; }).join('')}
+    ${exs.map(([id, x]) => { const hide = ui.editEx !== id && !exMatch(exHay(x), q) ? ' hidden' : '', hay = ` data-q="${esc(exHay(x))}"`; return ui.editEx === id ? `<li style="display:block" data-edit="1"${hay}>${exEditor(id, x)}</li>` : `<li class="exrow" data-act="editex" data-id="${id}"${hay}${hide}><span>${esc(x.name)}</span><button class="link" data-act="editex" data-id="${id}">Edit</button><span class="sub">${esc(GROUPS[x.g] || '')} · ${esc(UNITS[x.u]?.label || x.u)} · ${x.lo}–${x.hi} reps${x.base && x.base.r ? ` · max ${esc(fmtSet(id, x.base))}` : ''}</span></li>`; }).join('')}
   </ul><p class="xs muted" id="exnone" ${shown ? 'hidden' : ''}>No exercises match.</p></section></section>`;
 
   }

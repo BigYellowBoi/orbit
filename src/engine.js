@@ -53,6 +53,13 @@ function emptyW(w) { // a session started here (w.nw, set by Log) with nothing i
 }
 /* Working sets: done, with reps, not warm-ups. Sets carry an optional type t (v1.36): 'w' warm-up (left out of volume,
    bests, history and the Aim's set count), 'd' drop set (counts as a working set). */
+/* Finished sessions (v1.67): a log stays in progress until Done (w.fin). Logs from before that release have no flag and
+   count as finished, as do rest days and logs made on a past day. In-progress ticked sets still count for Volume and the heatmap. */
+const FIN_FROM = '2026-10-25';
+function isFin(w) { return !!w && (!!w.fin || !!w.rest || w.date < FIN_FROM); }
+const NOLOAD = new Set(['bw']); // units with no load to fill in: reps alone fill a set
+function setFilled(s, u) { return s.r > 0 && (NOLOAD.has(u) || s.w != null); }
+function allFilled(w) { return !!w && (w.ex || []).every(e => (e.sets || []).every(s => setFilled(s, exDef(e.id).u))); } // a removed set or exercise is simply gone
 function doneSets(ex) { return (ex.sets || []).filter(s => s.done && s.r > 0 && s.t !== 'w'); }
 /* Warm-up ladder under a working weight: 1 to 3 sets, rising in load and falling in reps, rounded to the lift's step
    (a common scheme: about 50% x 8, 70% x 5, 85% x 3 before the top set). */
@@ -453,17 +460,6 @@ function planWeekly(prog) { // sets per week if one session is trained every day
 /* Muscles a compound also trains hard, counted at half a set each: the "fractional" count that predicted growth best in
    Pelland et al. (2024). Library lifts only; an exercise can carry its own list as exDef().g2. */
 const SECONDARY = { incline_db: ['triceps', 'delt_f'], chest_press: ['triceps', 'delt_f'], cable_fly: ['delt_f'], tbar: ['biceps', 'delt_r'], pulldown: ['biceps'], seated_row: ['biceps', 'delt_r'], shoulder_press: ['triceps'] };
-function doneByGroupDetail(from, to) { // what makes up doneByGroup: per muscle, each exercise's sets and the credit they give
-  const out = {};
-  for (const w of Object.values(STATE.w)) if (w.date >= from && w.date <= to) for (const e of w.ex || []) {
-    const n = doneSets(e).length; if (!n) continue; const d = exDef(e.id);
-    const add = (g, k, sec) => { const a = out[g] = out[g] || {}, key = e.id + (sec ? ':2' : ''); const r = a[key] = a[key] || { id: e.id, sets: 0, credit: 0, sec }; r.sets += n; r.credit += n * k; };
-    add(d.g, 1, false);
-    for (const g of d.g2 || SECONDARY[e.id] || []) if (g !== d.g) add(g, 0.5, true);
-  }
-  for (const g in out) out[g] = Object.values(out[g]).sort((a, b) => b.credit - a.credit || a.sec - b.sec);
-  return out;
-}
 function doneByGroup(from, to, frac = true) {
   const out = {};
   for (const w of Object.values(STATE.w)) if (w.date >= from && w.date <= to) for (const e of w.ex || []) {
@@ -472,6 +468,35 @@ function doneByGroup(from, to, frac = true) {
     if (frac) for (const g of d.g2 || SECONDARY[e.id] || []) if (g !== d.g) out[g] = (out[g] || 0) + n / 2;
   }
   return out;
+}
+
+/* Volume this week with what's still to come (v1.67): Monday to Sunday, like the heatmap. Done is every ticked working set
+   this week (an in-progress log counts), split into direct and half credit. Planned is the rest: today's unticked working
+   sets (or today's Plan session if nothing is logged yet) and the rotation sessions upcoming() puts on the remaining days,
+   rest slots included, at defSets() each. Same credit as doneByGroup. Next Monday's session is kept apart (next) so a
+   muscle never looks behind only because the week is ending. */
+function volWeek(t = today()) {
+  const ws = weekStart(t), we = addDays(ws, 6), mon = addDays(we, 1), by = {}, rows = {}, sess = [];
+  const add = (id, n, date, kind) => { if (!n) return; const d = exDef(id);
+    const one = (g, k, sec) => { const x = by[g] = by[g] || { dir: 0, ind: 0, plan: 0, next: 0 }; x[kind === 'done' ? (sec ? 'ind' : 'dir') : kind] += n * k;
+      const key = [g, id, date, sec, kind].join('|'), r = rows[key] = rows[key] || { g, id, date, sec, kind, sets: 0, credit: 0 }; r.sets += n; r.credit += n * k; };
+    one(d.g, 1, false); for (const g of d.g2 || SECONDARY[id] || []) if (g !== d.g) one(g, 0.5, true);
+  };
+  for (const w of Object.values(STATE.w)) if (w.date >= ws && w.date <= t) for (const e of w.ex || []) add(e.id, doneSets(e).length, w.date, 'done');
+  const rec = STATE.w[t];
+  if (rec && !rec.rest && !rec.fin) { let n = 0; // today's sets still to tick turn solid once ticked
+    for (const e of rec.ex || []) { const k = (e.sets || []).filter(s => s.t !== 'w' && !(s.done && s.r > 0)).length; add(e.id, k, t, 'plan'); n += k; }
+    if (n) sess.push({ date: t, s: rec.s });
+  }
+  for (const x of upcoming(8 - dowMon(t))) { // today through next Monday
+    if (x.date === t && rec) continue; if (x.date > mon) break;
+    const sd = sessDef(x.s), kind = x.date > we ? 'next' : 'plan';
+    if (kind === 'plan') sess.push({ date: x.date, s: x.s });
+    if (sd && !sd.rest) for (const it of sd.items) if (S().ex[it.ex]) add(it.ex, defSets(it.ex), x.date, kind);
+  }
+  const order = { done: 0, plan: 1, next: 2 }, list = Object.values(rows).sort((a, b) => order[a.kind] - order[b.kind] || (a.date < b.date ? -1 : a.date > b.date ? 1 : 0) || b.credit - a.credit || a.sec - b.sec);
+  const detail = {}; for (const r of list) (detail[r.g] = detail[r.g] || []).push(r);
+  return { ws, we, by, detail, sess };
 }
 
 /* ============================================================

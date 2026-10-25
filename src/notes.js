@@ -8,8 +8,8 @@ function notebook() { const nb = S().notebook || (S().notebook = {}); nb.general
 function noteEntries() {
   const nb = notebook(), out = [];
   for (const w of Object.values(STATE.w)) {
-    const groups = [...new Set((w.ex || []).filter(e => !w.rest).map(e => exDef(e.id).g))];
-    if (w.note && w.note.trim()) { const k = 's|' + w.date; if (!nb.hidden[k]) out.push({ k, date: w.date, groups: groups.length ? groups : ['general'], src: `${sessName(w)} · session note`, text: nb.edits[k] ?? w.note.trim(), edited: k in nb.edits }); }
+    // a session note belongs to the day, so it is filed once under General, not under each muscle trained
+    if (w.note && w.note.trim()) { const k = 's|' + w.date; if (!nb.hidden[k]) out.push({ k, date: w.date, groups: ['general'], src: `${sessName(w)} · session note`, text: nb.edits[k] ?? w.note.trim(), edited: k in nb.edits }); }
     for (const e of w.ex || []) if (e.note && e.note.trim()) { const k = `e|${w.date}|${e.id}`; if (!nb.hidden[k]) out.push({ k, date: w.date, groups: [exDef(e.id).g], src: `${sessName(w)} · ${exDef(e.id).name}`, text: nb.edits[k] ?? e.note.trim(), edited: k in nb.edits }); }
   }
   for (const n of nb.general) out.push({ k: 'g|' + n.id, date: n.date, groups: [n.g || 'general'], src: 'Added in Notes', text: n.text, general: true });

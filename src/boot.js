@@ -176,10 +176,11 @@ const SBOX = document.documentElement.classList.contains('sbox');
 const scroller = () => SBOX ? $('#scroll') : window;
 const scrollY0 = () => SBOX ? $('#scroll').scrollTop : window.scrollY;
 const scrollToY = (top, smooth) => scroller().scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' });
-function reveal(sel, room = 0) { // bring something just added fully onto the screen, clear of the header and tab bar
+function reveal(sel, room = 0, end = false) { // bring something just added fully onto the screen, clear of the header and tab bar
   setTimeout(() => {
     const el = typeof sel === 'string' ? $(sel) : sel; if (!el) return;
     const r = el.getBoundingClientRect(), top = ($('.top')?.getBoundingClientRect().bottom || 0) + 12, bot = ($('.tabs')?.getBoundingClientRect().top || innerHeight) - 12;
+    if (end && r.height > bot - top) { scrollToY(Math.max(0, scrollY0() + r.bottom - bot), true); return; } // taller than the screen: keep its end (a Save button) in view
     if (r.top < top || r.bottom + room > bot) scrollToY(Math.max(0, scrollY0() + r.top - top), true);
   }, 30);
 }
@@ -313,7 +314,7 @@ function go(tab) {
   if (tab === 'today') ui.logDate = null;
   if (tab !== 'log') ui.logEdit = null; // a past log goes back to read-only once you leave it (v1.46)
   if (tab !== 'injuries') ui.injForm = null; if (tab !== 'friends') { ui.frAdd = false; ui.frEdit = null; }
-  const prevTab = ui.tab; ui.tab = tab; ui.confirm = null; ui.pickSess = null; ui.editEx = null;
+  const prevTab = ui.tab; ui.tab = tab; ui.confirm = null; ui.pickSess = null; ui.editEx = null; ui.volG = null;
   if (tab === 'friends') setTimeout(frStale, 0); // links older than 10 minutes are read again
   if (backPast) { ui.logEdit = backPast.date; ui.exNote = backPast.exNote; ui.exHist = backPast.exHist; ui.exMore = backPast.exMore; ui.pick = backPast.pick; }
   const back = tab === 'today' && ui.logPlace && !leaving && prevTab !== 'today' && ui.logPlace.date === today() && STATE.w[today()] ? ui.logPlace : null;
@@ -361,6 +362,7 @@ const ACT = {
     if (STATE.w[date] && !STATE.w[date].rest) { open(); return; }
     if (!sessDef(sid) || isRestSlot(sid)) return;
     const w = newWorkoutAuto(date, sid); w.nw = 1; // marks a fresh start, so an untouched one can be dropped
+    if (date < today()) w.fin = true; // logged after the fact: finished, so History shows it (v1.67)
     STATE.w[date] = w; const rp = (S().restPlan || []).filter(d => d !== date && d >= today());
     if (S().rotOverride || rp.length !== (S().restPlan || []).length) { S().rotOverride = null; S().restPlan = rp; saveSettings(); } // training on a planned rest day drops the plan
     saveW(date); open();
@@ -383,8 +385,10 @@ const ACT = {
   logsave: () => {
     flushField();
     const d = ui.logDate; if (dropEmpty(d)) { toast('Nothing logged, so the session wasn’t kept'); go('history'); return; }
+    if (STATE.w[d] && !STATE.w[d].fin && d < today()) { STATE.w[d].fin = true; saveW(d); } // a past day is finished work (v1.67)
     ui.logEdit = null; ui.exNote = null; ui.exHist = null; ui.exMore = null; ui.pick = null; toast('Saved'); render(true);
   },
+  logkeep: () => { flushField(); const w = logW(); if (w) saveW(w.date); ui.editToday = !!w && !w.fin; toast(w && !w.fin ? 'Saved, still in progress' : 'Saved'); render(true); }, // v1.67: not every set is filled yet
   goal: el => { if (el.dataset.v === 'grow' && S().goal !== 'grow') S().growFrom = today(); S().goal = el.dataset.v; saveSettings(); render(true); },
   goalflip: () => { S().goal = S().goal === 'grow' ? 'hold' : 'grow'; if (S().goal === 'grow') S().growFrom = today(); saveSettings(); toast(S().goal === 'grow' ? `Aim set to overload, +${fmt((S().progRate ?? 0.005) * 100, 2)}% a week` : 'Aim set to maintenance'); render(true); },
   prograte: el => { S().progRate = +el.dataset.v; if (S().goal === 'grow') S().growFrom = today(); saveSettings(); render(true); },
@@ -495,6 +499,7 @@ const ACT = {
     const w = logW(); if (w && !w.rest) { const st = wStats(w); toast(`${esc(sessName(w))} saved · ${st.sets} set${st.sets === 1 ? '' : 's'}`); }
     if (ui.tab === 'today') { if (w) { w.fin = true; saveW(w.date); } ui.editToday = false; ui.justDone = true; resetScroll(); render(true); } else go('history');
   },
+  volg: el => { const g = el.dataset.g || null; ui.volG = g && ui.volG !== g ? g : null; render(true); if (ui.volG) reveal('[data-card="volsrc"]'); }, // a Volume bar opens its breakdown; tapped again, or All muscles, shows every muscle (v1.67)
   histview: el => { ui.hist = el.dataset.v; ui.noteEdit = null; render(true); },
   notefilter: el => { ui.noteG = el.dataset.v; ui.noteEdit = null; render(true); },
   notenew: () => { ui.noteNew = !ui.noteNew; render(true); },
@@ -524,7 +529,7 @@ const ACT = {
     ui.editEx = id; render(true); reveal('#exlist [data-edit]');
   },
   exqclear: () => { ui.exQ = ''; const i = $('#exq'); if (i) { i.value = ''; i.blur(); } filterEx(); }, // clearing never brings the keyboard up (v1.44)
-  editex: el => { const prev = ui.editEx; ui.editEx = el.dataset.id || null; if (prev && prev !== ui.editEx && (blankEx(prev) || S().ex[prev]?.fresh)) { delete S().ex[prev]; saveSettings(); } render(true); }, // leaving a new exercise unsaved (Discard, or opening another) drops it
+  editex: el => { const prev = ui.editEx; ui.editEx = el.dataset.id || null; if (prev && prev !== ui.editEx && (blankEx(prev) || S().ex[prev]?.fresh)) { delete S().ex[prev]; saveSettings(); } render(true); if (ui.editEx) reveal('#exlist [data-edit]', 0, true); }, // leaving a new exercise unsaved (Discard, or opening another) drops it; an opened editor scrolls fully into view, Save included
   saveex: el => {
     const x = S().ex[el.dataset.id]; if (!x) return; const x0 = clone(x); delete x.fresh;
     x.name = ($('#xe_n').value || '').trim() || x.name; x.g = $('#xe_g').value; x.u = $('#xe_u').value;
@@ -698,6 +703,7 @@ function setInput(el, final) {
   if (final && s.done && s.w != null && $(`#w${i}_${j}`) && $(`#w${i}_${j}`).value === '') $(`#w${i}_${j}`).value = fmt(s.w, 2).replace(/,/g, '');
   const sm = $('.sess-top .t small'); if (sm) sm.textContent = sessTopTxt(w);
   saveW(w.date); renderFab(); // the count of empty sets changes as you fill them
+  const end = $('#logend'); if (end) { const b = allFilled(w) ? ['logdone', 'Done'] : ['logkeep', 'Save']; if (end.dataset.act !== b[0]) { end.dataset.act = b[0]; end.textContent = b[1]; } } // Done appears once every set is filled
   if (final) { // v1.52: re-mark every set of this exercise, so a set corrected below the best loses its purple
     const now = new Set(prsIn({ date: w.date, ex: [e] }).map(p => p.s)), was = !!row?.classList.contains('pr');
     e.sets.forEach((x, k) => $(`#row${i}_${k}`)?.classList.toggle('pr', now.has(x)));

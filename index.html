@@ -343,6 +343,7 @@ button.sn { border: 0; background: transparent; padding: 0; min-height: 44px; te
 .rows > li:first-child { border-top: 0; }
 .rows > li .sub { grid-column: 1 / -1; font-size: 12.5px; color: var(--ink-3); }
 .rows > li[hidden] { display: none; }
+.rows > li.exrow { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .exlist > li { border-top: 0; } .exlist > li:not([hidden]) ~ li { border-top: 1px solid var(--line); } /* a line between visible rows only, while filtered */
 .srch { position: relative; margin-bottom: 6px; }
 .srch > svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--ink-3); pointer-events: none; }
@@ -377,6 +378,20 @@ button.sn { border: 0; background: transparent; padding: 0; min-height: 44px; te
 .hbars .band { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--good) 22%, transparent); border-radius: 2px; }
 .legend .bandk { width: 14px; height: 8px; border-radius: 2px; background: color-mix(in srgb, var(--good) 35%, transparent); }
 .hbars .v.tn-good { color: var(--good-ink); } .hbars .v.tn-warn { color: var(--warn-ink); } .hbars .v.tn-due { color: var(--ink-3); }
+/* v1.67 Volume with planned sets: label and numbers on one line, the bar under them; done solid, half credit lighter, planned outlined */
+.hbars.proj { gap: 10px; }
+.hbars.proj li { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; cursor: pointer; -webkit-tap-highlight-color: transparent; border-radius: 4px; }
+.hbars.proj li .trk { grid-column: 1 / -1; }
+.hbars.proj li.on .lab { color: var(--ink); font-weight: 600; }
+.hbars.proj .v { font-size: 11.5px; } .hbars.proj .v .pl, .tbl.volsrc .pl { color: var(--ink-3); } .hbars.proj .v .nx { color: var(--ink-3); margin-left: 4px; }
+.hbars .fill.ind { border-radius: 0; background: color-mix(in srgb, var(--s1) 50%, transparent); }
+.hbars .fill.plan { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--s1) 30%, transparent) 0 3px, transparent 3px 6px); box-shadow: inset 0 0 0 1px var(--s1); border-radius: 0 4px 4px 0; }
+.hbars .fill:has(+ .fill) { border-radius: 0; }
+.legend .vk { width: 14px; height: 8px; border-radius: 2px; background: var(--s1); } .legend .vk.ind { background: color-mix(in srgb, var(--s1) 50%, transparent); }
+.legend .vk.plan { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--s1) 30%, transparent) 0 3px, transparent 3px 6px); box-shadow: inset 0 0 0 1px var(--s1); }
+.vcap { margin: 10px 0 0; }
+.tbl.volsrc tr.plan td, .tbl.volsrc tr.plan td:first-child { color: var(--ink-3); font-style: italic; }
+.tbl.volsrc td.dy { white-space: nowrap; font-size: 12.5px; color: var(--ink-2); }
 details.info summary { list-style: none; cursor: pointer; font-size: 12.5px; color: var(--ink-3); display: inline-flex; align-items: center; gap: 6px; min-height: 32px; } details.info summary::-webkit-details-marker { display: none; }
 details.info summary::before { content: 'i'; width: 15px; height: 15px; border-radius: 50%; border: 1px solid currentColor; font: 600 10px/14px var(--f-mono); text-align: center; } details.info[open] summary { color: var(--ink-2); } details.info p { margin-top: 4px; }
 .tbl.lifts tr.grp th { font-family: var(--f-body); font-size: 12.5px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--ink-2); padding-top: 14px; }
@@ -688,7 +703,7 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.66'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.67'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
@@ -755,6 +770,13 @@ function emptyW(w) { // a session started here (w.nw, set by Log) with nothing i
 }
 /* Working sets: done, with reps, not warm-ups. Sets carry an optional type t (v1.36): 'w' warm-up (left out of volume,
    bests, history and the Aim's set count), 'd' drop set (counts as a working set). */
+/* Finished sessions (v1.67): a log stays in progress until Done (w.fin). Logs from before that release have no flag and
+   count as finished, as do rest days and logs made on a past day. In-progress ticked sets still count for Volume and the heatmap. */
+const FIN_FROM = '2026-10-25';
+function isFin(w) { return !!w && (!!w.fin || !!w.rest || w.date < FIN_FROM); }
+const NOLOAD = new Set(['bw']); // units with no load to fill in: reps alone fill a set
+function setFilled(s, u) { return s.r > 0 && (NOLOAD.has(u) || s.w != null); }
+function allFilled(w) { return !!w && (w.ex || []).every(e => (e.sets || []).every(s => setFilled(s, exDef(e.id).u))); } // a removed set or exercise is simply gone
 function doneSets(ex) { return (ex.sets || []).filter(s => s.done && s.r > 0 && s.t !== 'w'); }
 /* Warm-up ladder under a working weight: 1 to 3 sets, rising in load and falling in reps, rounded to the lift's step
    (a common scheme: about 50% x 8, 70% x 5, 85% x 3 before the top set). */
@@ -1155,17 +1177,6 @@ function planWeekly(prog) { // sets per week if one session is trained every day
 /* Muscles a compound also trains hard, counted at half a set each: the "fractional" count that predicted growth best in
    Pelland et al. (2024). Library lifts only; an exercise can carry its own list as exDef().g2. */
 const SECONDARY = { incline_db: ['triceps', 'delt_f'], chest_press: ['triceps', 'delt_f'], cable_fly: ['delt_f'], tbar: ['biceps', 'delt_r'], pulldown: ['biceps'], seated_row: ['biceps', 'delt_r'], shoulder_press: ['triceps'] };
-function doneByGroupDetail(from, to) { // what makes up doneByGroup: per muscle, each exercise's sets and the credit they give
-  const out = {};
-  for (const w of Object.values(STATE.w)) if (w.date >= from && w.date <= to) for (const e of w.ex || []) {
-    const n = doneSets(e).length; if (!n) continue; const d = exDef(e.id);
-    const add = (g, k, sec) => { const a = out[g] = out[g] || {}, key = e.id + (sec ? ':2' : ''); const r = a[key] = a[key] || { id: e.id, sets: 0, credit: 0, sec }; r.sets += n; r.credit += n * k; };
-    add(d.g, 1, false);
-    for (const g of d.g2 || SECONDARY[e.id] || []) if (g !== d.g) add(g, 0.5, true);
-  }
-  for (const g in out) out[g] = Object.values(out[g]).sort((a, b) => b.credit - a.credit || a.sec - b.sec);
-  return out;
-}
 function doneByGroup(from, to, frac = true) {
   const out = {};
   for (const w of Object.values(STATE.w)) if (w.date >= from && w.date <= to) for (const e of w.ex || []) {
@@ -1174,6 +1185,35 @@ function doneByGroup(from, to, frac = true) {
     if (frac) for (const g of d.g2 || SECONDARY[e.id] || []) if (g !== d.g) out[g] = (out[g] || 0) + n / 2;
   }
   return out;
+}
+
+/* Volume this week with what's still to come (v1.67): Monday to Sunday, like the heatmap. Done is every ticked working set
+   this week (an in-progress log counts), split into direct and half credit. Planned is the rest: today's unticked working
+   sets (or today's Plan session if nothing is logged yet) and the rotation sessions upcoming() puts on the remaining days,
+   rest slots included, at defSets() each. Same credit as doneByGroup. Next Monday's session is kept apart (next) so a
+   muscle never looks behind only because the week is ending. */
+function volWeek(t = today()) {
+  const ws = weekStart(t), we = addDays(ws, 6), mon = addDays(we, 1), by = {}, rows = {}, sess = [];
+  const add = (id, n, date, kind) => { if (!n) return; const d = exDef(id);
+    const one = (g, k, sec) => { const x = by[g] = by[g] || { dir: 0, ind: 0, plan: 0, next: 0 }; x[kind === 'done' ? (sec ? 'ind' : 'dir') : kind] += n * k;
+      const key = [g, id, date, sec, kind].join('|'), r = rows[key] = rows[key] || { g, id, date, sec, kind, sets: 0, credit: 0 }; r.sets += n; r.credit += n * k; };
+    one(d.g, 1, false); for (const g of d.g2 || SECONDARY[id] || []) if (g !== d.g) one(g, 0.5, true);
+  };
+  for (const w of Object.values(STATE.w)) if (w.date >= ws && w.date <= t) for (const e of w.ex || []) add(e.id, doneSets(e).length, w.date, 'done');
+  const rec = STATE.w[t];
+  if (rec && !rec.rest && !rec.fin) { let n = 0; // today's sets still to tick turn solid once ticked
+    for (const e of rec.ex || []) { const k = (e.sets || []).filter(s => s.t !== 'w' && !(s.done && s.r > 0)).length; add(e.id, k, t, 'plan'); n += k; }
+    if (n) sess.push({ date: t, s: rec.s });
+  }
+  for (const x of upcoming(8 - dowMon(t))) { // today through next Monday
+    if (x.date === t && rec) continue; if (x.date > mon) break;
+    const sd = sessDef(x.s), kind = x.date > we ? 'next' : 'plan';
+    if (kind === 'plan') sess.push({ date: x.date, s: x.s });
+    if (sd && !sd.rest) for (const it of sd.items) if (S().ex[it.ex]) add(it.ex, defSets(it.ex), x.date, kind);
+  }
+  const order = { done: 0, plan: 1, next: 2 }, list = Object.values(rows).sort((a, b) => order[a.kind] - order[b.kind] || (a.date < b.date ? -1 : a.date > b.date ? 1 : 0) || b.credit - a.credit || a.sec - b.sec);
+  const detail = {}; for (const r of list) (detail[r.g] = detail[r.g] || []).push(r);
+  return { ws, we, by, detail, sess };
 }
 
 /* ============================================================
@@ -1916,8 +1956,8 @@ function notebook() { const nb = S().notebook || (S().notebook = {}); nb.general
 function noteEntries() {
   const nb = notebook(), out = [];
   for (const w of Object.values(STATE.w)) {
-    const groups = [...new Set((w.ex || []).filter(e => !w.rest).map(e => exDef(e.id).g))];
-    if (w.note && w.note.trim()) { const k = 's|' + w.date; if (!nb.hidden[k]) out.push({ k, date: w.date, groups: groups.length ? groups : ['general'], src: `${sessName(w)} · session note`, text: nb.edits[k] ?? w.note.trim(), edited: k in nb.edits }); }
+    // a session note belongs to the day, so it is filed once under General, not under each muscle trained
+    if (w.note && w.note.trim()) { const k = 's|' + w.date; if (!nb.hidden[k]) out.push({ k, date: w.date, groups: ['general'], src: `${sessName(w)} · session note`, text: nb.edits[k] ?? w.note.trim(), edited: k in nb.edits }); }
     for (const e of w.ex || []) if (e.note && e.note.trim()) { const k = `e|${w.date}|${e.id}`; if (!nb.hidden[k]) out.push({ k, date: w.date, groups: [exDef(e.id).g], src: `${sessName(w)} · ${exDef(e.id).name}`, text: nb.edits[k] ?? e.note.trim(), edited: k in nb.edits }); }
   }
   for (const n of nb.general) out.push({ k: 'g|' + n.id, date: n.date, groups: [n.g || 'general'], src: 'Added in Notes', text: n.text, general: true });
@@ -2369,11 +2409,13 @@ function sessTopTxt(w) { // the session bar's line: done working sets of all wor
   const sd = sessDef(w.s), st = wStats(w), n = sum((w.ex || []).map(e => e.sets.filter(x => x.t !== 'w').length));
   return `${sd?.focus ? sd.focus + ' · ' : ''}${st.sets} / ${n} sets${st.kg ? ` · ${fmt(st.kg / 1000, 1)} t moved` : ''}`;
 }
+// v1.67: today's log offers Done only once every set has weight and reps; until then Save keeps it in progress
+function endBtn(w) { return allFilled(w) ? `<button class="btn wide" id="logend" data-act="logdone">Done</button>` : `<button class="btn wide" id="logend" data-act="logkeep">Save</button>`; }
 function logBody(d) {
   const w = STATE.w[d], t = today(), past = d < t;
   let h = '';
   if (past && w && !emptyW(w) && ui.logEdit !== d) return readLogHTML(w); // v1.46: a past day opens read-only; Edit unlocks it
-  const saveBtn = `<button class="btn sm" data-act="logsave">Save</button>`, doneBtn = past ? `<button class="btn wide" data-act="logsave">Save</button>` : `<button class="btn wide" data-act="logdone">Done</button>`;
+  const saveBtn = `<button class="btn sm" data-act="logsave">Save</button>`, doneBtn = past ? `<button class="btn wide" data-act="logsave">Save</button>` : endBtn(w);
   if (w && w.rest) {
     if (autoCardio(w)) saveW(w.date);
     h += `<section class="card"><div class="card-h"><h2>Rest day</h2>${past ? saveBtn : isRestSlot(w.s) ? pill('', 'Planned') : pill('', 'Logged')}</div><p class="small dim">No lifting logged.${d === t ? ` ${isRestSlot(w.s) ? 'Planned rest from your rotation.' : 'The rotation waits.'} Tomorrow: ${esc(slotName(sessionFor(addDays(d, 1))))}.` : ''} Cardio and notes are optional.</p>
@@ -2408,7 +2450,7 @@ function logBody(d) {
   h += pickerHTML(w);
   h += extrasHTML(w, wl);
   h += `<section class="card"><label class="fl">Session notes<textarea class="in" id="wnote" data-in="note" placeholder="Anything worth remembering next time">${esc(w.note || '')}</textarea></label></section>`;
-  h += empty ? `<button class="btn wide" data-act="logdone">Done</button>` : doneBtn;
+  h += doneBtn;
   h += `<button class="link danger delw" data-act="delw1" style="align-self:flex-start">Delete this session</button>`; // two taps (v1.36)
   return h;
 }
@@ -2535,7 +2577,7 @@ function cardioCard(w) {
 
 /* ---------- History ---------- */
 function vHistory() {
-  const ws = workoutsSorted().reverse().filter(w => !emptyW(w)), nNotes = noteEntries().length;
+  const ws = workoutsSorted().reverse().filter(w => !emptyW(w) && isFin(w)), nNotes = noteEntries().length;
   let h = `<div class="page-h"><div><div class="eyebrow">${ws.filter(w => !w.rest).length} sessions logged</div><h1>History</h1></div>
     <div class="seg" role="group" aria-label="View"><button class="${ui.hist !== 'notes' ? 'on' : ''}" data-act="histview" data-v="sessions">Sessions</button><button class="${ui.hist === 'notes' ? 'on' : ''}" data-act="histview" data-v="notes">Notes${nNotes ? ` ${nNotes}` : ''}</button></div></div>`;
   if (ui.hist === 'notes') return h + vNotes();
@@ -2710,23 +2752,31 @@ function vStrength() {
   // Bands from research, not from the plan: ~3 hard sets a week held size and strength in younger adults (Bickel et al., 2011:
   // a ninth of the training dose, one set of each of three exercises once a week); 10-20 a week is the usual growth range,
   // with diminishing returns above it (Schoenfeld et al., 2017; Pelland et al., 2024).
-  const HOLD = 3, GLO = 10, GHI = 20, plan = planWeekly(S().prog), done = doneByGroup(addDays(t, -6), t), gs = GROUP_ORDER.filter(g => plan[g] || done[g]);
-  const mx = Math.max(GHI + 2, ...gs.map(g => done[g] || 0)), pc = v => v / mx * 100;
-  // a muscle whose session is still coming in the next 2 days isn't behind, it's due: grey, not amber (v1.36)
-  const due = new Set(upcoming(3).filter(x => !x.done && sessDef(x.s)).flatMap(x => sessDef(x.s).items.flatMap(it => [exDef(it.ex).g, ...(exDef(it.ex).g2 || SECONDARY[it.ex] || [])])));
-  const tone = (n, g) => n < HOLD ? (due.has(g) ? 'due' : 'warn') : n >= GLO ? 'good' : '';
-  cards.push({ k: 'volume', t: 'Volume, last 7 days', h: `<section class="sec" data-card="volume"><div class="sec-h"><span class="eyebrow">Volume · last 7 days</span></div><section class="card"><div class="legend"><span><i class="ln" style="background:var(--s1);height:8px;width:12px"></i>Sets done</span><span><i class="tk"></i>Hold, ~${HOLD}</span><span><i class="bandk"></i>Grow, ${GLO}–${GHI}</span></div>
-    <ul class="hbars">${gs.map(g => { const n = done[g] || 0, tn = tone(n, g); return `<li><span class="lab">${esc(GROUPS[g])}</span><span class="trk"><span class="band" style="left:${pc(GLO)}%;width:${pc(GHI) - pc(GLO)}%"></span><span class="fill" style="width:${pc(Math.min(n, mx))}%"></span><span class="tgt" style="left:calc(${pc(HOLD)}% - 1px)"></span></span><span class="v ${tn ? 'tn-' + tn : ''}"${tn === 'due' ? ' title="Its session is coming up"' : ''}>${fmt(n, 1)}</span></li>`; }).join('')}</ul>
-    ${infoHTML('Hard sets per muscle over the last 7 days; compounds count half for the muscles they also work, and warm-ups don\'t count. About 3 a week holds (Bickel et al., 2011); 10–20 grows (Schoenfeld et al., 2017; Pelland et al., 2024). Grey: that muscle\'s session is due in the next 2 days.')}</section></section>` });
+  const HOLD = 3, GLO = 10, GHI = 20, vw = volWeek(t), plan = planWeekly(S().prog), gs = GROUP_ORDER.filter(g => plan[g] || vw.by[g]);
+  const V = g => vw.by[g] || { dir: 0, ind: 0, plan: 0, next: 0 };
+  const mx = Math.max(GHI + 2, ...gs.map(g => V(g).dir + V(g).ind + V(g).plan)), pc = v => v / mx * 100;
+  // v1.67: calendar week with the rest of it projected. Solid = done, lighter = done at half credit, outlined = planned.
+  // The band stays soft: no warning colour below it, the bar's place against it says enough.
+  const seg = (cls, from, n) => n > 0 ? `<span class="${cls}" style="left:${pc(from)}%;width:${pc(Math.min(n, mx - from))}%"></span>` : '';
+  const dayLab = d => d === t ? 'Today' : fmtDow(d);
+  const capt = vw.sess.length ? `Planned: ${vw.sess.map(x => `${dayLab(x.date)} ${esc(slotName(x.s))}`).join(', ')}` : 'Nothing more planned this week';
+  cards.push({ k: 'volume', t: 'Volume, this week', h: `<section class="sec" data-card="volume"><div class="sec-h"><span class="eyebrow">Volume · this week</span><span class="xs muted">${esc(fmtDate(vw.ws))} – ${esc(fmtDate(vw.we))}</span></div><section class="card"><div class="legend"><span><i class="vk dir"></i>Done</span><span><i class="vk ind"></i>Done, half credit</span><span><i class="vk plan"></i>Planned</span><span><i class="tk"></i>Hold, ~${HOLD}</span><span><i class="bandk"></i>Grow, ${GLO}–${GHI}</span></div>
+    <ul class="hbars proj">${gs.map(g => { const v = V(g), done = v.dir + v.ind;
+      return `<li data-act="volg" data-g="${g}" role="button" tabindex="0" class="${ui.volG === g ? 'on' : ''}" aria-label="${esc(GROUPS[g])}: ${fmt(done, 1)} done, ${fmt(v.plan, 1)} planned. Show breakdown"><span class="lab">${esc(GROUPS[g])}</span><span class="v">${fmt(done, 1)} done${v.plan ? ` <span class="pl">+ ${fmt(v.plan, 1)} planned</span>` : ''}${v.next ? ` <span class="nx">+${fmt(v.next, 1)} Mon</span>` : ''}</span>
+        <span class="trk"><span class="band" style="left:${pc(GLO)}%;width:${pc(GHI) - pc(GLO)}%"></span>${seg('fill', 0, v.dir)}${seg('fill ind', v.dir, v.ind)}${seg('fill plan', done, v.plan)}<span class="tgt" style="left:calc(${pc(HOLD)}% - 1px)"></span></span></li>`; }).join('')}</ul>
+    <p class="xs muted vcap">${capt}</p>
+    ${infoHTML('Hard sets per muscle this week (Monday to Sunday); compounds count half for the muscles they also work, and warm-ups don\'t count. Planned is the rest of today\'s sets and the sessions your rotation puts on the days left, at each exercise\'s set count; it turns solid as you tick sets. +Mon: next Monday\'s session. Tap a bar for its exercises. About 3 a week holds (Bickel et al., 2011); 10–20 grows (Schoenfeld et al., 2017; Pelland et al., 2024).')}</section></section>` });
   cards.push({ k: 'repmax', t: 'Rep maxes', h: repMaxHTML(pick) });
   cards.push({ k: 'heat', t: 'Weekly sets by muscle', h: heatHTML() });
   cards.push({ k: 'prs', t: 'New bests', h: prTimelineHTML() });
   cards.push({ k: 'recperf', t: 'Recovery and performance', h: recPerfHTML() });
   cards.push({ k: 'order', t: 'Exercise order', h: orderHTML() });
-  const det = doneByGroupDetail(addDays(t, -6), t), dg = GROUP_ORDER.filter(g => det[g]);
-  if (dg.length) cards.push({ k: 'volsrc', t: 'Volume breakdown', h: `<section class="sec" data-card="volsrc"><div class="sec-h"><span class="eyebrow">Volume breakdown · last 7 days</span></div><section class="card"><div class="tblwrap"><table class="tbl volsrc"><thead><tr><th>Exercise</th><th class="n">Sets</th><th class="n">Counts</th></tr></thead>
-    ${dg.map(g => `<tbody><tr class="grp"><th scope="rowgroup">${esc(GROUPS[g])}</th><td></td><td class="n">${fmt(sum(det[g].map(r => r.credit)), 1)}</td></tr>
-      ${det[g].map(r => `<tr${r.sec ? ' class="sec2"' : ''}><td>${esc(exDef(r.id).name)}${r.sec ? ' <span class="xs muted">· half</span>' : ''}</td><td class="n">${r.sets}</td><td class="n">${fmt(r.credit, 1)}</td></tr>`).join('')}</tbody>`).join('')}
+  // the breakdown behind the Volume bars: this week's exercises per muscle, the day each is done or planned, direct or half
+  const det = vw.detail, dg = GROUP_ORDER.filter(g => det[g] && (!ui.volG || ui.volG === g));
+  const kindLab = r => r.kind === 'done' ? dayLab(r.date) : r.kind === 'next' ? `${fmtDow(r.date)}, next week` : `${dayLab(r.date)}, planned`;
+  if (dg.length) cards.push({ k: 'volsrc', t: 'Volume breakdown', h: `<section class="sec" data-card="volsrc"><div class="sec-h"><span class="eyebrow">Volume breakdown · this week${ui.volG ? ` · ${esc(GROUPS[ui.volG])}` : ''}</span>${ui.volG ? '<button class="link" data-act="volg" data-g="">All muscles</button>' : ''}</div><section class="card"><div class="tblwrap"><table class="tbl volsrc"><thead><tr><th>Exercise</th><th>Day</th><th class="n">Sets</th><th class="n">Counts</th></tr></thead>
+    ${dg.map(g => { const v = V(g); return `<tbody><tr class="grp"><th scope="rowgroup" colspan="2">${esc(GROUPS[g])}</th><td></td><td class="n">${fmt(v.dir + v.ind, 1)}${v.plan ? `<span class="pl"> + ${fmt(v.plan, 1)}</span>` : ''}</td></tr>
+      ${det[g].map(r => `<tr class="${r.sec ? 'sec2' : ''}${r.kind !== 'done' ? ' plan' : ''}"><td>${esc(exDef(r.id).name)} <span class="xs muted">· ${r.sec ? 'half' : 'direct'}</span></td><td class="dy">${esc(kindLab(r))}</td><td class="n">${r.sets}</td><td class="n">${fmt(r.credit, 1)}</td></tr>`).join('')}</tbody>`; }).join('')}
     </table></div></section></section>` });
   return h + arrange('strength', cards);
 }
@@ -2863,7 +2913,7 @@ function vPlan() {
   h += `<section class="sec"><div class="sec-h"><span class="eyebrow">Exercises</span><button class="link" data-act="newex">+ Exercise</button></div><section class="card">
     <div class="srch">${ICON.search}<input class="in left" id="exq" type="text" inputmode="search" enterkeyhint="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search by name or muscle" aria-label="Search exercises" value="${esc(q)}"><button class="srch-x" id="exqx" data-act="exqclear" aria-label="Clear search" ${q ? '' : 'hidden'}>${ICON.x}</button></div>
     <ul class="rows exlist" id="exlist">
-    ${exs.map(([id, x]) => { const hide = ui.editEx !== id && !exMatch(exHay(x), q) ? ' hidden' : '', hay = ` data-q="${esc(exHay(x))}"`; return ui.editEx === id ? `<li style="display:block" data-edit="1"${hay}>${exEditor(id, x)}</li>` : `<li${hay}${hide}><span>${esc(x.name)}</span><button class="link" data-act="editex" data-id="${id}">Edit</button><span class="sub">${esc(GROUPS[x.g] || '')} · ${esc(UNITS[x.u]?.label || x.u)} · ${x.lo}–${x.hi} reps${x.base && x.base.r ? ` · max ${esc(fmtSet(id, x.base))}` : ''}</span></li>`; }).join('')}
+    ${exs.map(([id, x]) => { const hide = ui.editEx !== id && !exMatch(exHay(x), q) ? ' hidden' : '', hay = ` data-q="${esc(exHay(x))}"`; return ui.editEx === id ? `<li style="display:block" data-edit="1"${hay}>${exEditor(id, x)}</li>` : `<li class="exrow" data-act="editex" data-id="${id}"${hay}${hide}><span>${esc(x.name)}</span><button class="link" data-act="editex" data-id="${id}">Edit</button><span class="sub">${esc(GROUPS[x.g] || '')} · ${esc(UNITS[x.u]?.label || x.u)} · ${x.lo}–${x.hi} reps${x.base && x.base.r ? ` · max ${esc(fmtSet(id, x.base))}` : ''}</span></li>`; }).join('')}
   </ul><p class="xs muted" id="exnone" ${shown ? 'hidden' : ''}>No exercises match.</p></section></section>`;
 
   }
@@ -3124,10 +3174,11 @@ const SBOX = document.documentElement.classList.contains('sbox');
 const scroller = () => SBOX ? $('#scroll') : window;
 const scrollY0 = () => SBOX ? $('#scroll').scrollTop : window.scrollY;
 const scrollToY = (top, smooth) => scroller().scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' });
-function reveal(sel, room = 0) { // bring something just added fully onto the screen, clear of the header and tab bar
+function reveal(sel, room = 0, end = false) { // bring something just added fully onto the screen, clear of the header and tab bar
   setTimeout(() => {
     const el = typeof sel === 'string' ? $(sel) : sel; if (!el) return;
     const r = el.getBoundingClientRect(), top = ($('.top')?.getBoundingClientRect().bottom || 0) + 12, bot = ($('.tabs')?.getBoundingClientRect().top || innerHeight) - 12;
+    if (end && r.height > bot - top) { scrollToY(Math.max(0, scrollY0() + r.bottom - bot), true); return; } // taller than the screen: keep its end (a Save button) in view
     if (r.top < top || r.bottom + room > bot) scrollToY(Math.max(0, scrollY0() + r.top - top), true);
   }, 30);
 }
@@ -3261,7 +3312,7 @@ function go(tab) {
   if (tab === 'today') ui.logDate = null;
   if (tab !== 'log') ui.logEdit = null; // a past log goes back to read-only once you leave it (v1.46)
   if (tab !== 'injuries') ui.injForm = null; if (tab !== 'friends') { ui.frAdd = false; ui.frEdit = null; }
-  const prevTab = ui.tab; ui.tab = tab; ui.confirm = null; ui.pickSess = null; ui.editEx = null;
+  const prevTab = ui.tab; ui.tab = tab; ui.confirm = null; ui.pickSess = null; ui.editEx = null; ui.volG = null;
   if (tab === 'friends') setTimeout(frStale, 0); // links older than 10 minutes are read again
   if (backPast) { ui.logEdit = backPast.date; ui.exNote = backPast.exNote; ui.exHist = backPast.exHist; ui.exMore = backPast.exMore; ui.pick = backPast.pick; }
   const back = tab === 'today' && ui.logPlace && !leaving && prevTab !== 'today' && ui.logPlace.date === today() && STATE.w[today()] ? ui.logPlace : null;
@@ -3309,6 +3360,7 @@ const ACT = {
     if (STATE.w[date] && !STATE.w[date].rest) { open(); return; }
     if (!sessDef(sid) || isRestSlot(sid)) return;
     const w = newWorkoutAuto(date, sid); w.nw = 1; // marks a fresh start, so an untouched one can be dropped
+    if (date < today()) w.fin = true; // logged after the fact: finished, so History shows it (v1.67)
     STATE.w[date] = w; const rp = (S().restPlan || []).filter(d => d !== date && d >= today());
     if (S().rotOverride || rp.length !== (S().restPlan || []).length) { S().rotOverride = null; S().restPlan = rp; saveSettings(); } // training on a planned rest day drops the plan
     saveW(date); open();
@@ -3331,8 +3383,10 @@ const ACT = {
   logsave: () => {
     flushField();
     const d = ui.logDate; if (dropEmpty(d)) { toast('Nothing logged, so the session wasn’t kept'); go('history'); return; }
+    if (STATE.w[d] && !STATE.w[d].fin && d < today()) { STATE.w[d].fin = true; saveW(d); } // a past day is finished work (v1.67)
     ui.logEdit = null; ui.exNote = null; ui.exHist = null; ui.exMore = null; ui.pick = null; toast('Saved'); render(true);
   },
+  logkeep: () => { flushField(); const w = logW(); if (w) saveW(w.date); ui.editToday = !!w && !w.fin; toast(w && !w.fin ? 'Saved, still in progress' : 'Saved'); render(true); }, // v1.67: not every set is filled yet
   goal: el => { if (el.dataset.v === 'grow' && S().goal !== 'grow') S().growFrom = today(); S().goal = el.dataset.v; saveSettings(); render(true); },
   goalflip: () => { S().goal = S().goal === 'grow' ? 'hold' : 'grow'; if (S().goal === 'grow') S().growFrom = today(); saveSettings(); toast(S().goal === 'grow' ? `Aim set to overload, +${fmt((S().progRate ?? 0.005) * 100, 2)}% a week` : 'Aim set to maintenance'); render(true); },
   prograte: el => { S().progRate = +el.dataset.v; if (S().goal === 'grow') S().growFrom = today(); saveSettings(); render(true); },
@@ -3443,6 +3497,7 @@ const ACT = {
     const w = logW(); if (w && !w.rest) { const st = wStats(w); toast(`${esc(sessName(w))} saved · ${st.sets} set${st.sets === 1 ? '' : 's'}`); }
     if (ui.tab === 'today') { if (w) { w.fin = true; saveW(w.date); } ui.editToday = false; ui.justDone = true; resetScroll(); render(true); } else go('history');
   },
+  volg: el => { const g = el.dataset.g || null; ui.volG = g && ui.volG !== g ? g : null; render(true); if (ui.volG) reveal('[data-card="volsrc"]'); }, // a Volume bar opens its breakdown; tapped again, or All muscles, shows every muscle (v1.67)
   histview: el => { ui.hist = el.dataset.v; ui.noteEdit = null; render(true); },
   notefilter: el => { ui.noteG = el.dataset.v; ui.noteEdit = null; render(true); },
   notenew: () => { ui.noteNew = !ui.noteNew; render(true); },
@@ -3472,7 +3527,7 @@ const ACT = {
     ui.editEx = id; render(true); reveal('#exlist [data-edit]');
   },
   exqclear: () => { ui.exQ = ''; const i = $('#exq'); if (i) { i.value = ''; i.blur(); } filterEx(); }, // clearing never brings the keyboard up (v1.44)
-  editex: el => { const prev = ui.editEx; ui.editEx = el.dataset.id || null; if (prev && prev !== ui.editEx && (blankEx(prev) || S().ex[prev]?.fresh)) { delete S().ex[prev]; saveSettings(); } render(true); }, // leaving a new exercise unsaved (Discard, or opening another) drops it
+  editex: el => { const prev = ui.editEx; ui.editEx = el.dataset.id || null; if (prev && prev !== ui.editEx && (blankEx(prev) || S().ex[prev]?.fresh)) { delete S().ex[prev]; saveSettings(); } render(true); if (ui.editEx) reveal('#exlist [data-edit]', 0, true); }, // leaving a new exercise unsaved (Discard, or opening another) drops it; an opened editor scrolls fully into view, Save included
   saveex: el => {
     const x = S().ex[el.dataset.id]; if (!x) return; const x0 = clone(x); delete x.fresh;
     x.name = ($('#xe_n').value || '').trim() || x.name; x.g = $('#xe_g').value; x.u = $('#xe_u').value;
@@ -3646,6 +3701,7 @@ function setInput(el, final) {
   if (final && s.done && s.w != null && $(`#w${i}_${j}`) && $(`#w${i}_${j}`).value === '') $(`#w${i}_${j}`).value = fmt(s.w, 2).replace(/,/g, '');
   const sm = $('.sess-top .t small'); if (sm) sm.textContent = sessTopTxt(w);
   saveW(w.date); renderFab(); // the count of empty sets changes as you fill them
+  const end = $('#logend'); if (end) { const b = allFilled(w) ? ['logdone', 'Done'] : ['logkeep', 'Save']; if (end.dataset.act !== b[0]) { end.dataset.act = b[0]; end.textContent = b[1]; } } // Done appears once every set is filled
   if (final) { // v1.52: re-mark every set of this exercise, so a set corrected below the best loses its purple
     const now = new Set(prsIn({ date: w.date, ex: [e] }).map(p => p.s)), was = !!row?.classList.contains('pr');
     e.sets.forEach((x, k) => $(`#row${i}_${k}`)?.classList.toggle('pr', now.has(x)));
