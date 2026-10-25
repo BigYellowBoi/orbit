@@ -81,6 +81,18 @@ function rowAim(e, j, date, sg = suggest(e.id, date)) { // the Aim for any row: 
   if (s && s.t === 'w') { const ws = e.sets.filter(x => x.t === 'w'); return warmup(e.id, sg.w, ws.length)[ws.indexOf(s)] || null; }
   return setAim(e.id, date, e.sets.slice(0, j).filter(x => x.t !== 'w').length, sg);
 }
+function aimsMet(w) { // Done card (v1.70): each working set against its Aim, compared by setScore so heavier with fewer reps can still meet it
+  const out = { n: 0, met: 0, short: [] };
+  (w.ex || []).forEach((e, i) => {
+    const sg = aimIn(w, i); if (!sg) return; let k = 0;
+    e.sets.forEach((s, j) => {
+      if (s.t === 'w') return; k++; if (!(s.done && s.r > 0)) return;
+      const a = rowAim(e, j, w.date, sg); if (!a) return; out.n++;
+      if (setScore(e.id, s, w.date) >= setScore(e.id, a, w.date) - 1e-6) out.met++; else out.short.push({ id: e.id, k });
+    });
+  });
+  return out;
+}
 let LIX = { key: null };
 function lix() {
   const key = STATE.v + ':' + today(); if (LIX.key === key) return LIX;
