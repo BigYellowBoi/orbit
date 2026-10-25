@@ -470,14 +470,16 @@ function doneByGroup(from, to, frac = true) {
   return out;
 }
 
-/* Volume around today (v1.68, was Monday to Sunday in v1.67): a rolling 7 days, the last 3, today and the next 3, so the
-   next few sessions always show and there is no week end to fall off. Done is every ticked working set from 3 days ago to
+/* Volume around today (v1.67 Mon to Sun; v1.68 rolling 7 days; v1.69 two full rotations). The window is twice the
+   rotation's length in days (rest slots included): the last L days, today and the next L - 1, so every session counts
+   exactly twice whatever day it is (a 7-day window on a 4-day split counted one session once, a different one each day).
+   span is its length, so the view can scale the weekly bands. Done is every ticked working set from the window's start to
    today (an in-progress log counts), split into direct and half credit. Planned is today's unticked working sets (or
-   today's Plan session if nothing is logged yet) and the rotation sessions upcoming() puts on the next 3 days, rest slots
-   included, at defSets() each. Same credit as doneByGroup. */
-const VOL_BACK = 3, VOL_AHEAD = 3;
+   today's Plan session if nothing is logged yet) and the sessions upcoming() puts on the days ahead, at defSets() each.
+   Same credit as doneByGroup. */
+function volSpan() { const L = order().length; return L ? { back: L, ahead: L - 1 } : { back: 3, ahead: 3 }; }
 function volWeek(t = today()) {
-  const ws = addDays(t, -VOL_BACK), we = addDays(t, VOL_AHEAD), by = {}, rows = {}, sess = [];
+  const { back, ahead } = volSpan(), ws = addDays(t, -back), we = addDays(t, ahead), by = {}, rows = {}, sess = [];
   const add = (id, n, date, kind) => { if (!n) return; const d = exDef(id);
     const one = (g, k, sec) => { const x = by[g] = by[g] || { dir: 0, ind: 0, plan: 0 }; x[kind === 'done' ? (sec ? 'ind' : 'dir') : kind] += n * k;
       const key = [g, id, date, sec, kind].join('|'), r = rows[key] = rows[key] || { g, id, date, sec, kind, sets: 0, credit: 0 }; r.sets += n; r.credit += n * k; };
@@ -489,14 +491,14 @@ function volWeek(t = today()) {
     for (const e of rec.ex || []) { const k = (e.sets || []).filter(s => s.t !== 'w' && !(s.done && s.r > 0)).length; add(e.id, k, t, 'plan'); n += k; }
     if (n) sess.push({ date: t, s: rec.s });
   }
-  for (const x of upcoming(VOL_AHEAD + 1)) { // today through 3 days ahead
+  for (const x of upcoming(ahead + 1)) { // today through the window's end
     if (x.date === t && rec) continue;
     const sd = sessDef(x.s); sess.push({ date: x.date, s: x.s });
     if (sd && !sd.rest) for (const it of sd.items) if (S().ex[it.ex]) add(it.ex, defSets(it.ex), x.date, 'plan');
   }
   const order = { done: 0, plan: 1 }, list = Object.values(rows).sort((a, b) => order[a.kind] - order[b.kind] || (a.date < b.date ? -1 : a.date > b.date ? 1 : 0) || b.credit - a.credit || a.sec - b.sec);
   const detail = {}; for (const r of list) (detail[r.g] = detail[r.g] || []).push(r);
-  return { ws, we, by, detail, sess };
+  return { ws, we, back, ahead, span: back + ahead + 1, by, detail, sess };
 }
 
 /* ============================================================

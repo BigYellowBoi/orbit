@@ -445,21 +445,21 @@ if (load().injPlan) {
 
 /* ---------- Volume around today with planned sets (v1.67, rolling window v1.68) ---------- */
 if (load().volWeek) {
-  const E = load(), t = E.today(), D = k => E.addDays(t, k); // t is Tue 13 Oct 2026; the window is Sat 10 to Fri 16
+  const E = load(), t = E.today(), D = k => E.addDays(t, k); // t is Tue 13 Oct 2026; 4-session rotation, so the window is Fri 9 to Fri 16 (two rotations)
   const set = (w, r, done) => ({ w, r, done });
   E.STATE.w[D(-1)] = { date: D(-1), s: 'push1', fin: true, ex: [{ id: 'chest_press', sets: [set(3, 8, true), set(3, 8, true), { t: 'w', w: 1, r: 8, done: true }] }] };
-  E.STATE.w[D(-4)] = { date: D(-4), s: 'legs', fin: true, ex: [{ id: 'chest_press', sets: [set(3, 8, true)] }] }; // 4 days back: out
+  E.STATE.w[D(-5)] = { date: D(-5), s: 'legs', fin: true, ex: [{ id: 'chest_press', sets: [set(3, 8, true)] }] }; // 5 days back: out
   const today = { date: t, s: 'pull', ex: [{ id: 'pulldown', sets: [set(90, 8, true), set(90, null, false), { t: 'w', w: 40, r: null, done: false }] }] };
   E.STATE.w[t] = today; E.bump();
   let v = E.volWeek();
-  ok(v.ws === D(-3) && v.we === D(3), 'Volume covers the last 3 days, today and the next 3');
+  ok(v.ws === D(-4) && v.we === D(3) && v.span === 8, 'Volume covers two rotations: the last 4 days, today and the next 3');
   ok(v.by.chest.dir === 2 && v.by.triceps.ind === 1 && v.by.delt_f.ind === 1, 'done sets: direct count 1, secondaries half; warm-ups and days before the window left out');
   ok(v.by.back.dir === 1 && v.by.biceps.ind === 0.5, "today's ticked sets count as done");
   const todayPlan = v.detail.back.filter(r => r.kind === 'plan' && r.date === t);
   ok(todayPlan.length === 1 && todayPlan[0].sets === 1, "today's unticked working set counts as planned (the warm-up doesn't)");
   ok(v.sess.map(x => x.date).join() === [0, 1, 2, 3].map(D).join() && v.sess.map(x => x.s).join() === 'pull,push2,legs,push1', `planned sessions: rest of today, then the next 3 days of the rotation (${v.sess.map(x => x.s).join()})`);
   const all = Object.values(v.detail).flat();
-  ok(all.every(r => r.kind === 'done' ? r.date >= D(-3) && r.date <= t : r.kind === 'plan' && r.date >= t && r.date <= D(3)), 'done rows run up to today, planned rows from today to 3 days ahead');
+  ok(all.every(r => r.kind === 'done' ? r.date >= D(-4) && r.date <= t : r.kind === 'plan' && r.date >= t && r.date <= D(3)), 'done rows run up to today, planned rows from today to 3 days ahead');
   const sumK = (g, k) => (v.detail[g] || []).filter(r => r.kind === k).reduce((a, r) => a + r.credit, 0);
   ok(Object.keys(v.by).every(g => Math.abs(sumK(g, 'plan') - v.by[g].plan) < 1e-9 && Math.abs(sumK(g, 'done') - v.by[g].dir - v.by[g].ind) < 1e-9), 'the breakdown adds up to the bars');
   ok(v.by.triceps.plan > 0 && v.detail.triceps.some(r => r.kind === 'plan' && r.sec), 'planned compounds give their secondary muscles half credit');
@@ -472,6 +472,19 @@ if (load().volWeek) {
   E.S().restPlan = [D(1)]; E.bump(); v = E.volWeek();
   ok(v.sess[0].date === D(1) && v.sess[0].s === '_rest' && v.sess[1].s === 'push2', 'a planned rest day pushes the sessions back and the caption follows');
   E.S().restPlan = [];
+  { // v1.69: training every day, each session counts exactly twice, whichever day it is
+    const F = load(), seq = ['push1', 'pull', 'push2', 'legs'];
+    for (let start = 0; start < 4; start++) {
+      const t0 = F.today(); for (const k of Object.keys(F.STATE.w)) delete F.STATE.w[k];
+      for (let k = 4; k >= 1; k--) { const d = F.addDays(t0, -k); F.STATE.w[d] = { date: d, s: seq[(start - k + 8) % 4], fin: true, ex: [{ id: 'chest_press', sets: [{ w: 3, r: 8, done: true }] }] }; }
+      F.bump(); const vv = F.volWeek(), cnt = {};
+      for (let k = 4; k >= 1; k--) cnt[F.STATE.w[F.addDays(t0, -k)].s] = 1; for (const x of vv.sess) cnt[x.s] = (cnt[x.s] || 0) + 1;
+      ok(seq.every(s => cnt[s] === 2), `starting at ${seq[start]}: every session counted twice (${JSON.stringify(cnt)})`);
+      F.setNow(Date.UTC(2026, 9, 14 + start, 2));
+    }
+    F.S().prog.order.push('rx'); F.S().prog.sessions.rx = { name: 'Rest', items: [], rest: true }; F.bump();
+    ok(F.volWeek().span === 10, 'a 5-slot rotation (rest slot included) gets a 10-day window');
+  }
   // his case: Sunday, Legs logged, Pull tomorrow. The week ending must not hide Monday's Pull.
   const sun = '2026-10-18'; E.setNow(Date.UTC(2026, 9, 18, 2)); E.STATE.w[sun] = { date: sun, s: 'legs', fin: true, ex: [{ id: 'hack', sets: [set(2, 8, true)] }] }; E.bump(); v = E.volWeek();
   ok(v.sess[0].date === E.addDays(sun, 1) && v.sess[0].s === E.sessionFor(E.addDays(sun, 1)) && v.sess.length === 3, `on Sunday the next 3 days are planned (${v.sess.map(x => x.s).join()})`);
