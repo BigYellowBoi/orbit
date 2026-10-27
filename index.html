@@ -141,8 +141,7 @@ button { cursor: pointer; }
 .rcard em.tn-good { color: var(--good-ink); } .rcard em.tn-warn { color: var(--warn-ink); } .tn-inj { color: var(--inj-ink); }
 .rtiles.hs2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .tbl.hs td.tn-good { color: var(--good-ink); } .tbl.hs td.tn-warn { color: var(--warn-ink); } .tbl.hs td b { font-weight: 600; }
-.hsvo2 { display: flex; gap: 8px; align-items: flex-end; } .hsvo2 .fl { flex: 1; min-width: 0; }
-.rows.hsv li { display: grid; grid-template-columns: 1fr auto auto auto; gap: 10px; align-items: center; } .rows.hsv b { font-variant-numeric: tabular-nums; }
+.hsvo2 { display: flex; gap: 8px; align-items: center; } .hsvo2 > span { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; } .hsvo2 .in { width: 76px; flex: none; text-align: center; }
 .rsrc { font-family: var(--f-mono); font-size: 11.5px; letter-spacing: .04em; color: var(--ink-3); }
 .rtiles.e4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } @container (min-width: 600px) { .rtiles.e4 { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 /* Weekly summary: the week column stays put while the rest scrolls, and the edge fades when there's more (v1.36) */
@@ -709,7 +708,7 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.72'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.73'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
@@ -2945,9 +2944,8 @@ function healthspanCard() {
   const h = healthspan(), w = h.cur, v2 = hsVo2(), lastV = v2[v2.length - 1];
   const yrsTxt = n => n > 0 ? `${n} yrs younger` : n < 0 ? `${-n} yrs older` : 'Same as your age';
   const sgn = (x, d = 1) => (x > 0 ? '+' : x < 0 ? '−' : '') + fmt(Math.abs(x), d);
-  const vo2Row = `<div class="hsvo2"><label class="fl">VO2 max this week<input class="in" type="number" inputmode="decimal" step="0.1" min="20" max="90" id="vo2in" placeholder="${lastV ? fmt(lastV.v, 1) : 'from WHOOP'}"></label><button class="btn sm" data-act="vo2add">Save</button></div>
-    <details class="info"${ui.vo2Open ? ' open' : ''}><summary>VO2 entries${v2.length ? ` · ${v2.length}` : ''}</summary>${v2.length ? `<ul class="rows hsv">${v2.slice(-6).reverse().map(x => `<li><span>${esc(fmtD(x.d))}</span><b>${fmt(x.v, 1)}</b><span class="xs muted">${esc(x.src === 'whoop' ? 'WHOOP' : x.src)}</span><button class="link dim" data-act="vo2rem" data-date="${x.d}" aria-label="Remove ${esc(fmtD(x.d))}">×</button></li>`).join('')}</ul>` : ''}
-      <label class="btn sm ghost filebtn" style="align-self:flex-start">Import VO2 history (.csv)<input type="file" class="vh" accept=".csv,text/csv" data-in="fvo2"></label></details>`;
+  // VO2: one compact row; typing again the same day replaces that day's value
+  const vo2Row = `<div class="hsvo2"><span class="small">VO2 max this week${lastV ? `<span class="xs muted">Last ${fmt(lastV.v, 1)} · ${esc(fmtD(lastV.d))}</span>` : ''}</span><input class="in" type="number" inputmode="decimal" step="0.1" min="20" max="90" id="vo2in" aria-label="VO2 max this week" ><button class="btn sm" data-act="vo2add">Save</button></div>`;
   if (!w) return `<section class="card"><div class="card-h"><h2>Healthspan</h2><span class="eyebrow">calibrating</span></div><p class="small dim">Needs 21 WHOOP recoveries in the last 31 days.</p>${vo2Row}</section>`;
   const prev = h.weeks[h.weeks.length - 2], flags = hsFlags(w.x6);
   const tile = (label, v, sub, tone) => `<div class="rt" data-live="${esc(label)}"><span>${esc(label)}</span><b>${v}</b><em${tone ? ` class="tn-${tone}"` : ''}>${sub || '&nbsp;'}</em></div>`;
@@ -3519,7 +3517,6 @@ const ACT = {
   vo2add: () => { // this week's WHOOP VO2 estimate, dated today (one per day; a second entry the same day replaces it)
     const v = num($('#vo2in')?.value); if (v == null || v < 20 || v > 90) { toast('Enter a VO2 max between 20 and 90.', 'bad'); return; }
     S().vo2 = { ...(S().vo2 || {}), [today()]: { v: r1(v), src: 'whoop' } }; saveSettings(); toast(`VO2 ${fmt(v, 1)} saved`); render(true); },
-  vo2rem: el => { ui.vo2Open = true; const o = { ...(S().vo2 || {}) }; delete o[el.dataset.date]; S().vo2 = o; saveSettings(); render(true); },
   partial: el => { const d = el.dataset.date, v = el.dataset.v === '1', m = S().partial = S().partial || {}; if (m[d] === v) delete m[d]; else m[d] = v; saveSettings(); render(true); }, // tap the chosen answer again to clear it
   restplan: () => { ui.restPlanOpen = !ui.restPlanOpen; ui.restPick = null; render(true); },
   picktoday: () => { ui.pickSess = 'today'; render(true); },
@@ -3762,11 +3759,6 @@ const INP = {
   proteint: el => { const n = num(el.value); S().proteinT = n > 0 ? n : null; saveSettings(); },
   fwhoop: el => readFiles(el, readWhoopFiles),
   fmf: el => readFiles(el, readMfFiles),
-  fvo2: async el => { // date,value lines (the brief's seed_whoop_vo2_weekly.csv); entries already here are kept
-    const f = el.files?.[0]; if (!f) return; el.value = '';
-    const add = {}; for (const l of (await f.text()).split(/\r?\n/)) { const [d, x] = l.split(',').map(c => c.trim()), v = num(x); if (/^\d{4}-\d{2}-\d{2}$/.test(d || '') && v != null && v >= 20 && v <= 90) add[d] = { v, src: 'whoop' }; }
-    const n = Object.keys(add).length; if (!n) { toast('No date,value rows found.', 'bad'); return; }
-    S().vo2 = { ...add, ...(S().vo2 || {}) }; ui.vo2Open = true; saveSettings(); toast(`${n} VO2 estimates imported`); render(true); },
   fah: el => readFiles(el, readAhFiles),
   fbackup: async el => {
     const f = el.files?.[0]; if (!f) return;

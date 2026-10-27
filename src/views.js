@@ -696,9 +696,8 @@ function healthspanCard() {
   const h = healthspan(), w = h.cur, v2 = hsVo2(), lastV = v2[v2.length - 1];
   const yrsTxt = n => n > 0 ? `${n} yrs younger` : n < 0 ? `${-n} yrs older` : 'Same as your age';
   const sgn = (x, d = 1) => (x > 0 ? '+' : x < 0 ? '−' : '') + fmt(Math.abs(x), d);
-  const vo2Row = `<div class="hsvo2"><label class="fl">VO2 max this week<input class="in" type="number" inputmode="decimal" step="0.1" min="20" max="90" id="vo2in" placeholder="${lastV ? fmt(lastV.v, 1) : 'from WHOOP'}"></label><button class="btn sm" data-act="vo2add">Save</button></div>
-    <details class="info"${ui.vo2Open ? ' open' : ''}><summary>VO2 entries${v2.length ? ` · ${v2.length}` : ''}</summary>${v2.length ? `<ul class="rows hsv">${v2.slice(-6).reverse().map(x => `<li><span>${esc(fmtD(x.d))}</span><b>${fmt(x.v, 1)}</b><span class="xs muted">${esc(x.src === 'whoop' ? 'WHOOP' : x.src)}</span><button class="link dim" data-act="vo2rem" data-date="${x.d}" aria-label="Remove ${esc(fmtD(x.d))}">×</button></li>`).join('')}</ul>` : ''}
-      <label class="btn sm ghost filebtn" style="align-self:flex-start">Import VO2 history (.csv)<input type="file" class="vh" accept=".csv,text/csv" data-in="fvo2"></label></details>`;
+  // VO2: one compact row; typing again the same day replaces that day's value
+  const vo2Row = `<div class="hsvo2"><span class="small">VO2 max this week${lastV ? `<span class="xs muted">Last ${fmt(lastV.v, 1)} · ${esc(fmtD(lastV.d))}</span>` : ''}</span><input class="in" type="number" inputmode="decimal" step="0.1" min="20" max="90" id="vo2in" aria-label="VO2 max this week" ><button class="btn sm" data-act="vo2add">Save</button></div>`;
   if (!w) return `<section class="card"><div class="card-h"><h2>Healthspan</h2><span class="eyebrow">calibrating</span></div><p class="small dim">Needs 21 WHOOP recoveries in the last 31 days.</p>${vo2Row}</section>`;
   const prev = h.weeks[h.weeks.length - 2], flags = hsFlags(w.x6);
   const tile = (label, v, sub, tone) => `<div class="rt" data-live="${esc(label)}"><span>${esc(label)}</span><b>${v}</b><em${tone ? ` class="tn-${tone}"` : ''}>${sub || '&nbsp;'}</em></div>`;

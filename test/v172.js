@@ -17,12 +17,9 @@ const ok = (c, msg) => { if (c) passes++; else { fails++; console.log('FAIL', ms
   ok(r.cur && r.cur.pace < 0.6553, 'more steps in the last 30 days slows the pace ' + r.cur?.pace);
   await p.fill('#vo2in', '54.3'); await p.click('[data-act="vo2add"]'); await p.waitForTimeout(150);
   ok(await p.evaluate(() => S().vo2[today()]?.v === 54.3 && S().vo2[today()].src === 'whoop'), 'VO2 saved to synced settings with its source');
-  const f = path.join(os.tmpdir(), 'orbit-vo2-test.csv'); fs.writeFileSync(f, 'date,vo2_whoop_estimate\n2026-01-06,53\n2026-01-13,54\nbad,1\n');
-  await p.evaluate(() => document.querySelector('details.info:has([data-in="fvo2"])').open = true);
-  await p.setInputFiles('[data-in="fvo2"]', f); await p.waitForTimeout(200);
-  ok(await p.evaluate(() => Object.keys(S().vo2).length === 3 && S().vo2['2026-01-13'].v === 54), 'CSV import adds estimates, keeps entries');
-  await p.click(`[data-act="vo2rem"][data-date="2026-01-13"]`); await p.waitForTimeout(100);
-  ok(await p.evaluate(() => !S().vo2['2026-01-13'] && Object.keys(S().vo2).length === 2), 'remove one entry');
+  ok(await p.evaluate(() => /Last 54\.3 · /.test(document.querySelector('.hsvo2').textContent) && !document.querySelector('[data-in="fvo2"], [data-act="vo2rem"]')), 'one VO2 row with the last value, no list or import');
+  await p.fill('#vo2in', '55'); await p.click('[data-act="vo2add"]'); await p.waitForTimeout(150);
+  ok(await p.evaluate(() => Object.keys(S().vo2).length === 1 && S().vo2[today()].v === 55), 'a second entry the same day replaces it');
   ok(await p.evaluate(() => (CARD_KEYS.body || []).includes('healthspan')), 'Healthspan is a reorderable Body card');
   ok(!errs.length, 'no page errors ' + errs.join(' | '));
   await b.close(); console.log(`${passes} passed, ${fails} failed`); process.exit(fails ? 1 : 0);

@@ -382,7 +382,6 @@ const ACT = {
   vo2add: () => { // this week's WHOOP VO2 estimate, dated today (one per day; a second entry the same day replaces it)
     const v = num($('#vo2in')?.value); if (v == null || v < 20 || v > 90) { toast('Enter a VO2 max between 20 and 90.', 'bad'); return; }
     S().vo2 = { ...(S().vo2 || {}), [today()]: { v: r1(v), src: 'whoop' } }; saveSettings(); toast(`VO2 ${fmt(v, 1)} saved`); render(true); },
-  vo2rem: el => { ui.vo2Open = true; const o = { ...(S().vo2 || {}) }; delete o[el.dataset.date]; S().vo2 = o; saveSettings(); render(true); },
   partial: el => { const d = el.dataset.date, v = el.dataset.v === '1', m = S().partial = S().partial || {}; if (m[d] === v) delete m[d]; else m[d] = v; saveSettings(); render(true); }, // tap the chosen answer again to clear it
   restplan: () => { ui.restPlanOpen = !ui.restPlanOpen; ui.restPick = null; render(true); },
   picktoday: () => { ui.pickSess = 'today'; render(true); },
@@ -625,11 +624,6 @@ const INP = {
   proteint: el => { const n = num(el.value); S().proteinT = n > 0 ? n : null; saveSettings(); },
   fwhoop: el => readFiles(el, readWhoopFiles),
   fmf: el => readFiles(el, readMfFiles),
-  fvo2: async el => { // date,value lines (the brief's seed_whoop_vo2_weekly.csv); entries already here are kept
-    const f = el.files?.[0]; if (!f) return; el.value = '';
-    const add = {}; for (const l of (await f.text()).split(/\r?\n/)) { const [d, x] = l.split(',').map(c => c.trim()), v = num(x); if (/^\d{4}-\d{2}-\d{2}$/.test(d || '') && v != null && v >= 20 && v <= 90) add[d] = { v, src: 'whoop' }; }
-    const n = Object.keys(add).length; if (!n) { toast('No date,value rows found.', 'bad'); return; }
-    S().vo2 = { ...add, ...(S().vo2 || {}) }; ui.vo2Open = true; saveSettings(); toast(`${n} VO2 estimates imported`); render(true); },
   fah: el => readFiles(el, readAhFiles),
   fbackup: async el => {
     const f = el.files?.[0]; if (!f) return;
