@@ -13,7 +13,7 @@ const ok = (c, msg) => { if (c) passes++; else { fails++; console.log('FAIL', ms
     for (let i = 1; i <= 200; i++) STATE.d[addDays(today(), -i)] = { rec: 60, stp: 9000 + (i < 30 ? 1500 : 0), rhr: 45, sc: 70, slp: 450, acts: [{ n: 'Weightlifting', min: 60, z: [50, 20, 5, 5, 0] }] };
     bump(); render(true); const t = document.querySelector('#view').textContent; return { t, cur: healthspan().cur };
   });
-  ok(/years (younger|older)|same as your age/.test(r.t) && /Pace of Aging/.test(r.t) && /Zones 1-3/.test(r.t), 'card shows years, Pace and the metrics');
+  ok(/years (younger|older)|same as your age/i.test(r.t) && /Pace of Aging/.test(r.t) && /Zones 1-3/.test(r.t), 'card shows years, Pace and the metrics');
   ok(r.cur && r.cur.pace < 0.6553, 'more steps in the last 30 days slows the pace ' + r.cur?.pace);
   ok(await p.evaluate(() => document.querySelectorAll('.hsr').length === 8 && document.querySelectorAll('.hsb-t > i').length === 80 && document.querySelectorAll('.hspace-s i').length === 41), 'eight range bars and the Pace scale (v1.74)');
   ok(await p.evaluate(() => !document.querySelector('#vo2in')), 'VO2 entry hidden until the VO2 row is opened');
@@ -28,7 +28,7 @@ const ok = (c, msg) => { if (c) passes++; else { fails++; console.log('FAIL', ms
   await p.evaluate(() => { ui.hsOff = 0; render(true); });
   await p.fill('#vo2in', '54.3'); await p.click('[data-act="vo2add"]'); await p.waitForTimeout(150);
   ok(await p.evaluate(() => S().vo2[today()]?.v === 54.3 && S().vo2[today()].src === 'whoop'), 'VO2 saved to synced settings with its source');
-  ok(await p.evaluate(() => /Last 54\.3 · /.test(document.querySelector('.hsvo2').textContent) && !document.querySelector('[data-in="fvo2"], [data-act="vo2rem"]')), 'one VO2 row with the last value, no list or import');
+  ok(await p.evaluate(() => /Last 54\.3 · /.test(document.querySelector('#vo2in').closest('.hsvo2').textContent) && !document.querySelector('[data-in="fvo2"], [data-act="vo2rem"]')), 'one VO2 row with the last value, no list or import');
   await p.fill('#vo2in', '55'); await p.click('[data-act="vo2add"]'); await p.waitForTimeout(150);
   ok(await p.evaluate(() => Object.keys(S().vo2).length === 1 && S().vo2[today()].v === 55), 'a second entry the same day replaces it');
   ok(await p.evaluate(() => (CARD_KEYS.body || []).includes('healthspan')), 'Healthspan is a reorderable Body card');

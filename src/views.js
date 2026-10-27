@@ -700,6 +700,10 @@ const HS_RANGE = { steps: [0, 16000], rhr: [40, 80], sleep_consistency: [40, 100
 const HS_GROUPS = [['Sleep', ['sleep_consistency', 'sleep_hours']], ['Strain', ['z13', 'z45', 'strength', 'steps']], ['Fitness', ['vo2', 'rhr']]];
 const HS_TREND = { steps: 'stp', rhr: 'rhr', sleep_consistency: 'sc', z13: 'z13', z45: 'z45', strength: 'lift' }; // Trends explorer ids
 const HS_NOUN = { steps: 'daily Steps', rhr: 'Resting HR', sleep_consistency: 'Sleep Consistency', z13: 'weekly Time in HR Zones 1-3', z45: 'weekly Time in HR Zones 4-5', sleep_hours: 'Hours of Sleep', strength: 'weekly Strength Activity Time', vo2: 'VO2 max' };
+const HS_DOTS = (() => { let r = 7, o = ''; const rnd = () => (r = (r * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < 26; i++) { const a = rnd() * 6.283, d = 18 + rnd() * 30, s = 2 + rnd() * 4;
+    o += `<i class="hsdot" style="left:${(50 + Math.cos(a) * d).toFixed(1)}%;top:${(50 + Math.sin(a) * d).toFixed(1)}%;width:${s.toFixed(1)}px;height:${s.toFixed(1)}px;--dx:${((rnd() - .5) * 14).toFixed(1)}px;--dy:${((rnd() - .5) * 14).toFixed(1)}px;animation-duration:${(5 + rnd() * 6).toFixed(1)}s,${(2 + rnd() * 3).toFixed(1)}s;animation-delay:-${(rnd() * 8).toFixed(1)}s,-${(rnd() * 4).toFixed(1)}s"></i>`; }
+  return o; })();
 function hsVal(m, x) { // value text, no unit
   if (x == null || !Number.isFinite(x)) return '–';
   const f = HS_FMT[m][0];
@@ -724,6 +728,8 @@ function healthspanCard() {
   if (!h.cur) return `<section class="card"><div class="card-h"><h2>Healthspan</h2><span class="eyebrow">calibrating</span></div><p class="small dim">Needs 21 WHOOP recoveries in the last 31 days.</p>${vo2In}</section>`;
   const n = h.weeks.length, off = Math.min(Math.max(ui.hsOff || 0, 0), n - 1), w = h.weeks[n - 1 - off], prev = h.weeks[n - 2 - off], flags = hsFlags(w.x6);
   const open = ui.hsOpen || (ui.hsOpen = new Set()), stale = !lastV || lastV.d < addDays(today(), -6);
+  const dob = S().dob, ageAt = dob ? diffDays(dob, w.W) / 365.2425 : null, rawAge = ageAt != null ? ageAt + w.total : null; // WHOOP Age: your age plus the 6M impacts; WHOOP floors it at 18
+  const oAge = rawAge == null ? null : rawAge < 18 ? '&lt;18.0' : fmt(Math.round(rawAge * 10) / 10, 1).replace(/^(\d+)$/, '$1.0');
   const yrs = w.yrs, orbTone = yrs > 0 ? 'good' : yrs < 0 ? 'warn' : 'n';
   const sgn = x => (x > 0.05 ? '+' : x < -0.05 ? '−' : '') + Math.abs(x).toFixed(1);
   // Pace scale: −1.0× to 3.0× in 0.1 steps, 1.0× marked
@@ -741,14 +747,17 @@ function healthspanCard() {
   };
   return `<section class="card hscard"><div class="card-h"><h2>Healthspan</h2>${h.miles.length ? `<span class="eyebrow">best ${Math.max(...h.miles.map(m => m.yrs))} yrs</span>` : ''}</div>
     <div class="hsnav"><button class="iconbtn" data-act="hsweek" data-d="1" aria-label="Previous week" ${off >= n - 1 ? 'disabled' : ''}>‹</button><b>${esc(fmtD(addDays(w.W, -6)))} – ${esc(fmtD(w.W))}</b><button class="iconbtn" data-act="hsweek" data-d="-1" aria-label="Next week" ${off ? '' : 'disabled'}>›</button></div>
-    <div class="hsorb hs-o-${orbTone}"><div><b>${yrs ? Math.abs(yrs) : '0'}</b><span>${yrs > 0 ? 'years younger' : yrs < 0 ? 'years older' : 'same as your age'}</span></div></div>
+    <div class="hshero"><div class="hsst"><b class="hs-t-${yrs > 0 ? 'g2' : yrs < 0 ? 'a2' : 'n'}">${yrs ? Math.abs(yrs) : '0'}</b><span>${yrs < 0 ? 'Years older' : 'Years younger'}</span></div>
+      <div class="hsorb hs-o-${orbTone}" aria-label="${oAge != null ? 'Orbit Age ' + oAge : ''}"><i class="hsorb-g"></i>${HS_DOTS}<div class="hsorb-c">${oAge != null ? `<b>${oAge}</b><span>Orbit Age</span>` : `<b>${yrs ? Math.abs(yrs) : '0'}</b><span>${yrs < 0 ? 'yrs older' : 'yrs younger'}</span>`}</div></div>
+      <div class="hsst"><b>${fmt(w.pace, 1)}×</b><span>Pace of Aging</span></div></div>
+    ${dob ? '' : `<div class="hsvo2"><span class="small">Birth date<span class="xs muted">Shows your Orbit Age</span></span><input class="in hsdob" type="date" id="dobin" aria-label="Birth date"><button class="btn sm" data-act="hsdob">Save</button></div>`}
     ${h.miles.length ? `<p class="xs muted hsmiles">Milestones: ${h.miles.map(m => `${m.yrs} yrs ${esc(fmtD(m.W))}`).join(' · ')}</p>` : ''}
     <div class="hspace"><div class="hspace-h"><span class="eyebrow">Pace of Aging</span>${prev ? `<span class="xs muted">${fmt(prev.pace, 1)}× the week before</span>` : ''}</div>
-      <div class="hspace-v"><span class="xs muted">Slow</span><b>${fmt(w.pace, 1)}×</b><span class="xs muted">Fast</span></div>
-      <div class="hspace-s">${ticks}<span class="hspace-m" style="left:${pp}%"></span></div>
+      <div class="hspace-v"><span class="xs muted">Slow</span><b class="hs-t-${w.pace < 0.95 ? 'g2' : w.pace > 1.05 ? 'a2' : 'n'}">${fmt(w.pace, 1)}×</b><span class="xs muted">Fast</span></div>
+      <div class="hspace-s">${ticks}<span class="hspace-m hs-m-${w.pace < 0.95 ? 'g' : w.pace > 1.05 ? 'a' : 'n'}" style="left:${pp}%"></span><span class="hspace-one"></span></div>
       <div class="hspace-l"><span>−1.0×</span><span>1.0×</span><span>3.0×</span></div></div>
     ${HS_GROUPS.map(([g, ms]) => `<div class="hsg"><div class="hsg-h"><h3>${g}</h3><span class="xs muted">▼ 6 Month avg. <span class="hsg-sep">|</span> ▲ 30 Day avg.</span></div>${ms.map(row).join('')}</div>`).join('')}
-    ${infoHTML(`A copy of WHOOP's Healthspan, fitted to your WHOOP numbers (Pace within ±0.1 of the app in about 9 weeks of 10). Each bar: ▼ your 6-month average, ▲ your 30-day one; green segments make you younger, amber older, grey is about neutral. Years on the right are that metric's 6-month Age Impact. Pace adds up how the 30-day values are moving those impacts. VO2 comes from WHOOP's weekly estimate, so type it in each week (tap VO2 max).`)}</section>`;
+    ${infoHTML(`A copy of WHOOP's Healthspan, fitted to your WHOOP numbers (Pace within ±0.1 of the app in about 9 weeks of 10). Each bar: ▼ your 6-month average, ▲ your 30-day one; green segments make you younger, amber older, grey is about neutral. Years on the right are that metric's 6-month Age Impact. Pace adds up how the 30-day values are moving those impacts. VO2 comes from WHOOP's weekly estimate, so type it in each week (tap VO2 max). Orbit Age is your age plus the 6-month impacts, shown as under 18 below 18 like WHOOP.`)}${dob ? `<button class="link dim" data-act="hsdobclr">Change birth date</button>` : ''}</section>`;
 }
 function vBody() {
   let h = `<div class="page-h"><div><div class="eyebrow">Recovery · energy · trends</div><h1>Body</h1></div></div>`;
