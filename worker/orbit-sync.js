@@ -163,7 +163,8 @@ async function pullWhoop(env, b, from, to) { // local dates [from, to)
     const need = ['baseline_milli', 'need_from_sleep_debt_milli', 'need_from_recent_strain_milli', 'need_from_recent_nap_milli'].reduce((a, k) => a + (n[k] || 0), 0);
     Object.assign(D(e.date), clean({ slp: mins(asleep), deep: mins(ss.total_slow_wave_sleep_time_milli), rem: mins(ss.total_rem_sleep_time_milli), lt: mins(ss.total_light_sleep_time_milli),
       aw: mins(ss.total_awake_time_milli), bed: mins(ss.total_in_bed_time_milli), sn: need ? mins(need) : null, sd: mins(n.need_from_sleep_debt_milli),
-      sp: s.score.sleep_performance_percentage, se: r1(s.score.sleep_efficiency_percentage), sc: s.score.sleep_consistency_percentage, rr: r1(s.score.respiratory_rate), on: st.hm, off: e.hm }));
+      sp: s.score.sleep_performance_percentage, se: r1(s.score.sleep_efficiency_percentage), sc: s.score.sleep_consistency_percentage, rr: r1(s.score.respiratory_rate), on: st.hm, off: e.hm,
+      dst: ss.disturbance_count, cyc: ss.sleep_cycle_count })); // dst/cyc: for the recovery model
   }
   for (const c of cycles) {
     const st = local(c.start, c.timezone_offset, env), date = st.h >= 15 ? addDays(st.date, 1) : st.date; // a cycle starts at sleep onset; it belongs to the day you wake up
@@ -174,7 +175,7 @@ async function pullWhoop(env, b, from, to) { // local dates [from, to)
   for (const r of recs) {
     if (r.score_state !== 'SCORED' || !r.score) continue;
     const date = sleepDate[r.sleep_id] || cycleDate[r.cycle_id]; if (!date) continue;
-    Object.assign(D(date), clean({ rec: r.score.recovery_score, hrv: r1(r.score.hrv_rmssd_milli), rhr: r.score.resting_heart_rate, spo2: r1(r.score.spo2_percentage), skt: r1(r.score.skin_temp_celsius) }));
+    Object.assign(D(date), clean({ rec: r.score.recovery_score, hrv: r.score.hrv_rmssd_milli, /* full precision (recovery model); the app rounds for display */ rhr: r.score.resting_heart_rate, spo2: r1(r.score.spo2_percentage), skt: r1(r.score.skin_temp_celsius) }));
   }
   const acts = {};
   for (const w of wos) {

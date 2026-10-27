@@ -25,7 +25,7 @@ for (let d = '2026-04-20'; d <= today; d = addD(d, 1)) {
   n++; const prev = addD(d, -1), sid = 'S' + d, cid = 1000 + n;
   const sleepEnd = d === today ? utc(d, '06:30') : utc(d, '06:30');
   H.sleep.push({ id: sid, cycle_id: cid, start: utc(prev, '22:30'), end: sleepEnd, timezone_offset: '+10:00', nap: false, score_state: 'SCORED',
-    score: { stage_summary: { total_in_bed_time_milli: 8 * 36e5, total_awake_time_milli: 30 * 6e4, total_light_sleep_time_milli: 4 * 36e5, total_slow_wave_sleep_time_milli: 90 * 6e4, total_rem_sleep_time_milli: 2 * 36e5 },
+    score: { stage_summary: { total_in_bed_time_milli: 8 * 36e5, total_awake_time_milli: 30 * 6e4, total_light_sleep_time_milli: 4 * 36e5, total_slow_wave_sleep_time_milli: 90 * 6e4, total_rem_sleep_time_milli: 2 * 36e5, disturbance_count: 11, sleep_cycle_count: 5 },
       sleep_needed: { baseline_milli: 8 * 36e5, need_from_sleep_debt_milli: 20 * 6e4, need_from_recent_strain_milli: 10 * 6e4, need_from_recent_nap_milli: 0 },
       respiratory_rate: 15.234, sleep_performance_percentage: 90, sleep_consistency_percentage: 80, sleep_efficiency_percentage: 93.45 } });
   if (n % 7 === 0) H.sleep.push({ id: 'N' + d, start: utc(d, '14:00'), end: utc(d, '14:30'), timezone_offset: '+10:00', nap: true, score_state: 'SCORED', score: { stage_summary: {} } });
@@ -98,8 +98,9 @@ calls = 0; r = await req(`/callback?code=good&state=${state}`); ok(r.status === 
 ok(JSON.parse(kv.get('tok')).refresh === tokens.refresh, 'tokens stored');
 ok(!kv.has('state:' + state), 'state used once');
 const y = addD(today, -1), yd = day(y);
-ok(yd.rec != null && yd.hrv === 61.3 && yd.rhr === 52 && yd.spo2 === 96.4 && yd.skt === 33.7, 'recovery fields for yesterday');
+ok(yd.rec != null && yd.hrv === 61.27 && yd.rhr === 52 && yd.spo2 === 96.4 && yd.skt === 33.7, 'recovery fields for yesterday (HRV full precision)');
 ok(yd.slp === 450 && yd.deep === 90 && yd.rem === 120 && yd.lt === 240 && yd.aw === 30 && yd.bed === 480 && yd.sn === 510 && yd.sd === 20, 'sleep durations in minutes');
+ok(yd.dst === 11 && yd.cyc === 5, 'sleep disturbances and cycles');
 ok(yd.sp === 90 && yd.se === 93.5 && yd.sc === 80 && yd.rr === 15.2 && yd.on === '22:30' && yd.off === '06:30', 'sleep scores and times');
 ok(yd.str === 12.3 && yd.kb === 2500 && typeof yd.stp === 'number', 'strain, energy and steps');
 ok(yd.alc === true && yd.kcal === 2400, 'app fields on that day kept');
