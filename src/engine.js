@@ -10,6 +10,7 @@ function lastWorkoutBefore(date) {
 function nextAfter(sid) { const o = order(); if (!o.length) return null; const i = o.indexOf(sid); return i < 0 ? o[0] : o[(i + 1) % o.length]; }
 function sessionFor(date) {
   if (STATE.w[date] && sessDef(STATE.w[date].s)) return STATE.w[date].s;
+  const sw = swapSess(date); if (sw) return sw;
   const ov = S().rotOverride, last = lastWorkoutBefore(date);
   if (ov && sessDef(ov.id) && ov.from <= date && (!last || last.date < ov.from)) return ov.id;
   let s = last ? nextAfter(last.s) : order()[0];
@@ -24,12 +25,17 @@ function nextTraining(id) { const o = order(); if (!o.length) return null; let s
 /* Planned rest days (S().restPlan, dates from today on): a one-off day off ahead. Like any unlogged day, it uses up a
    rotation rest slot if one is due; otherwise the rotation waits and the sessions after it move back a day. */
 function plannedRest(date) { return (S().restPlan || []).includes(date); }
+/* Swapped days (v1.70, S().sessSwap {date: id}, dates from today on): a different session on one day ahead. The rotation
+   carries on from it, so whatever sat between is skipped, as if you had logged it that day. */
+function swapSess(date) { const id = date >= today() && !STATE.w[date] ? S().sessSwap?.[date] : null; return id && sessDef(id) && !isRestSlot(id) ? id : null; }
 function upcoming(n) { // [{date, s, done, planned}] starting today; assumes you train every day from here except planned rest
   const out = [], t = today(), rec = STATE.w[t];
   let s = rec ? (sessDef(rec.s) ? rec.s : '_rest') : sessionFor(t);
-  if (!rec && plannedRest(t) && !isRestSlot(s)) out.push({ date: t, s: '_rest', done: false, planned: true });
+  if (!rec && swapSess(t)) { out.push({ date: t, s, done: false, swapped: true }); s = nextAfter(s); }
+  else if (!rec && plannedRest(t) && !isRestSlot(s)) out.push({ date: t, s: '_rest', done: false, planned: true });
   else { out.push({ date: t, s, done: !!rec, planned: !rec && plannedRest(t) }); s = rec ? sessionFor(addDays(t, 1)) : nextAfter(s); }
   for (let i = 1, d = addDays(t, 1); i < n; i++, d = addDays(d, 1)) {
+    const sw = swapSess(d); if (sw) { out.push({ date: d, s: sw, done: false, swapped: true }); s = nextAfter(sw); continue; }
     if (plannedRest(d) && !isRestSlot(s)) { out.push({ date: d, s: '_rest', done: false, planned: true }); continue; }
     out.push({ date: d, s, done: false, planned: plannedRest(d) }); s = nextAfter(s);
   }

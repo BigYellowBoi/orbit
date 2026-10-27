@@ -15,3 +15,4 @@ Running list of small fixes to batch-apply in one go. Line numbers were noted on
 6. **Volume window: rolling, no week end** (v1.68): Volume is now the last 3 days, today and the next 3, so tomorrow's session always counts (on a Sunday the Mon to Sun week hid Monday's Pull); the "+N Mon" note is gone.
 7. **Volume window: two full rotations** (v1.69): last 4 days + today + next 3 for his 4-day split (length follows the rotation), so every session counts twice every day; bands scaled to 8 days (hold ~3.4, grow 11.4–22.9).
 5. **Workout stays in progress until filled and Done** (v1.67): Save until every set has weight and reps (reps only for bodyweight), Done sets `fin`; History shows finished sessions only, older logs (before `FIN_FROM`) count as finished.
+8. **Swap a coming day's session** (v1.70): Coming up → tap a day → Change → pick a session; the rotation carries on from it, skipping what was in between. Undo swap goes back.

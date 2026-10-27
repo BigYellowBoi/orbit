@@ -157,6 +157,8 @@ button.sd { font: inherit; color: inherit; text-align: left; cursor: pointer; }
 .sd.pick { border-color: var(--accent); background: var(--accent-soft); } /* the picked day takes today's highlight */
 .pickrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); font-size: 13.5px; }
 .pickrow .btn { flex: none; }
+.pickrow { flex-wrap: wrap; } .pickrow > .btnrow { flex: none; gap: 6px; flex-wrap: nowrap; }
+.pickswap { flex-basis: 100%; display: flex; flex-direction: column; gap: 8px; }
 .restchip { display: inline-flex; align-items: center; gap: 6px; padding-right: 3px; }
 .ed-x.sm { width: 24px; height: 24px; border: 0; }
 

@@ -364,20 +364,24 @@ const ACT = {
     const w = newWorkoutAuto(date, sid); w.nw = 1; // marks a fresh start, so an untouched one can be dropped
     if (date < today()) w.fin = true; // logged after the fact: finished, so History shows it (v1.67)
     STATE.w[date] = w; const rp = (S().restPlan || []).filter(d => d !== date && d >= today());
-    if (S().rotOverride || rp.length !== (S().restPlan || []).length) { S().rotOverride = null; S().restPlan = rp; saveSettings(); } // training on a planned rest day drops the plan
+    const sw = S().sessSwap || {}, swGone = Object.keys(sw).filter(d => d <= date || d < today());
+    if (S().rotOverride || swGone.length || rp.length !== (S().restPlan || []).length) { S().rotOverride = null; S().restPlan = rp; swGone.forEach(d => delete sw[d]); saveSettings(); } // training on a planned rest day drops the plan; a swap for this day is used up
     saveW(date); open();
   },
   restday: () => { const date = ui.tab === 'log' ? (ui.logDate || today()) : today(); if (STATE.w[date]) return; STATE.w[date] = restRecord(date); if (ui.tab === 'today') STATE.w[date].fin = true; else if (date < today()) ui.logEdit = date; saveW(date); toast('Rest day logged'); render(true); },
   unrest: () => { const date = ui.tab === 'log' ? (ui.logDate || today()) : today(); if (STATE.w[date]?.rest) { delete STATE.w[date]; saveW(date); } render(true); },
   addrest: () => { const id = 'r' + Date.now().toString(36); S().prog.sessions[id] = { name: 'Rest', focus: 'Recovery', items: [], rest: true }; S().prog.order.push(id); saveSettings(); toast('Rest day added to the end of the rotation'); render(true); reveal(`.sess[data-id="${id}"]`); },
   togglesess: el => { const id = el.dataset.id; ui.openSess.has(id) ? ui.openSess.delete(id) : ui.openSess.add(id); ui.confirm = null; render(true); },
-  strippick: el => { ui.restPick = ui.restPick === el.dataset.date ? null : el.dataset.date; render(true); },
+  strippick: el => { ui.restPick = ui.restPick === el.dataset.date ? null : el.dataset.date; ui.swapOpen = null; render(true); },
+  swapopen: el => { ui.swapOpen = ui.swapOpen === el.dataset.date ? null : el.dataset.date; render(true); if (ui.swapOpen) reveal('.pickswap'); },
+  swapsess: el => setSwap(el.dataset.date, el.dataset.id),
+  swapoff: el => setSwap(el.dataset.date, null),
   reston: el => setRest(el.dataset.date, true),
   restoff: el => setRest(el.dataset.date, false),
   partial: el => { const d = el.dataset.date, v = el.dataset.v === '1', m = S().partial = S().partial || {}; if (m[d] === v) delete m[d]; else m[d] = v; saveSettings(); render(true); }, // tap the chosen answer again to clear it
   restplan: () => { ui.restPlanOpen = !ui.restPlanOpen; ui.restPick = null; render(true); },
   picktoday: () => { ui.pickSess = 'today'; render(true); },
-  setnext: el => { S().rotOverride = { id: el.dataset.id, from: today() }; ui.pickSess = null; saveSettings(); render(true); },
+  setnext: el => { S().rotOverride = { id: el.dataset.id, from: today() }; if (S().sessSwap) delete S().sessSwap[today()]; ui.pickSess = null; saveSettings(); render(true); },
   picksess: el => { ui.pickSess = el.dataset.id; render(true); },
   logday: el => { if (ui.logDate) dropEmpty(ui.logDate); const d = addDays(ui.logDate || today(), +el.dataset.n); if (d >= today()) { go('today'); return; } ui.logDate = d; ui.logEdit = null; ui.pickSess = null; ui.confirm = null; resetScroll(); render(true); },
   openlog: el => { ui.logDate = el.dataset.d; ui.logEdit = null; go('log'); },
@@ -568,9 +572,17 @@ document.addEventListener('click', ev => {
 function setRest(date, on) { // plan or unplan a one-off rest day; past dates drop off the list
   const t = today(); if (!date || date < t) return;
   if (on && STATE.w[date] && !emptyW(STATE.w[date])) { toast('That day is already logged'); const i = $('#restadd'); if (i) i.value = ''; return; } // v1.55: planned rest is for days ahead, not a logged day
-  const a = (S().restPlan || []).filter(d => d >= t && d !== date); if (on) a.push(date);
+  const a = (S().restPlan || []).filter(d => d >= t && d !== date); if (on) { a.push(date); if (S().sessSwap) delete S().sessSwap[date]; }
   S().restPlan = a.sort(); ui.restPick = null; saveSettings();
   toast(on ? `Rest planned for ${esc(fmtDow(date))} ${esc(fmtDate(date))}` : 'Planned rest removed'); render(true);
+}
+function setSwap(date, id) { // v1.70: a different session on one day ahead (id null undoes it); the rotation carries on from it
+  const t = today(); if (!date || date < t) return;
+  if (id && STATE.w[date] && !emptyW(STATE.w[date])) { toast('That day is already logged'); return; }
+  const m = S().sessSwap = Object.fromEntries(Object.entries(S().sessSwap || {}).filter(([d]) => d >= t && d !== date));
+  if (id) { m[date] = id; S().restPlan = (S().restPlan || []).filter(d => d >= t && d !== date); }
+  ui.swapOpen = null; ui.restPick = null; saveSettings();
+  toast(id ? `${esc(sessDef(id).name)} on ${esc(fmtDow(date))} ${esc(fmtDate(date))}` : 'Back to your rotation'); render(true);
 }
 const INP = {
   restadd: el => { if (el.value) setRest(el.value, true); },

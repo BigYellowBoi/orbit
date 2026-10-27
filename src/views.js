@@ -74,11 +74,11 @@ function futureDayHTML(d, off) {
     <div><h1>Rest</h1><p class="focus">${u.planned ? 'You planned this day off. The rotation waits, so the sessions after it move back a day.' : 'A rest slot in your rotation.'}</p></div>
     ${u.planned ? `<button class="btn sm ghost" data-act="restoff" data-date="${d}">Train this day instead</button>` : ''}</section>`;
   if (!sd) return '';
-  return `<section class="card hero"><div class="card-h"><span class="eyebrow">Planned · ${idx + 1} of ${o.length}</span></div>
+  return `<section class="card hero"><div class="card-h"><span class="eyebrow">${u.swapped ? 'Swapped' : 'Planned'} · ${idx + 1} of ${o.length}</span></div>
     <div class="rot">${o.map((id, i) => `<i class="${i === idx ? 'on' : ''}"></i>`).join('')}</div>
     <div><h1>${esc(sd.name)}</h1><p class="focus">${esc(sd.focus || '')}</p></div>
     ${planList(sd.items.filter(it => S().ex[it.ex]), d, sid)}
-    <div class="btnrow" style="justify-content:space-between"><span class="xs muted">Assumes you train each day until then.</span><button class="link dim" data-act="reston" data-date="${d}">Rest this day</button></div></section>`;
+    <div class="btnrow" style="justify-content:space-between"><span class="xs muted">${u.swapped ? 'Swapped for this day.' : 'Assumes you train each day until then.'}</span><span class="btnrow">${u.swapped ? `<button class="link dim" data-act="swapoff" data-date="${d}">Undo swap</button>` : ''}<button class="link dim" data-act="reston" data-date="${d}">Rest this day</button></span></div></section>`;
 }
 function vToday() {
   if (ui.dayOff) return vDay(ui.dayOff);
@@ -124,10 +124,14 @@ function stripHTML() { // the next days; tap one to plan it as a rest day (or un
   const up = upcoming(Math.max(5, order().length + 1)), t = today(), pick = up.find((u, i) => i > 0 && u.date === ui.restPick);
   const later = (S().restPlan || []).filter(d => d >= t).sort(), lab = d => `${fmtDow(d)} ${fmtDate(d)}`;
   let h = `<section class="sec"><div class="sec-h"><span class="eyebrow">Coming up</span><button class="link" data-act="restplan">${ui.restPlanOpen ? 'Done' : `Plan rest${later.length ? ` (${later.length})` : ''}`}</button></div><div class="strip">${up.map((u, i) => {
-    const cls = `sd ${i === 0 ? (pick ? '' : 'now') + (u.done ? ' done' : '') : ''} ${u.s === '_rest' || isRestSlot(u.s) ? 'rest' : ''} ${u.planned ? 'planned' : ''} ${pick && pick.date === u.date ? 'pick' : ''}`;
+    const cls = `sd ${i === 0 ? (pick ? '' : 'now') + (u.done ? ' done' : '') : ''} ${u.s === '_rest' || isRestSlot(u.s) ? 'rest' : ''} ${u.planned || u.swapped ? 'planned' : ''} ${pick && pick.date === u.date ? 'pick' : ''}`;
     const inner = `<small>${i === 0 ? 'Today' : i === 1 ? 'Tmrw' : esc(fmtDow(u.date))}</small><b>${esc(slotName(u.s))}</b>`;
     return i > 0 ? `<button class="${cls}" data-act="strippick" data-date="${u.date}" aria-label="${esc(lab(u.date))}: ${esc(slotName(u.s))}">${inner}</button>` : `<div class="${cls}" data-now="1">${inner}</div>`; }).join('')}</div>`;
-  if (pick) h += `<div class="pickrow"><span><b>${esc(lab(pick.date))}</b> · ${pick.planned ? 'planned rest' : isRestSlot(pick.s) ? 'rest from your rotation' : esc(slotName(pick.s))}</span>${pick.planned ? `<button class="btn sm ghost" data-act="restoff" data-date="${pick.date}">Train this day</button>` : isRestSlot(pick.s) ? '' : `<button class="btn sm" data-act="reston" data-date="${pick.date}">Rest this day</button>`}</div>`;
+  if (pick) {
+    const open = ui.swapOpen === pick.date, cur = pick.s === '_rest' || isRestSlot(pick.s) ? null : pick.s;
+    h += `<div class="pickrow"><span><b>${esc(lab(pick.date))}</b> · ${pick.planned ? 'planned rest' : isRestSlot(pick.s) ? 'rest from your rotation' : esc(slotName(pick.s)) + (pick.swapped ? ' (swapped)' : '')}</span><span class="btnrow">${pick.swapped ? `<button class="btn sm ghost" data-act="swapoff" data-date="${pick.date}">Undo swap</button>` : `<button class="btn sm ghost" data-act="swapopen" data-date="${pick.date}">${open ? 'Close' : 'Change'}</button>`}${pick.planned ? `<button class="btn sm ghost" data-act="restoff" data-date="${pick.date}">Train this day</button>` : isRestSlot(pick.s) ? '' : `<button class="btn sm" data-act="reston" data-date="${pick.date}">Rest</button>`}</span>
+      ${open ? `<div class="pickswap"><span class="xs muted">The rotation carries on from it, skipping anything between.</span><div class="chips">${trainIds().map(id => `<button class="chip ${id === cur ? 'on' : ''}" data-act="swapsess" data-date="${pick.date}" data-id="${id}">${esc(sessDef(id).name)}</button>`).join('')}</div></div>` : ''}</div>`;
+  }
   if (ui.restPlanOpen) h += `<section class="card"><div class="card-h"><h2>Planned rest days</h2></div>
     ${later.length ? `<div class="chips">${later.map(d => `<span class="pill plain restchip">${esc(lab(d))}<button class="ed-x sm" data-act="restoff" data-date="${d}" aria-label="Remove rest on ${esc(lab(d))}">${ICON.x}</button></span>`).join('')}</div>` : '<p class="xs muted">None yet.</p>'}
     <label class="fl">Add a day<input class="in" type="date" id="restadd" data-in="restadd" min="${STATE.w[t] && !emptyW(STATE.w[t]) ? addDays(t, 1) : t}"></label>
