@@ -101,6 +101,10 @@ button { cursor: pointer; }
 .rt > b.strain { color: var(--strain); }
 .rk > em, .rt > em { font-style: normal; font-size: 11.5px; color: var(--ink-3); line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rcard em.tn-good { color: var(--good-ink); } .rcard em.tn-warn { color: var(--warn-ink); } .tn-inj { color: var(--inj-ink); }
+.rtiles.hs2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.tbl.hs td.tn-good { color: var(--good-ink); } .tbl.hs td.tn-warn { color: var(--warn-ink); } .tbl.hs td b { font-weight: 600; }
+.hsvo2 { display: flex; gap: 8px; align-items: flex-end; } .hsvo2 .fl { flex: 1; min-width: 0; }
+.rows.hsv li { display: grid; grid-template-columns: 1fr auto auto auto; gap: 10px; align-items: center; } .rows.hsv b { font-variant-numeric: tabular-nums; }
 .rsrc { font-family: var(--f-mono); font-size: 11.5px; letter-spacing: .04em; color: var(--ink-3); }
 .rtiles.e4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } @container (min-width: 600px) { .rtiles.e4 { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 /* Weekly summary: the week column stays put while the rest scrolls, and the edge fades when there's more (v1.36) */

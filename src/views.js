@@ -689,10 +689,34 @@ function energyCard() {
     ${tile('Expenditure', ex != null ? fmt(ex, 0) : null, 'kcal', '')}
     ${tile('Intake, 7 days', ik != null ? fmt(ik, 0) : null, 'kcal', ik != null && ex != null ? `${ik - ex >= 0 ? '+' : '−'}${fmt(Math.abs(ik - ex), 0)} vs expenditure` : '')}</div></section>`;
 }
+/* Healthspan (v1.72): the WHOOP Healthspan replica (engine.js HEALTHSPAN): years younger, Pace of Aging, each metric's
+   6M value and Age Impact with the 30D one beside it, milestones, and VO2 (weekly, typed in or imported, synced). */
+const HS_FMT = { steps: [0, '/day'], rhr: [1, 'bpm'], sleep_consistency: [0, '%'], z13: [0, 'min/wk'], z45: [0, 'min/wk'], sleep_hours: [1, 'h'], strength: [0, 'min/wk'], vo2: [1, ''] };
+function healthspanCard() {
+  const h = healthspan(), w = h.cur, v2 = hsVo2(), lastV = v2[v2.length - 1];
+  const yrsTxt = n => n > 0 ? `${n} yrs younger` : n < 0 ? `${-n} yrs older` : 'Same as your age';
+  const sgn = (x, d = 1) => (x > 0 ? '+' : x < 0 ? '−' : '') + fmt(Math.abs(x), d);
+  const vo2Row = `<div class="hsvo2"><label class="fl">VO2 max this week<input class="in" type="number" inputmode="decimal" step="0.1" min="20" max="90" id="vo2in" placeholder="${lastV ? fmt(lastV.v, 1) : 'from WHOOP'}"></label><button class="btn sm" data-act="vo2add">Save</button></div>
+    <details class="info"${ui.vo2Open ? ' open' : ''}><summary>VO2 entries${v2.length ? ` · ${v2.length}` : ''}</summary>${v2.length ? `<ul class="rows hsv">${v2.slice(-6).reverse().map(x => `<li><span>${esc(fmtD(x.d))}</span><b>${fmt(x.v, 1)}</b><span class="xs muted">${esc(x.src === 'whoop' ? 'WHOOP' : x.src)}</span><button class="link dim" data-act="vo2rem" data-date="${x.d}" aria-label="Remove ${esc(fmtD(x.d))}">×</button></li>`).join('')}</ul>` : ''}
+      <label class="btn sm ghost filebtn" style="align-self:flex-start">Import VO2 history (.csv)<input type="file" class="vh" accept=".csv,text/csv" data-in="fvo2"></label></details>`;
+  if (!w) return `<section class="card"><div class="card-h"><h2>Healthspan</h2><span class="eyebrow">calibrating</span></div><p class="small dim">Needs 21 WHOOP recoveries in the last 31 days.</p>${vo2Row}</section>`;
+  const prev = h.weeks[h.weeks.length - 2], flags = hsFlags(w.x6);
+  const tile = (label, v, sub, tone) => `<div class="rt" data-live="${esc(label)}"><span>${esc(label)}</span><b>${v}</b><em${tone ? ` class="tn-${tone}"` : ''}>${sub || '&nbsp;'}</em></div>`;
+  const rows = HS_M.map(m => { const [d, u] = HS_FMT[m], x6 = w.x6[m], x30 = w.x30[m], dd = w.d[m];
+    const tone = Math.abs(dd) < 0.05 ? '' : dd < 0 ? 'good' : 'warn';
+    return `<tr><td>${esc(HS_NAME[m])}${flags.includes(m) ? ' <span class="xs muted">· outside fit</span>' : ''}</td><td class="n">${x6 == null ? '–' : fmt(x6, d)}<span class="xs muted"> ${u}</span></td><td class="n${tone ? ` tn-${tone}` : ''}">${x30 == null ? '–' : fmt(x30, d)}</td><td class="n"><b>${sgn(w.i6[m])}</b></td></tr>`; }).join('');
+  return `<section class="card rcard"><div class="card-h"><h2>Healthspan</h2><span class="eyebrow">week to ${esc(fmtD(w.W))}</span></div>
+    <div class="rtiles hs2">${tile('Healthspan', esc(yrsTxt(w.yrs)), h.miles.length ? `since ${esc(fmtD(h.miles[h.miles.length - 1].W))}` : '', w.yrs > 0 ? 'good' : '')}
+      ${tile('Pace of Aging', `${fmt(w.pace, 1)}<small>×</small>`, prev ? `${fmt(prev.pace, 1)}× the week before` : '')}</div>
+    <div class="tblwrap"><table class="tbl hs"><thead><tr><th>Metric</th><th class="n">6 months</th><th class="n">30 days</th><th class="n">Years</th></tr></thead><tbody>${rows}</tbody></table></div>
+    ${h.miles.length ? `<p class="xs muted">Milestones: ${h.miles.map(m => `${m.yrs} yrs ${esc(fmtD(m.W))}`).join(' · ')}</p>` : ''}
+    ${vo2Row}
+    ${infoHTML(`A copy of WHOOP's Healthspan, fitted to your WHOOP numbers (Pace within ±0.1 of the app in about 9 weeks of 10). Years: each metric's Age Impact over 6 months, negative is younger. The 30-day value is green when it is pulling the impact younger, amber when older; Pace adds those changes up. VO2 comes from WHOOP's weekly estimate, so type it in each week.`)}</section>`;
+}
 function vBody() {
   let h = `<div class="page-h"><div><div class="eyebrow">Recovery · energy · trends</div><h1>Body</h1></div></div>`;
   h += freshHTML() + partialCard() + energyCard();
-  const cards = [{ k: 'trends', t: 'Trends', h: explorerHTML() }, { k: 'alcohol', t: 'Alcohol and recovery', h: alcoholCard() }];
+  const cards = [{ k: 'healthspan', t: 'Healthspan', h: healthspanCard() }, { k: 'trends', t: 'Trends', h: explorerHTML() }, { k: 'alcohol', t: 'Alcohol and recovery', h: alcoholCard() }];
   const raAll = recoveryAfter(), ra = raAll.filter(r => r.n >= 2).sort((a, b) => b.avg - a.avg), nAlc = sum(raAll.map(r => r.alc));
   const alcAvg = nAlc ? sum(raAll.map(r => r.alc * (r.alcAvg || 0))) / nAlc : null; // any session, then a drink: for comparison
   if (ra.length >= 2) cards.push({ k: 'recafter', t: 'Recovery the morning after', h: `<section class="card"><div class="card-h"><h2>Recovery the morning after</h2><span class="eyebrow">all time</span></div><p class="xs muted">Average next-day WHOOP recovery after each session type. Small samples move a lot; read it as a hint.${nAlc ? ` Mornings after alcohol are left out and shown on their own.` : ''}</p>

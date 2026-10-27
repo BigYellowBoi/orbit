@@ -341,6 +341,7 @@ function sweepSettings() { // one-off settings migrations to save, and blank exe
   let ch = !!ui.migSave; ui.migSave = false; if (syncSets()) ch = true;
   for (const id of Object.keys(S().ex)) if (id !== ui.editEx && blankEx(id)) { delete S().ex[id]; ch = true; }
   for (const [id, x] of Object.entries(S().ex)) if (x.base && x.base.r > 0 && !x.bctx && snapBase(id)) ch = true; // v1.44: fix each stated max to the slot it has now, once
+  if (!S().hsMiles) { S().hsMiles = { 7: { d: '2025-03-18', src: 'whoop' }, 8: { d: '2026-04-05', src: 'whoop' }, 9: { d: '2026-06-28', src: 'whoop' } }; ch = true; } // v1.72: WHOOP's Healthspan milestones so far, once; Orbit adds later ones
   if (ch) saveSettings();
 }
 function sweepCardio() { // WHOOP's cardio often lands after a session is done (the sync helper brings it in later), so check recent days whenever data arrives
@@ -378,6 +379,10 @@ const ACT = {
   swapoff: el => setSwap(el.dataset.date, null),
   reston: el => setRest(el.dataset.date, true),
   restoff: el => setRest(el.dataset.date, false),
+  vo2add: () => { // this week's WHOOP VO2 estimate, dated today (one per day; a second entry the same day replaces it)
+    const v = num($('#vo2in')?.value); if (v == null || v < 20 || v > 90) { toast('Enter a VO2 max between 20 and 90.', 'bad'); return; }
+    S().vo2 = { ...(S().vo2 || {}), [today()]: { v: r1(v), src: 'whoop' } }; saveSettings(); toast(`VO2 ${fmt(v, 1)} saved`); render(true); },
+  vo2rem: el => { ui.vo2Open = true; const o = { ...(S().vo2 || {}) }; delete o[el.dataset.date]; S().vo2 = o; saveSettings(); render(true); },
   partial: el => { const d = el.dataset.date, v = el.dataset.v === '1', m = S().partial = S().partial || {}; if (m[d] === v) delete m[d]; else m[d] = v; saveSettings(); render(true); }, // tap the chosen answer again to clear it
   restplan: () => { ui.restPlanOpen = !ui.restPlanOpen; ui.restPick = null; render(true); },
   picktoday: () => { ui.pickSess = 'today'; render(true); },
@@ -620,6 +625,11 @@ const INP = {
   proteint: el => { const n = num(el.value); S().proteinT = n > 0 ? n : null; saveSettings(); },
   fwhoop: el => readFiles(el, readWhoopFiles),
   fmf: el => readFiles(el, readMfFiles),
+  fvo2: async el => { // date,value lines (the brief's seed_whoop_vo2_weekly.csv); entries already here are kept
+    const f = el.files?.[0]; if (!f) return; el.value = '';
+    const add = {}; for (const l of (await f.text()).split(/\r?\n/)) { const [d, x] = l.split(',').map(c => c.trim()), v = num(x); if (/^\d{4}-\d{2}-\d{2}$/.test(d || '') && v != null && v >= 20 && v <= 90) add[d] = { v, src: 'whoop' }; }
+    const n = Object.keys(add).length; if (!n) { toast('No date,value rows found.', 'bad'); return; }
+    S().vo2 = { ...add, ...(S().vo2 || {}) }; ui.vo2Open = true; saveSettings(); toast(`${n} VO2 estimates imported`); render(true); },
   fah: el => readFiles(el, readAhFiles),
   fbackup: async el => {
     const f = el.files?.[0]; if (!f) return;

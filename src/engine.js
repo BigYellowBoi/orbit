@@ -772,3 +772,88 @@ function rangeStart() { return ui.range === 0 ? null : addDays(today(), -ui.rang
 function datesWith(keys, from) {
   return Object.keys(STATE.d).filter(d => (!from || d >= from) && d <= today() && keys.some(k => STATE.d[d][k] != null)).sort();
 }
+
+/* ============================================================
+   HEALTHSPAN (v1.72): a replica of WHOOP's Healthspan (Pace of Aging, per-metric Age Impacts, years younger), from the
+   reverse-engineered brief (model v3, 25 Oct 2026; parameters are personal fits for Louis, not WHOOP's code, and are not
+   to be retuned here). Weekly: the week ends Sunday W; 6M = [W-179, W], 30D = [W-29, W], both inclusive.
+   Day values come from HS_SRC, first source with a value wins per metric, and each value keeps its source, so a Garmin
+   source can be added later beside WHOOP. VO2 is a separate weekly series in synced settings: S().vo2 {date: {v, src}}.
+   Check with `node test/healthspan.mjs` (formula and pipeline layers need the brief's files, passed by path).
+   ============================================================ */
+const HS = {
+  imp: { // lin: f = -slope·(min(x, xmax) - target), floored at -cap; log: f = -slope·ln(x / target). Negative = younger.
+    steps: { form: 'lin', slope: 0.00021, target: 8113 }, rhr: { form: 'lin', slope: -0.1187, target: 60.09 },
+    sleep_consistency: { form: 'lin', slope: 0.158, target: 70.25 }, z13: { form: 'lin', slope: 0.00856, target: 107.7, cap: 2.9 },
+    z45: { form: 'log', slope: 0.2466, target: 18.51 }, sleep_hours: { form: 'lin', slope: 0.3, target: 7.025, cap: 0.2 },
+    strength: { form: 'lin', slope: 0.016, target: 0, cap: 1.6 }, vo2: { form: 'lin', slope: 0.28, target: 46.52 },
+  },
+  poa: { c: 0.6553, kp: 0.3862, kn: 0.5375, lo: -1, hi: 3 },
+  z13fix: 1.04, // 30D zone 1-3 from workouts alone reads ~4% low against WHOOP
+  weekly: new Set(['z13', 'z45', 'strength']), // window value = minutes a week (missing days count 0); the rest are means of days with data
+  // the range each metric was fitted over; outside it the impact is a guess
+  fit: { vo2: [53, 56], sleep_consistency: [68, 74], sleep_hours: [0, 8] },
+};
+const HS_M = ['steps', 'rhr', 'sleep_consistency', 'z13', 'z45', 'sleep_hours', 'strength', 'vo2'];
+const HS_NAME = { steps: 'Steps', rhr: 'Resting HR', sleep_consistency: 'Sleep consistency', z13: 'Zones 1-3', z45: 'Zones 4-5', sleep_hours: 'Hours of sleep', strength: 'Strength activity', vo2: 'VO2 max' };
+const HS_STRENGTH = /^(weightlifting|powerlifting|functional fitness|strength trainer|strength training|crossfit)$/i; // WHOOP sport names; auto-detected ones included
+const HS_SRC = [{ id: 'whoop', day: x => { // one day of STATE.d as Healthspan inputs; null = no value
+  const o = { steps: x.stp || null, rhr: x.rhr || null, sleep_consistency: x.sc || null, sleep_hours: x.slp ? x.slp / 60 : null }; // slp: asleep minutes of the main sleep
+  if (x.acts) { let a = 0, b = 0, s = 0; for (const t of x.acts) { const z = t.z || [], m = t.min || 0; a += m * ((z[0] || 0) + (z[1] || 0) + (z[2] || 0)) / 100; b += m * ((z[3] || 0) + (z[4] || 0)) / 100; if (HS_STRENGTH.test(t.n || '')) s += m; } Object.assign(o, { z13: a, z45: b, strength: s }); }
+  return o;
+} }];
+function hsDay(date) { // { v: {metric: value}, src: {metric: source id} }
+  const x = STATE.d[date], v = {}, src = {}; if (!x) return { v, src };
+  for (const s of HS_SRC) { const o = s.day(x); for (const m in o) if (o[m] != null && v[m] == null) { v[m] = o[m]; src[m] = s.id; } }
+  return { v, src };
+}
+function hsVo2() { const o = S().vo2 || {}; return Object.entries(o).map(([d, x]) => ({ d, v: typeof x === 'number' ? x : x?.v, src: x?.src || 'whoop' })).filter(x => Number.isFinite(x.v)).sort((a, b) => a.d < b.d ? -1 : 1); }
+function hsImpact(m, x) {
+  const q = HS.imp[m]; if (x == null || !q) return 0;
+  if (q.form === 'log') return -q.slope * Math.log(Math.max(x, 1e-9) / q.target);
+  const y = -q.slope * ((q.xmax != null ? Math.min(x, q.xmax) : x) - q.target);
+  return q.cap != null ? Math.max(y, -q.cap) : y;
+}
+function hsWindow(W, n, day, vo2) { // day: date -> hsDay(date).v; vo2: [{d, v}]
+  const from = addDays(W, -(n - 1)), x = {}, acc = {};
+  for (let i = 0; i < n; i++) { const v = day(addDays(W, -i)); for (const m in v) { const a = acc[m] = acc[m] || [0, 0]; a[0] += v[m]; a[1]++; } }
+  for (const m of HS_M) {
+    if (m === 'vo2') { const v = vo2.filter(o => o.d >= from && o.d <= W).map(o => o.v); x.vo2 = v.length ? mean(v) : null; } // the estimates dated inside the window, not carried forward
+    else if (HS.weekly.has(m)) x[m] = (acc[m]?.[0] || 0) * 7 / n;
+    else x[m] = acc[m] ? acc[m][0] / acc[m][1] : null;
+  }
+  if (n === 30) x.z13 *= HS.z13fix;
+  return x;
+}
+function hsEval(x6, x30) {
+  const i6 = {}, i30 = {}, d = {}; let up = 0, dn = 0;
+  for (const m of HS_M) { i6[m] = hsImpact(m, x6[m]); i30[m] = hsImpact(m, x30[m] ?? x6[m]); d[m] = i30[m] - i6[m]; if (d[m] > 0) up += d[m]; else dn += d[m]; }
+  const P = HS.poa, raw = Math.min(P.hi, Math.max(P.lo, P.c + P.kp * up + P.kn * dn));
+  // Years younger, as WHOOP's milestones show it (−7, −8, −9 matched to the week): each 6M impact rounded to 0.1, summed, truncated toward 0
+  const r = sum(HS_M.map(m => Math.sign(i6[m]) * Math.round(Math.abs(i6[m]) * 10) / 10)), yrs = -Math.trunc(Math.round(r * 10) / 10);
+  return { i6, i30, d, up, dn, raw, pace: Math.round(raw * 10) / 10, total: sum(Object.values(i6)), yrs };
+}
+const HSC = { key: null };
+function healthspan() { // every eligible week (Sunday W) up to the latest Sunday, newest last, plus milestones; cached on STATE.v + today
+  const key = STATE.v + ':' + today(); if (HSC.key === key) return HSC.r;
+  const memo = {}, day = d => memo[d] || (memo[d] = hsDay(d).v), vo2 = hsVo2();
+  const recs = Object.keys(STATE.d).filter(d => STATE.d[d].rec != null).sort(), weeks = [];
+  if (recs.length) {
+    let W = addDays(recs[0], (7 - new Date(toUTC(recs[0])).getUTCDay()) % 7); const last = addDays(today(), -new Date(toUTC(today())).getUTCDay());
+    for (; W <= last; W = addDays(W, 7)) {
+      const from = addDays(W, -30); let n = 0; for (const d of recs) if (d >= from && d <= W) n++;
+      if (n < 21) continue; // calibrating: at least 21 recoveries in the last 31 days
+      const x6 = hsWindow(W, 180, day, vo2), x30 = hsWindow(W, 30, day, vo2);
+      weeks.push({ W, x6, x30, part: W < addDays(recs[0], 179), ...hsEval(x6, x30) }); // part: the 6M window starts before the first WHOOP day
+    }
+  }
+  // Milestones: the ones WHOOP awarded (S().hsMiles {yrs: {d, src}}) stand as recorded; Orbit adds the first week each new
+  // whole year younger is reached after the last of them. Only weeks with a full 6M of data count; with nothing recorded,
+  // the first of those is the baseline.
+  const rec = Object.entries(S().hsMiles || {}).map(([y, o]) => ({ W: o.d, yrs: +y, src: o.src || 'whoop' })).filter(m => m.W && Number.isFinite(m.yrs)).sort((a, b) => a.W < b.W ? -1 : 1);
+  const full = weeks.filter(w => !w.part), miles = [...rec], after = rec.length ? rec[rec.length - 1].W : '';
+  let best = rec.length ? Math.max(...rec.map(m => m.yrs)) : full.length ? full[0].yrs : Infinity;
+  for (const w of full) if (w.W > after && w.yrs > best) { miles.push({ W: w.W, yrs: w.yrs, src: 'orbit' }); best = w.yrs; }
+  HSC.key = key; return HSC.r = { weeks, miles, cur: weeks[weeks.length - 1] || null };
+}
+function hsFlags(x6) { return Object.entries(HS.fit).filter(([m, [lo, hi]]) => x6[m] != null && (x6[m] < lo || x6[m] > hi)).map(([m]) => m); }
