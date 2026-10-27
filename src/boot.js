@@ -382,6 +382,9 @@ const ACT = {
   vo2add: () => { // this week's WHOOP VO2 estimate, dated today (one per day; a second entry the same day replaces it)
     const v = num($('#vo2in')?.value); if (v == null || v < 20 || v > 90) { toast('Enter a VO2 max between 20 and 90.', 'bad'); return; }
     S().vo2 = { ...(S().vo2 || {}), [today()]: { v: r1(v), src: 'whoop' } }; saveSettings(); toast(`VO2 ${fmt(v, 1)} saved`); render(true); },
+  hsrow: el => { const m = el.dataset.m, o = ui.hsOpen || (ui.hsOpen = new Set()); o.has(m) ? o.delete(m) : o.add(m); render(true); },
+  hsweek: el => { ui.hsOff = Math.max(0, (ui.hsOff || 0) + +el.dataset.d); render(true); }, // 1 = a week further back
+  hstrend: el => { ui.metric = el.dataset.m; ui.per = '6M'; ui.off = 0; render(true); requestAnimationFrame(() => $('#metric')?.closest('.card')?.scrollIntoView({ behavior: 'smooth', block: 'start' })); },
   partial: el => { const d = el.dataset.date, v = el.dataset.v === '1', m = S().partial = S().partial || {}; if (m[d] === v) delete m[d]; else m[d] = v; saveSettings(); render(true); }, // tap the chosen answer again to clear it
   restplan: () => { ui.restPlanOpen = !ui.restPlanOpen; ui.restPick = null; render(true); },
   picktoday: () => { ui.pickSess = 'today'; render(true); },

@@ -139,8 +139,36 @@ button { cursor: pointer; }
 .rt > b.strain { color: var(--strain); }
 .rk > em, .rt > em { font-style: normal; font-size: 11.5px; color: var(--ink-3); line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rcard em.tn-good { color: var(--good-ink); } .rcard em.tn-warn { color: var(--warn-ink); } .tn-inj { color: var(--inj-ink); }
-.rtiles.hs2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.tbl.hs td.tn-good { color: var(--good-ink); } .tbl.hs td.tn-warn { color: var(--warn-ink); } .tbl.hs td b { font-weight: 600; }
+/* Healthspan (v1.74), WHOOP layout */
+.hscard { --hs-g2: var(--good); --hs-g1: color-mix(in srgb, var(--good) 45%, var(--surface-2)); --hs-n: var(--line-2); --hs-a1: color-mix(in srgb, var(--warn) 45%, var(--surface-2)); --hs-a2: var(--warn); }
+.hs-t-g2, .hs-t-g1 { color: var(--good-ink); } .hs-t-a2, .hs-t-a1 { color: var(--warn-ink); } .hs-t-n { color: var(--ink-3); }
+.hsnav { display: flex; align-items: center; justify-content: center; gap: 14px; } .hsnav b { font-family: var(--f-mono); font-size: 12.5px; letter-spacing: .08em; text-transform: uppercase; font-weight: 600; min-width: 0; text-align: center; }
+.hsnav .iconbtn { font-size: 22px; line-height: 1; border: 0; background: none; } .hsnav .iconbtn:disabled { opacity: .3; }
+.hsorb { --c: var(--ink-3); width: min(68%, 240px); aspect-ratio: 1; margin: 6px auto 2px; border-radius: 50%; display: grid; place-items: center; text-align: center;
+  background: radial-gradient(circle, #000 42%, color-mix(in srgb, var(--c) 30%, #000) 78%, color-mix(in srgb, var(--c) 60%, #000) 100%); border: 2px solid color-mix(in srgb, var(--c) 70%, transparent); box-shadow: 0 0 36px color-mix(in srgb, var(--c) 35%, transparent); }
+.hs-o-good { --c: var(--good); } .hs-o-warn { --c: var(--warn); }
+.hsorb b { display: block; font-size: 52px; font-weight: 600; letter-spacing: -.03em; line-height: 1; font-variant-numeric: tabular-nums; } .hsorb span { display: block; margin-top: 4px; font-family: var(--f-mono); font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; color: color-mix(in srgb, var(--c) 80%, var(--ink)); }
+.hsmiles { text-align: center; }
+.hspace { display: flex; flex-direction: column; gap: 6px; } .hspace-h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.hspace-v { display: flex; justify-content: space-between; align-items: baseline; } .hspace-v b { font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.hspace-s { position: relative; display: flex; justify-content: space-between; height: 30px; align-items: center; } .hspace-s i { width: 2px; height: 22px; border-radius: 1px; background: var(--line-2); } .hspace-s i.maj { background: var(--ink-3); }
+.hspace-m { position: absolute; top: -2px; width: 3px; height: 34px; margin-left: -1.5px; border-radius: 2px; background: var(--ink); box-shadow: 0 0 8px rgba(255,255,255,.4); }
+.hspace-l { display: flex; justify-content: space-between; font: 600 11.5px var(--f-mono); color: var(--ink-3); }
+.hsg { display: flex; flex-direction: column; } .hsg-h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; padding: 10px 0 4px; } .hsg-h h3 { font-size: 18px; font-weight: 600; margin: 0; } .hsg-sep { color: var(--line-2); margin: 0 4px; }
+.hsr { border-top: 1px solid var(--line); padding: 10px 0 12px; display: flex; flex-direction: column; gap: 6px; }
+.hsr-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; background: none; border: 0; padding: 0; color: var(--ink); text-align: left; font-family: var(--f-mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; font-weight: 600; min-height: 32px; }
+.hsr-h small { text-transform: none; letter-spacing: 0; font-weight: 500; } .hsr.open .chev { transform: rotate(180deg); }
+.hsr-b { display: grid; grid-template-columns: minmax(0, 1fr) 56px; gap: 12px; align-items: center; }
+.hsr-y { text-align: right; } .hsr-y b { display: block; font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.1; } .hsr-y small { font-size: 12px; color: var(--ink-3); }
+.hsb { position: relative; display: flex; flex-direction: column; gap: 2px; }
+.hsb-l { position: relative; display: inline-flex; align-items: baseline; gap: 3px; white-space: nowrap; align-self: flex-start; font-variant-numeric: tabular-nums; } .hsb-l b { font-size: 15px; font-weight: 600; } .hsb-l small { font-size: 11.5px; color: var(--ink-3); }
+.hsb-l em { font-style: normal; font-size: 11.5px; color: var(--ink-3); margin-left: 4px; } .hsb-l.l6 { margin-bottom: 7px; } .hsb-l.l30 { margin-top: 4px; }
+.hsb-t { position: relative; display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px; height: 5px; } .hsb-t > i { border-radius: 1px; }
+.hsb-t > i.hs-g2 { background: var(--hs-g2); } .hsb-t > i.hs-g1 { background: var(--hs-g1); } .hsb-t > i.hs-n { background: var(--hs-n); } .hsb-t > i.hs-a1 { background: var(--hs-a1); } .hsb-t > i.hs-a2 { background: var(--hs-a2); }
+.hsb-m { position: absolute; width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; margin-left: -6px; }
+.hsb-m.dn { bottom: 6px; border-top: 8px solid var(--ink); } .hsb-m.up { top: 7px; border-bottom: 7px solid var(--ink-3); }
+.hsb-e { display: flex; justify-content: space-between; margin-top: 8px; font: 600 11.5px var(--f-mono); }
+.hsr-x { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; padding-top: 4px; } .hsr-x p { margin: 0; } .hsr-x .hsvo2 { width: 100%; margin-top: 4px; }
 .hsvo2 { display: flex; gap: 8px; align-items: center; } .hsvo2 > span { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; } .hsvo2 .in { width: 76px; flex: none; text-align: center; }
 .rsrc { font-family: var(--f-mono); font-size: 11.5px; letter-spacing: .04em; color: var(--ink-3); }
 .rtiles.e4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } @container (min-width: 600px) { .rtiles.e4 { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
@@ -708,7 +736,7 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.73'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.74'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
@@ -2937,28 +2965,66 @@ function energyCard() {
     ${tile('Expenditure', ex != null ? fmt(ex, 0) : null, 'kcal', '')}
     ${tile('Intake, 7 days', ik != null ? fmt(ik, 0) : null, 'kcal', ik != null && ex != null ? `${ik - ex >= 0 ? '+' : '−'}${fmt(Math.abs(ik - ex), 0)} vs expenditure` : '')}</div></section>`;
 }
-/* Healthspan (v1.72): the WHOOP Healthspan replica (engine.js HEALTHSPAN): years younger, Pace of Aging, each metric's
-   6M value and Age Impact with the 30D one beside it, milestones, and VO2 (weekly, typed in or imported, synced). */
-const HS_FMT = { steps: [0, '/day'], rhr: [1, 'bpm'], sleep_consistency: [0, '%'], z13: [0, 'min/wk'], z45: [0, 'min/wk'], sleep_hours: [1, 'h'], strength: [0, 'min/wk'], vo2: [1, ''] };
+/* Healthspan (v1.74): laid out like WHOOP's Healthspan screen. A glowing orb with years younger, the Pace of Aging scale,
+   a week navigator (ui.hsOff weeks back from the latest), then Sleep / Strain / Fitness groups of range bars: ▼ the 6M
+   average, ▲ the 30D one, the 6M Age Impact on the right. Segment colours come from hsImpact at each segment's midpoint
+   (grey near the target, green younger, amber older), so they follow the fitted formula. Bar ends fitted to WHOOP's
+   screenshots (Oct 2026): steps 0–16K, VO2 15–70, RHR 40–80, consistency 40–100%, sleep 5–8 h, zones 1–3 and strength
+   0–6.5 h a week, zones 4–5 0–1 h. Tap a row for both averages, a verdict and its trend; VO2 entry sits in the VO2 row. */
+const HS_FMT = { steps: [0, ''], rhr: [0, 'bpm'], sleep_consistency: [0, '%'], z13: ['hm', 'h'], z45: ['hm', 'h'], sleep_hours: ['hh', 'h'], strength: ['hm', 'h'], vo2: [0, 'ml/kg/min'] };
+const HS_RANGE = { steps: [0, 16000], rhr: [40, 80], sleep_consistency: [40, 100], z13: [0, 390], z45: [0, 60], sleep_hours: [5, 8], strength: [0, 390], vo2: [15, 70] };
+const HS_GROUPS = [['Sleep', ['sleep_consistency', 'sleep_hours']], ['Strain', ['z13', 'z45', 'strength', 'steps']], ['Fitness', ['vo2', 'rhr']]];
+const HS_TREND = { steps: 'stp', rhr: 'rhr', sleep_consistency: 'sc', z13: 'z13', z45: 'z45', strength: 'lift' }; // Trends explorer ids
+const HS_NOUN = { steps: 'daily Steps', rhr: 'Resting HR', sleep_consistency: 'Sleep Consistency', z13: 'weekly Time in HR Zones 1-3', z45: 'weekly Time in HR Zones 4-5', sleep_hours: 'Hours of Sleep', strength: 'weekly Strength Activity Time', vo2: 'VO2 max' };
+function hsVal(m, x) { // value text, no unit
+  if (x == null || !Number.isFinite(x)) return '–';
+  const f = HS_FMT[m][0];
+  return f === 'hm' ? hm(x) : f === 'hh' ? hm(x * 60) : m === 'steps' ? fmt(x, 0) : fmt(x, f);
+}
+function hsEnd(m, x) { const f = HS_FMT[m][0]; return f === 'hm' ? (x % 60 ? hm(x) : x / 60) + 'h' : f === 'hh' ? x + 'h' : m === 'steps' ? (x ? x / 1000 + 'K' : '0K') : m === 'rhr' ? x + 'bpm' : m === 'sleep_consistency' ? x + '%' : '' + x; }
+function hsTone(y) { return y < -0.5 ? 'g2' : y < -0.1 ? 'g1' : y > 0.5 ? 'a2' : y > 0.1 ? 'a1' : 'n'; }
+function hsBar(m, x6, x30, open) {
+  const [lo, hi] = HS_RANGE[m], pos = x => x == null ? null : Math.max(0, Math.min(100, (x - lo) / (hi - lo) * 100));
+  const seg = Array.from({ length: 10 }, (_, i) => `<i class="hs-${hsTone(hsImpact(m, lo + (i + .5) / 10 * (hi - lo)))}"></i>`).join('');
+  const p6 = pos(x6), p30 = pos(x30), u = HS_FMT[m][1];
+  const lab = (p, cls, txt) => `<span class="hsb-l ${cls}" style="left:${p}%;transform:translateX(-${p}%)">${txt}</span>`;
+  return `<div class="hsb">
+    ${p6 != null ? lab(p6, 'l6', `<b>${hsVal(m, x6)}</b>${u ? ` <small>${u}</small>` : ''}${open ? '<em>6 Month avg.</em>' : ''}`) : ''}
+    <div class="hsb-t">${seg}${p6 != null ? `<span class="hsb-m dn" style="left:${p6}%"></span>` : ''}${p30 != null ? `<span class="hsb-m up" style="left:${p30}%"></span>` : ''}</div>
+    <div class="hsb-e"><span class="hs-t-${hsTone(hsImpact(m, lo))}">${hsEnd(m, lo)}</span><span class="hs-t-${hsTone(hsImpact(m, hi))}">${hsEnd(m, hi)}</span></div>
+    ${open && p30 != null ? lab(p30, 'l30', `<b>${hsVal(m, x30)}</b>${u ? ` <small>${u}</small>` : ''}<em>30 Day avg.</em>`) : ''}</div>`;
+}
 function healthspanCard() {
-  const h = healthspan(), w = h.cur, v2 = hsVo2(), lastV = v2[v2.length - 1];
-  const yrsTxt = n => n > 0 ? `${n} yrs younger` : n < 0 ? `${-n} yrs older` : 'Same as your age';
-  const sgn = (x, d = 1) => (x > 0 ? '+' : x < 0 ? '−' : '') + fmt(Math.abs(x), d);
-  // VO2: one compact row; typing again the same day replaces that day's value
-  const vo2Row = `<div class="hsvo2"><span class="small">VO2 max this week${lastV ? `<span class="xs muted">Last ${fmt(lastV.v, 1)} · ${esc(fmtD(lastV.d))}</span>` : ''}</span><input class="in" type="number" inputmode="decimal" step="0.1" min="20" max="90" id="vo2in" aria-label="VO2 max this week" ><button class="btn sm" data-act="vo2add">Save</button></div>`;
-  if (!w) return `<section class="card"><div class="card-h"><h2>Healthspan</h2><span class="eyebrow">calibrating</span></div><p class="small dim">Needs 21 WHOOP recoveries in the last 31 days.</p>${vo2Row}</section>`;
-  const prev = h.weeks[h.weeks.length - 2], flags = hsFlags(w.x6);
-  const tile = (label, v, sub, tone) => `<div class="rt" data-live="${esc(label)}"><span>${esc(label)}</span><b>${v}</b><em${tone ? ` class="tn-${tone}"` : ''}>${sub || '&nbsp;'}</em></div>`;
-  const rows = HS_M.map(m => { const [d, u] = HS_FMT[m], x6 = w.x6[m], x30 = w.x30[m], dd = w.d[m];
-    const tone = Math.abs(dd) < 0.05 ? '' : dd < 0 ? 'good' : 'warn';
-    return `<tr><td>${esc(HS_NAME[m])}${flags.includes(m) ? ' <span class="xs muted">· outside fit</span>' : ''}</td><td class="n">${x6 == null ? '–' : fmt(x6, d)}<span class="xs muted"> ${u}</span></td><td class="n${tone ? ` tn-${tone}` : ''}">${x30 == null ? '–' : fmt(x30, d)}</td><td class="n"><b>${sgn(w.i6[m])}</b></td></tr>`; }).join('');
-  return `<section class="card rcard"><div class="card-h"><h2>Healthspan</h2><span class="eyebrow">week to ${esc(fmtD(w.W))}</span></div>
-    <div class="rtiles hs2">${tile('Healthspan', esc(yrsTxt(w.yrs)), h.miles.length ? `since ${esc(fmtD(h.miles[h.miles.length - 1].W))}` : '', w.yrs > 0 ? 'good' : '')}
-      ${tile('Pace of Aging', `${fmt(w.pace, 1)}<small>×</small>`, prev ? `${fmt(prev.pace, 1)}× the week before` : '')}</div>
-    <div class="tblwrap"><table class="tbl hs"><thead><tr><th>Metric</th><th class="n">6 months</th><th class="n">30 days</th><th class="n">Years</th></tr></thead><tbody>${rows}</tbody></table></div>
-    ${h.miles.length ? `<p class="xs muted">Milestones: ${h.miles.map(m => `${m.yrs} yrs ${esc(fmtD(m.W))}`).join(' · ')}</p>` : ''}
-    ${vo2Row}
-    ${infoHTML(`A copy of WHOOP's Healthspan, fitted to your WHOOP numbers (Pace within ±0.1 of the app in about 9 weeks of 10). Years: each metric's Age Impact over 6 months, negative is younger. The 30-day value is green when it is pulling the impact younger, amber when older; Pace adds those changes up. VO2 comes from WHOOP's weekly estimate, so type it in each week.`)}</section>`;
+  const h = healthspan(), v2 = hsVo2(), lastV = v2[v2.length - 1];
+  const vo2In = `<div class="hsvo2"><span class="small">VO2 max this week${lastV ? `<span class="xs muted">Last ${fmt(lastV.v, 1)} · ${esc(fmtD(lastV.d))}</span>` : ''}</span><input class="in" type="number" inputmode="decimal" step="0.1" min="20" max="90" id="vo2in" aria-label="VO2 max this week" ><button class="btn sm" data-act="vo2add">Save</button></div>`;
+  if (!h.cur) return `<section class="card"><div class="card-h"><h2>Healthspan</h2><span class="eyebrow">calibrating</span></div><p class="small dim">Needs 21 WHOOP recoveries in the last 31 days.</p>${vo2In}</section>`;
+  const n = h.weeks.length, off = Math.min(Math.max(ui.hsOff || 0, 0), n - 1), w = h.weeks[n - 1 - off], prev = h.weeks[n - 2 - off], flags = hsFlags(w.x6);
+  const open = ui.hsOpen || (ui.hsOpen = new Set()), stale = !lastV || lastV.d < addDays(today(), -6);
+  const yrs = w.yrs, orbTone = yrs > 0 ? 'good' : yrs < 0 ? 'warn' : 'n';
+  const sgn = x => (x > 0.05 ? '+' : x < -0.05 ? '−' : '') + Math.abs(x).toFixed(1);
+  // Pace scale: −1.0× to 3.0× in 0.1 steps, 1.0× marked
+  const pp = Math.max(0, Math.min(100, (w.pace + 1) / 4 * 100));
+  const ticks = Array.from({ length: 41 }, (_, i) => `<i${i % 10 === 0 ? ' class="maj"' : ''}></i>`).join('');
+  const row = m => {
+    const x6 = w.x6[m], x30 = w.x30[m], i6 = w.i6[m], isOpen = open.has(m), t = hsTone(i6);
+    const verdict = i6 < -0.1 ? 'Outperforming' : i6 > 0.1 ? 'Underperforming' : 'On track';
+    const drift = Math.abs(w.d[m]) < 0.05 ? 'Your 30-day average is holding steady.' : w.d[m] < 0 ? 'Your 30-day average is pulling this younger.' : 'Your 30-day average is pulling this older.';
+    const lead = i6 < -0.1 ? `You're boosting your long-term health with your ${HS_NOUN[m]}.` : i6 > 0.1 ? `Your ${HS_NOUN[m]} is adding years.` : `Your ${HS_NOUN[m]} is close to neutral.`;
+    const body = isOpen ? `<div class="hsr-x"><b>${verdict}</b><p class="small dim">${lead} ${drift}</p>
+      ${HS_TREND[m] ? `<button class="link" data-act="hstrend" data-m="${HS_TREND[m]}">View trend →</button>` : ''}${m === 'vo2' ? vo2In : ''}</div>` : '';
+    return `<div class="hsr${isOpen ? ' open' : ''}"><button class="hsr-h" data-act="hsrow" data-m="${m}" aria-expanded="${isOpen}"><span>${esc(HS_NAME[m])}${flags.includes(m) ? ' <small class="muted">· outside fit</small>' : ''}${m === 'vo2' && stale && !isOpen ? ' <small class="hs-t-a1">· add this week</small>' : ''}</span><span class="chev">${ICON.down}</span></button>
+      <div class="hsr-b">${hsBar(m, x6, x30, isOpen)}<div class="hsr-y hs-t-${t}"><b>${sgn(i6)}</b><small>years</small></div></div>${body}</div>`;
+  };
+  return `<section class="card hscard"><div class="card-h"><h2>Healthspan</h2>${h.miles.length ? `<span class="eyebrow">best ${Math.max(...h.miles.map(m => m.yrs))} yrs</span>` : ''}</div>
+    <div class="hsnav"><button class="iconbtn" data-act="hsweek" data-d="1" aria-label="Previous week" ${off >= n - 1 ? 'disabled' : ''}>‹</button><b>${esc(fmtD(addDays(w.W, -6)))} – ${esc(fmtD(w.W))}</b><button class="iconbtn" data-act="hsweek" data-d="-1" aria-label="Next week" ${off ? '' : 'disabled'}>›</button></div>
+    <div class="hsorb hs-o-${orbTone}"><div><b>${yrs ? Math.abs(yrs) : '0'}</b><span>${yrs > 0 ? 'years younger' : yrs < 0 ? 'years older' : 'same as your age'}</span></div></div>
+    ${h.miles.length ? `<p class="xs muted hsmiles">Milestones: ${h.miles.map(m => `${m.yrs} yrs ${esc(fmtD(m.W))}`).join(' · ')}</p>` : ''}
+    <div class="hspace"><div class="hspace-h"><span class="eyebrow">Pace of Aging</span>${prev ? `<span class="xs muted">${fmt(prev.pace, 1)}× the week before</span>` : ''}</div>
+      <div class="hspace-v"><span class="xs muted">Slow</span><b>${fmt(w.pace, 1)}×</b><span class="xs muted">Fast</span></div>
+      <div class="hspace-s">${ticks}<span class="hspace-m" style="left:${pp}%"></span></div>
+      <div class="hspace-l"><span>−1.0×</span><span>1.0×</span><span>3.0×</span></div></div>
+    ${HS_GROUPS.map(([g, ms]) => `<div class="hsg"><div class="hsg-h"><h3>${g}</h3><span class="xs muted">▼ 6 Month avg. <span class="hsg-sep">|</span> ▲ 30 Day avg.</span></div>${ms.map(row).join('')}</div>`).join('')}
+    ${infoHTML(`A copy of WHOOP's Healthspan, fitted to your WHOOP numbers (Pace within ±0.1 of the app in about 9 weeks of 10). Each bar: ▼ your 6-month average, ▲ your 30-day one; green segments make you younger, amber older, grey is about neutral. Years on the right are that metric's 6-month Age Impact. Pace adds up how the 30-day values are moving those impacts. VO2 comes from WHOOP's weekly estimate, so type it in each week (tap VO2 max).`)}</section>`;
 }
 function vBody() {
   let h = `<div class="page-h"><div><div class="eyebrow">Recovery · energy · trends</div><h1>Body</h1></div></div>`;
@@ -3517,6 +3583,9 @@ const ACT = {
   vo2add: () => { // this week's WHOOP VO2 estimate, dated today (one per day; a second entry the same day replaces it)
     const v = num($('#vo2in')?.value); if (v == null || v < 20 || v > 90) { toast('Enter a VO2 max between 20 and 90.', 'bad'); return; }
     S().vo2 = { ...(S().vo2 || {}), [today()]: { v: r1(v), src: 'whoop' } }; saveSettings(); toast(`VO2 ${fmt(v, 1)} saved`); render(true); },
+  hsrow: el => { const m = el.dataset.m, o = ui.hsOpen || (ui.hsOpen = new Set()); o.has(m) ? o.delete(m) : o.add(m); render(true); },
+  hsweek: el => { ui.hsOff = Math.max(0, (ui.hsOff || 0) + +el.dataset.d); render(true); }, // 1 = a week further back
+  hstrend: el => { ui.metric = el.dataset.m; ui.per = '6M'; ui.off = 0; render(true); requestAnimationFrame(() => $('#metric')?.closest('.card')?.scrollIntoView({ behavior: 'smooth', block: 'start' })); },
   partial: el => { const d = el.dataset.date, v = el.dataset.v === '1', m = S().partial = S().partial || {}; if (m[d] === v) delete m[d]; else m[d] = v; saveSettings(); render(true); }, // tap the chosen answer again to clear it
   restplan: () => { ui.restPlanOpen = !ui.restPlanOpen; ui.restPick = null; render(true); },
   picktoday: () => { ui.pickSess = 'today'; render(true); },
