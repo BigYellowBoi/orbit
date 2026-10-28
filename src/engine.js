@@ -65,6 +65,7 @@ const FIN_FROM = '2026-10-25';
 function isFin(w) { return !!w && (!!w.fin || !!w.rest || w.date < FIN_FROM); }
 const NOLOAD = new Set(['bw']); // units with no load to fill in: reps alone fill a set
 function setFilled(s, u) { return s.r > 0 && (NOLOAD.has(u) || s.w != null); }
+function exFilled(e) { return !!e && (e.sets || []).length > 0 && e.sets.every(s => setFilled(s, exDef(e.id).u)); } // every set of one exercise filled (v1.76: its log card folds)
 function allFilled(w) { return !!w && (w.ex || []).every(e => (e.sets || []).every(s => setFilled(s, exDef(e.id).u))); } // a removed set or exercise is simply gone
 function doneSets(ex) { return (ex.sets || []).filter(s => s.done && s.r > 0 && s.t !== 'w'); }
 /* Warm-up ladder under a working weight: 1 to 3 sets, rising in load and falling in reps, rounded to the lift's step

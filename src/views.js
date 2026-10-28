@@ -387,7 +387,18 @@ function orderLine(w, i) { // v1.43: the lift is in another slot than usual, and
   const us = usualSid(id, w.s), slot = us ? sessDef(us).items.filter(it => S().ex[it.ex]).findIndex(it => it.ex === id) + 1 : 0, other = us && us !== w.s ? ` in ${esc(sessDef(us).name)}` : ''; // another split's slot when it isn't in this one's Plan
   return `<p class="ex-order">${ordinal(i + 1)} today${slot ? `, usually ${ordinal(slot)}${other}` : ''} · Aim ${f > 0 ? '+' : '−'}${fmt(Math.abs(f) * 100, 0)}% for that</p>`;
 }
+/* v1.76: an exercise folds to one line once every set is filled, so the log stays readable. Tap it to open; an opened card
+   stays open (ui.exOpen, by date and lift) until folded again or a set is emptied. Not while More or a note is open, or the
+   injury pain check is unanswered. A past log being edited starts open; its cards fold as they're filled or folded (ui.exFold). */
+function exKey(w, e) { return w.date + '|' + e.id; }
+function exShut(w, e, i) { const k = exKey(w, e); return exFilled(e) && !ui.exOpen.has(k) && (w.date >= today() || ui.exFold.has(k)) && ui.exMore !== i && ui.exNote !== i && !(injPlan(e.id, w.date) && e.pain == null); }
+function exShutHTML(w, e, i, prSet) {
+  const def = exDef(e.id), ds = doneSets(e), nw = e.sets.filter(s => s.t === 'w').length, pr = e.sets.some(s => prSet.has(s));
+  const sub = (ds.length ? setsTxt(e.id, ds) : 'Warm-ups only') + (nw ? ` · ${nw} warm-up${nw > 1 ? 's' : ''}` : '');
+  return `<section class="card ex shut${pr ? ' pr' : ''}" id="ex${i}" data-dragitem data-i="${i}"><div class="ex-h">${w.ex.length > 1 ? `<span class="grip" data-grip="ex" aria-label="Drag to reorder ${esc(def.name)}" role="button" tabindex="-1">${ICON.grip}</span>` : ''}<button class="ex-sum" data-act="exopen" data-e="${i}" aria-expanded="false" aria-label="${esc(def.name)}, done. Tap to open"><span class="mark" aria-hidden="true">${ICON.tick}</span><span class="t"><h3>${esc(def.name)}</h3><small>${pr ? '<b>New best</b> · ' : ''}${esc(sub)}</small></span><span class="chev">${ICON.down}</span></button></div></section>`;
+}
 function exCard(w, e, i, prSet) {
+  if (exShut(w, e, i)) return exShutHTML(w, e, i, prSet);
   const def = exDef(e.id), u = UNITS[def.u] || UNITS.kg, open = ui.exHist === i;
   const ph = (v, dflt) => v != null ? fmt(v, 2).replace(/,/g, '') : dflt, sg = aimIn(w, i), back = setAim(e.id, w.date, 1, sg);
   const last = lastFor(e.id, w.date), nWork = e.sets.filter(s => s.t !== 'w').length;
@@ -402,7 +413,7 @@ function exCard(w, e, i, prSet) {
       ${warm ? `<button class="mark rmw" data-act="remwarm" data-e="${i}" data-s="${j}" tabindex="-1" aria-label="Remove this warm-up">×</button>` : `<span class="mark" aria-hidden="true">${ICON.tick}</span>`}${prev ? `<span class="lastset">Last ${esc(fmtSet(e.id, prev))}</span>` : ''}</div></div>`;
   }).join('');
   const meta = def.note ? esc(def.note) : ""; // v1.56: Last and Best live under each set row now, not here
-  return `<section class="card ex" id="ex${i}" data-dragitem data-i="${i}"><div class="ex-h">${w.ex.length > 1 ? `<span class="grip" data-grip="ex" aria-label="Drag to reorder ${esc(def.name)}" role="button" tabindex="-1">${ICON.grip}</span>` : ''}<button class="ex-name" data-act="exhist" data-e="${i}" aria-expanded="${open}"><h3>${esc(def.name)}</h3><span class="chev">${ICON.down}</span></button><span class="rx">${def.lo}${def.hi > def.lo ? '–' + def.hi : ''} reps</span></div>
+  return `<section class="card ex" id="ex${i}" data-dragitem data-i="${i}"><div class="ex-h">${w.ex.length > 1 ? `<span class="grip" data-grip="ex" aria-label="Drag to reorder ${esc(def.name)}" role="button" tabindex="-1">${ICON.grip}</span>` : ''}<button class="ex-name" data-act="exhist" data-e="${i}" aria-expanded="${open}"><h3>${esc(def.name)}</h3><span class="chev">${ICON.down}</span></button>${exFilled(e) ? `<button class="iconbtn fold" data-act="exfold" data-e="${i}" aria-label="Fold ${esc(def.name)}">${ICON.up}</button>` : `<span class="rx">${def.lo}${def.hi > def.lo ? '–' + def.hi : ''} reps</span>`}</div>
     ${open ? exHistHTML(e.id, w.date) : ''}
     ${injCardHTML(w, e, i)}
     ${sg && sg.inj?.act !== 'skip' ? `<p class="aim"><b>Aim ${esc(suggestTxt(e.id, sg))}</b>${nWork > 1 && back?.back ? `, then ${esc(fmtLoad(e.id, back.w))}${def.u === 'kg' ? ' kg' : ''}` : ''} · ${sg.rir} rep${sg.rir === 1 ? '' : 's'} in reserve${sg.inj ? (sg.f < 1 ? ` · ${fmt(sg.f * 100, 0)}% for the injury` : sg.inj.act === 'hold' ? ' · held for the injury' : '') : S().goal === 'grow' ? ' · overload' : ''}</p>` : ''}

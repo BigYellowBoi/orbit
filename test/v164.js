@@ -34,7 +34,7 @@ const ok = (c, msg) => { if (c) passes++; else { fails++; console.log('FAIL', ms
   ok(await p.locator('.hero .stats .stat').count() === 3 && /24/.test(await p.locator('.hero .stats').innerText()), 'WHOOP cardio after removal: it comes back');
   // Strength trend from a log card lands on the chart, wherever it is in the card order
   await p.evaluate(() => { go('strength'); go('today'); S().layout = { ...(S().layout || {}), strength: [...CARD_KEYS.strength.filter(k => k !== 'chart'), 'chart'] }; ui.editToday = true; render(true); });
-  await p.click('#ex0 [data-act="exhist"]'); await p.click('#ex0 [data-act="liftgo"]'); await p.waitForTimeout(150);
+  await p.click('#ex0 [data-act="exopen"]'); await p.click('#ex0 [data-act="exhist"]'); await p.click('#ex0 [data-act="liftgo"]'); // v1.76: a filled exercise is folded await p.waitForTimeout(150);
   const [top, bot] = await p.evaluate(() => { const r = $('#liftchart').getBoundingClientRect(); return [r.top - $('.top').getBoundingClientRect().bottom, $('.tabs').getBoundingClientRect().top - r.bottom]; });
   ok(top >= 0 && (top < 40 || bot >= 0), `chart card in view (${Math.round(top)}px from the header, ${Math.round(bot)}px above the tabs)`);
   // colours, rep maxes, exercise order

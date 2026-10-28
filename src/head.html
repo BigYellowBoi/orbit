@@ -292,6 +292,17 @@ textarea.in { text-align: left; font-size: 15px; min-height: 76px; padding: 10px
 .ex-h .rx { font-family: var(--f-mono); font-size: 12.5px; color: var(--ink-2); white-space: nowrap; }
 .ex-name { display: flex; align-items: center; gap: 6px; background: none; border: 0; padding: 0; text-align: left; min-width: 0; color: inherit; }
 .ex-name .chev { color: var(--ink-3); } .ex-name[aria-expanded="true"] .chev { transform: rotate(180deg); }
+/* v1.76: a finished exercise folds to one line */
+.card.ex.shut { padding-top: 6px; padding-bottom: 6px; }
+.card.ex.shut .ex-h { align-items: center; }
+.ex-sum { flex: 1; display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 48px; background: none; border: 0; padding: 0; text-align: left; color: inherit; }
+.ex-sum .mark { color: var(--good-ink); filter: none; width: 20px; height: 20px; } .card.ex.shut.pr .ex-sum .mark { color: var(--accent); }
+.ex-sum .t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ex-sum h3 { font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ex-sum small { font-family: var(--f-mono); font-size: 12.5px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ex-sum small b { color: var(--accent); font-weight: 600; font-family: inherit; }
+.ex-sum .chev { color: var(--ink-3); flex: none; }
+.ex-h .fold { width: 34px; height: 34px; flex: none; align-self: center; margin: -6px -4px -6px 0; }
 .exhist { background: var(--surface-2); border-radius: 10px; padding: 8px 12px; display: flex; flex-direction: column; gap: 2px; }
 .exhist ul { list-style: none; margin: 0; padding: 0; }
 .exhist li { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 10px; padding: 5px 0; font-size: 13.5px; border-top: 1px solid var(--line); align-items: baseline; }

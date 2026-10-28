@@ -454,6 +454,8 @@ const ACT = {
   frdel: el => { const id = el.dataset.id; if (ui.confirm !== 'frdel' + id) { ui.confirm = 'frdel' + id; render(true); return; }
     delete S().friends[id]; delete frCache()[id]; frStore(); ui.confirm = null; ui.frEdit = null; ui.fr = null; saveSettings(); render(true); },
   exhist: el => { const i = +el.dataset.e; ui.exHist = ui.exHist === i ? null : i; render(true); },
+  exopen: el => { const w = logW(), e = w?.ex[+el.dataset.e]; if (!e) return; const k = exKey(w, e); ui.exOpen.add(k); ui.exFold.delete(k); render(true); }, // v1.76: a folded exercise opens on tap
+  exfold: el => { const w = logW(), i = +el.dataset.e, e = w?.ex[i]; if (!e) return; flushField(); const k = exKey(w, e); ui.exOpen.delete(k); ui.exFold.add(k); if (ui.exHist === i) ui.exHist = null; if (ui.exMore === i) ui.exMore = null; if (ui.exNote === i && !(e.note || '').trim()) ui.exNote = null; render(true); },
   liftsel: el => { if (ui.lift === el.dataset.id) { ui.lift = null; render(true); return; } ui.lift = el.dataset.id; render(true); const c = $('#liftchart'); if (c && c.getBoundingClientRect().top < ($('.top')?.getBoundingClientRect().bottom || 0)) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); },
   liftgo: el => { ui.lift = el.dataset.id; go('strength'); // v1.64: wherever the chart card sits in his card order, bring it into view
     const c = $('#liftchart'); if (c) { const top = ($('.top')?.getBoundingClientRect().bottom || 0) + 8; scrollToY(Math.max(0, scrollY0() + c.getBoundingClientRect().top - top)); } },
@@ -468,7 +470,7 @@ const ACT = {
     const cur = num(inp.value) ?? num(inp.placeholder) ?? 0, d = +el.dataset.d, st = k === 'w' ? exStep(e.id) : 1;
     const v = Math.max(0, +(cur + (inp.value === '' ? 0 : d * st)).toFixed(3)); inp.value = k === 'w' ? fmt(v, 3).replace(/,/g, '') : String(Math.round(v));
     if (k === 'w' && $(`#r${i}_${j}`)?.value === '') { saveW(w.date); const s = e.sets[j]; s.w = v; return; } // weight alone doesn't tick the set
-    setInput(inp, true); },
+    setInput(inp, true, 1500); }, // a stepper tap folds the card only after a pause, so a second tap can still land
   remwarm: el => { const w = logW(), e = w?.ex[+el.dataset.e], j = +el.dataset.s; if (e?.sets[j]?.t !== 'w') return; e.sets.splice(j, 1); saveW(w.date); render(true); }, // a warm-up added by mistake (v1.40)
   remset: el => { const w = logW(), e = w.ex[+el.dataset.e]; if (e.sets.length > 1) e.sets.pop(); ui.exMore = null; saveW(w.date); render(true); }, // More closes after it (v1.44)
   remex: el => { const w = logW(), i = +el.dataset.e, e = w.ex[i]; if (doneSets(e).length && ui.confirm !== 'remex' + i) { ui.confirm = 'remex' + i; toast('Tap Remove again to drop logged sets'); return; } w.ex.splice(i, 1); ui.confirm = null; ui.exMore = null; saveW(w.date); render(true); },
@@ -716,7 +718,28 @@ function endDrag(ev) {
 document.addEventListener('pointerup', endDrag); document.addEventListener('pointercancel', endDrag);
 
 /* ---------- set rows: saved and counted as you type ---------- */
-function setInput(el, final) {
+/* v1.76: once a set commit fills the exercise's last empty set, its card folds in place (no full render, so a field focused
+   in the next card keeps the keyboard). Waits until focus has left the card; a stepper tap waits 1.5 s, reset by each tap. */
+const foldT = {};
+function autoFold(w, e, delay) {
+  const key = exKey(w, e);
+  if (!exFilled(e)) { ui.exOpen.delete(key); return; } // emptied again: it folds next time it's filled
+  if (ui.exOpen.has(key)) return; // opened by hand: stays open
+  clearTimeout(foldT[key]);
+  foldT[key] = setTimeout(() => {
+    delete foldT[key];
+    const lw = logW(); if (!lw || lw.date !== w.date || drag) return;
+    const i = lw.ex.indexOf(e), card = $(`#ex${i}`); if (i < 0 || !card || card.classList.contains('shut')) return;
+    const a = document.activeElement; if (a && card.contains(a) && a.matches('input, textarea, select')) return; // still typing in this card: the next commit tries again
+    ui.exFold.add(key); if (!exShut(lw, e, i)) { ui.exFold.delete(key); return; }
+    const hb = ($('.top')?.getBoundingClientRect().bottom || 0) + 8, top = card.getBoundingClientRect().top;
+    const tmp = document.createElement('div'); tmp.innerHTML = exCard(lw, e, i, new Set(prsIn(lw).map(p => p.s)));
+    const nc = tmp.firstElementChild; card.replaceWith(nc);
+    if (top < hb) scroller().scrollBy(0, nc.getBoundingClientRect().top - hb); // its top was under the header: bring the folded line into view
+    renderFab();
+  }, delay || 0);
+}
+function setInput(el, final, foldDelay) {
   const w = logW(); if (!w) return; const i = +el.dataset.e, j = +el.dataset.s, e = w.ex[i], s = e?.sets[j]; if (!s) return;
   const def = exDef(e.id), wasDone = s.done;
   setFromInputs(s, num($(`#w${i}_${j}`)?.value), parseInt($(`#r${i}_${j}`)?.value, 10), def.u, rowAim(e, j, w.date, aimIn(w, i))?.w);
@@ -729,6 +752,7 @@ function setInput(el, final) {
     const now = new Set(prsIn({ date: w.date, ex: [e] }).map(p => p.s)), was = !!row?.classList.contains('pr');
     e.sets.forEach((x, k) => $(`#row${i}_${k}`)?.classList.toggle('pr', now.has(x)));
     if (now.has(s) && !was) toast(`New best · ${esc(def.name)} ${esc(fmtSet(e.id, s))}`, 'pr');
+    autoFold(w, e, foldDelay);
   }
   else if (final && row && !s.done) row.classList.remove('pr');
 }

@@ -18,6 +18,7 @@ const ok = (c, msg) => { if (c) passes++; else { fails++; console.log('FAIL', ms
   ok((await bar()).join() === `2,${await total()}`, 'after two sets ' + await bar());
   const t0 = await total(); await p.tap('#ex1 [data-act="addset"]');
   ok((await bar()).join() === `2,${t0 + 1}`, '+ Set raises the total ' + await bar());
+  await p.tap('#ex0 [data-act="exopen"]'); // v1.76: both sets filled, so it folded
   await p.tap('#ex0 [data-act="addwarm"]');
   ok((await bar()).join() === `2,${t0 + 1}`, 'a warm-up does not count ' + await bar());
   await p.tap('[data-act="pickopen"]'); await p.tap('.picklist [data-act="addexid"]');

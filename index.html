@@ -330,6 +330,17 @@ textarea.in { text-align: left; font-size: 15px; min-height: 76px; padding: 10px
 .ex-h .rx { font-family: var(--f-mono); font-size: 12.5px; color: var(--ink-2); white-space: nowrap; }
 .ex-name { display: flex; align-items: center; gap: 6px; background: none; border: 0; padding: 0; text-align: left; min-width: 0; color: inherit; }
 .ex-name .chev { color: var(--ink-3); } .ex-name[aria-expanded="true"] .chev { transform: rotate(180deg); }
+/* v1.76: a finished exercise folds to one line */
+.card.ex.shut { padding-top: 6px; padding-bottom: 6px; }
+.card.ex.shut .ex-h { align-items: center; }
+.ex-sum { flex: 1; display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 48px; background: none; border: 0; padding: 0; text-align: left; color: inherit; }
+.ex-sum .mark { color: var(--good-ink); filter: none; width: 20px; height: 20px; } .card.ex.shut.pr .ex-sum .mark { color: var(--accent); }
+.ex-sum .t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ex-sum h3 { font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ex-sum small { font-family: var(--f-mono); font-size: 12.5px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ex-sum small b { color: var(--accent); font-weight: 600; font-family: inherit; }
+.ex-sum .chev { color: var(--ink-3); flex: none; }
+.ex-h .fold { width: 34px; height: 34px; flex: none; align-self: center; margin: -6px -4px -6px 0; }
 .exhist { background: var(--surface-2); border-radius: 10px; padding: 8px 12px; display: flex; flex-direction: column; gap: 2px; }
 .exhist ul { list-style: none; margin: 0; padding: 0; }
 .exhist li { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 10px; padding: 5px 0; font-size: 13.5px; border-top: 1px solid var(--line); align-items: baseline; }
@@ -749,11 +760,11 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.75'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.76'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
-const ui = { metric: 'rec', per: 'M', off: 0, openSess: new Set(), tab: 'today', logDate: null, range: 90, lift: null, imp: {}, exportText: null, confirm: null, editEx: null, pickSess: null };
+const ui = { metric: 'rec', per: 'M', off: 0, openSess: new Set(), tab: 'today', logDate: null, range: 90, lift: null, imp: {}, exportText: null, confirm: null, editEx: null, pickSess: null, exOpen: new Set(), exFold: new Set() };
 const S = () => STATE.settings;
 const today = () => todayStr();
 function exDef(id) { return S().ex[id] || { name: id, g: 'other', u: 'kg', rest: 90, lo: 8, hi: 12, base: null }; }
@@ -828,6 +839,7 @@ const FIN_FROM = '2026-10-25';
 function isFin(w) { return !!w && (!!w.fin || !!w.rest || w.date < FIN_FROM); }
 const NOLOAD = new Set(['bw']); // units with no load to fill in: reps alone fill a set
 function setFilled(s, u) { return s.r > 0 && (NOLOAD.has(u) || s.w != null); }
+function exFilled(e) { return !!e && (e.sets || []).length > 0 && e.sets.every(s => setFilled(s, exDef(e.id).u)); } // every set of one exercise filled (v1.76: its log card folds)
 function allFilled(w) { return !!w && (w.ex || []).every(e => (e.sets || []).every(s => setFilled(s, exDef(e.id).u))); } // a removed set or exercise is simply gone
 function doneSets(ex) { return (ex.sets || []).filter(s => s.done && s.r > 0 && s.t !== 'w'); }
 /* Warm-up ladder under a working weight: 1 to 3 sets, rising in load and falling in reps, rounded to the lift's step
@@ -2676,7 +2688,18 @@ function orderLine(w, i) { // v1.43: the lift is in another slot than usual, and
   const us = usualSid(id, w.s), slot = us ? sessDef(us).items.filter(it => S().ex[it.ex]).findIndex(it => it.ex === id) + 1 : 0, other = us && us !== w.s ? ` in ${esc(sessDef(us).name)}` : ''; // another split's slot when it isn't in this one's Plan
   return `<p class="ex-order">${ordinal(i + 1)} today${slot ? `, usually ${ordinal(slot)}${other}` : ''} · Aim ${f > 0 ? '+' : '−'}${fmt(Math.abs(f) * 100, 0)}% for that</p>`;
 }
+/* v1.76: an exercise folds to one line once every set is filled, so the log stays readable. Tap it to open; an opened card
+   stays open (ui.exOpen, by date and lift) until folded again or a set is emptied. Not while More or a note is open, or the
+   injury pain check is unanswered. A past log being edited starts open; its cards fold as they're filled or folded (ui.exFold). */
+function exKey(w, e) { return w.date + '|' + e.id; }
+function exShut(w, e, i) { const k = exKey(w, e); return exFilled(e) && !ui.exOpen.has(k) && (w.date >= today() || ui.exFold.has(k)) && ui.exMore !== i && ui.exNote !== i && !(injPlan(e.id, w.date) && e.pain == null); }
+function exShutHTML(w, e, i, prSet) {
+  const def = exDef(e.id), ds = doneSets(e), nw = e.sets.filter(s => s.t === 'w').length, pr = e.sets.some(s => prSet.has(s));
+  const sub = (ds.length ? setsTxt(e.id, ds) : 'Warm-ups only') + (nw ? ` · ${nw} warm-up${nw > 1 ? 's' : ''}` : '');
+  return `<section class="card ex shut${pr ? ' pr' : ''}" id="ex${i}" data-dragitem data-i="${i}"><div class="ex-h">${w.ex.length > 1 ? `<span class="grip" data-grip="ex" aria-label="Drag to reorder ${esc(def.name)}" role="button" tabindex="-1">${ICON.grip}</span>` : ''}<button class="ex-sum" data-act="exopen" data-e="${i}" aria-expanded="false" aria-label="${esc(def.name)}, done. Tap to open"><span class="mark" aria-hidden="true">${ICON.tick}</span><span class="t"><h3>${esc(def.name)}</h3><small>${pr ? '<b>New best</b> · ' : ''}${esc(sub)}</small></span><span class="chev">${ICON.down}</span></button></div></section>`;
+}
 function exCard(w, e, i, prSet) {
+  if (exShut(w, e, i)) return exShutHTML(w, e, i, prSet);
   const def = exDef(e.id), u = UNITS[def.u] || UNITS.kg, open = ui.exHist === i;
   const ph = (v, dflt) => v != null ? fmt(v, 2).replace(/,/g, '') : dflt, sg = aimIn(w, i), back = setAim(e.id, w.date, 1, sg);
   const last = lastFor(e.id, w.date), nWork = e.sets.filter(s => s.t !== 'w').length;
@@ -2691,7 +2714,7 @@ function exCard(w, e, i, prSet) {
       ${warm ? `<button class="mark rmw" data-act="remwarm" data-e="${i}" data-s="${j}" tabindex="-1" aria-label="Remove this warm-up">×</button>` : `<span class="mark" aria-hidden="true">${ICON.tick}</span>`}${prev ? `<span class="lastset">Last ${esc(fmtSet(e.id, prev))}</span>` : ''}</div></div>`;
   }).join('');
   const meta = def.note ? esc(def.note) : ""; // v1.56: Last and Best live under each set row now, not here
-  return `<section class="card ex" id="ex${i}" data-dragitem data-i="${i}"><div class="ex-h">${w.ex.length > 1 ? `<span class="grip" data-grip="ex" aria-label="Drag to reorder ${esc(def.name)}" role="button" tabindex="-1">${ICON.grip}</span>` : ''}<button class="ex-name" data-act="exhist" data-e="${i}" aria-expanded="${open}"><h3>${esc(def.name)}</h3><span class="chev">${ICON.down}</span></button><span class="rx">${def.lo}${def.hi > def.lo ? '–' + def.hi : ''} reps</span></div>
+  return `<section class="card ex" id="ex${i}" data-dragitem data-i="${i}"><div class="ex-h">${w.ex.length > 1 ? `<span class="grip" data-grip="ex" aria-label="Drag to reorder ${esc(def.name)}" role="button" tabindex="-1">${ICON.grip}</span>` : ''}<button class="ex-name" data-act="exhist" data-e="${i}" aria-expanded="${open}"><h3>${esc(def.name)}</h3><span class="chev">${ICON.down}</span></button>${exFilled(e) ? `<button class="iconbtn fold" data-act="exfold" data-e="${i}" aria-label="Fold ${esc(def.name)}">${ICON.up}</button>` : `<span class="rx">${def.lo}${def.hi > def.lo ? '–' + def.hi : ''} reps</span>`}</div>
     ${open ? exHistHTML(e.id, w.date) : ''}
     ${injCardHTML(w, e, i)}
     ${sg && sg.inj?.act !== 'skip' ? `<p class="aim"><b>Aim ${esc(suggestTxt(e.id, sg))}</b>${nWork > 1 && back?.back ? `, then ${esc(fmtLoad(e.id, back.w))}${def.u === 'kg' ? ' kg' : ''}` : ''} · ${sg.rir} rep${sg.rir === 1 ? '' : 's'} in reserve${sg.inj ? (sg.f < 1 ? ` · ${fmt(sg.f * 100, 0)}% for the injury` : sg.inj.act === 'hold' ? ' · held for the injury' : '') : S().goal === 'grow' ? ' · overload' : ''}</p>` : ''}
@@ -3677,6 +3700,8 @@ const ACT = {
   frdel: el => { const id = el.dataset.id; if (ui.confirm !== 'frdel' + id) { ui.confirm = 'frdel' + id; render(true); return; }
     delete S().friends[id]; delete frCache()[id]; frStore(); ui.confirm = null; ui.frEdit = null; ui.fr = null; saveSettings(); render(true); },
   exhist: el => { const i = +el.dataset.e; ui.exHist = ui.exHist === i ? null : i; render(true); },
+  exopen: el => { const w = logW(), e = w?.ex[+el.dataset.e]; if (!e) return; const k = exKey(w, e); ui.exOpen.add(k); ui.exFold.delete(k); render(true); }, // v1.76: a folded exercise opens on tap
+  exfold: el => { const w = logW(), i = +el.dataset.e, e = w?.ex[i]; if (!e) return; flushField(); const k = exKey(w, e); ui.exOpen.delete(k); ui.exFold.add(k); if (ui.exHist === i) ui.exHist = null; if (ui.exMore === i) ui.exMore = null; if (ui.exNote === i && !(e.note || '').trim()) ui.exNote = null; render(true); },
   liftsel: el => { if (ui.lift === el.dataset.id) { ui.lift = null; render(true); return; } ui.lift = el.dataset.id; render(true); const c = $('#liftchart'); if (c && c.getBoundingClientRect().top < ($('.top')?.getBoundingClientRect().bottom || 0)) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); },
   liftgo: el => { ui.lift = el.dataset.id; go('strength'); // v1.64: wherever the chart card sits in his card order, bring it into view
     const c = $('#liftchart'); if (c) { const top = ($('.top')?.getBoundingClientRect().bottom || 0) + 8; scrollToY(Math.max(0, scrollY0() + c.getBoundingClientRect().top - top)); } },
@@ -3691,7 +3716,7 @@ const ACT = {
     const cur = num(inp.value) ?? num(inp.placeholder) ?? 0, d = +el.dataset.d, st = k === 'w' ? exStep(e.id) : 1;
     const v = Math.max(0, +(cur + (inp.value === '' ? 0 : d * st)).toFixed(3)); inp.value = k === 'w' ? fmt(v, 3).replace(/,/g, '') : String(Math.round(v));
     if (k === 'w' && $(`#r${i}_${j}`)?.value === '') { saveW(w.date); const s = e.sets[j]; s.w = v; return; } // weight alone doesn't tick the set
-    setInput(inp, true); },
+    setInput(inp, true, 1500); }, // a stepper tap folds the card only after a pause, so a second tap can still land
   remwarm: el => { const w = logW(), e = w?.ex[+el.dataset.e], j = +el.dataset.s; if (e?.sets[j]?.t !== 'w') return; e.sets.splice(j, 1); saveW(w.date); render(true); }, // a warm-up added by mistake (v1.40)
   remset: el => { const w = logW(), e = w.ex[+el.dataset.e]; if (e.sets.length > 1) e.sets.pop(); ui.exMore = null; saveW(w.date); render(true); }, // More closes after it (v1.44)
   remex: el => { const w = logW(), i = +el.dataset.e, e = w.ex[i]; if (doneSets(e).length && ui.confirm !== 'remex' + i) { ui.confirm = 'remex' + i; toast('Tap Remove again to drop logged sets'); return; } w.ex.splice(i, 1); ui.confirm = null; ui.exMore = null; saveW(w.date); render(true); },
@@ -3939,7 +3964,28 @@ function endDrag(ev) {
 document.addEventListener('pointerup', endDrag); document.addEventListener('pointercancel', endDrag);
 
 /* ---------- set rows: saved and counted as you type ---------- */
-function setInput(el, final) {
+/* v1.76: once a set commit fills the exercise's last empty set, its card folds in place (no full render, so a field focused
+   in the next card keeps the keyboard). Waits until focus has left the card; a stepper tap waits 1.5 s, reset by each tap. */
+const foldT = {};
+function autoFold(w, e, delay) {
+  const key = exKey(w, e);
+  if (!exFilled(e)) { ui.exOpen.delete(key); return; } // emptied again: it folds next time it's filled
+  if (ui.exOpen.has(key)) return; // opened by hand: stays open
+  clearTimeout(foldT[key]);
+  foldT[key] = setTimeout(() => {
+    delete foldT[key];
+    const lw = logW(); if (!lw || lw.date !== w.date || drag) return;
+    const i = lw.ex.indexOf(e), card = $(`#ex${i}`); if (i < 0 || !card || card.classList.contains('shut')) return;
+    const a = document.activeElement; if (a && card.contains(a) && a.matches('input, textarea, select')) return; // still typing in this card: the next commit tries again
+    ui.exFold.add(key); if (!exShut(lw, e, i)) { ui.exFold.delete(key); return; }
+    const hb = ($('.top')?.getBoundingClientRect().bottom || 0) + 8, top = card.getBoundingClientRect().top;
+    const tmp = document.createElement('div'); tmp.innerHTML = exCard(lw, e, i, new Set(prsIn(lw).map(p => p.s)));
+    const nc = tmp.firstElementChild; card.replaceWith(nc);
+    if (top < hb) scroller().scrollBy(0, nc.getBoundingClientRect().top - hb); // its top was under the header: bring the folded line into view
+    renderFab();
+  }, delay || 0);
+}
+function setInput(el, final, foldDelay) {
   const w = logW(); if (!w) return; const i = +el.dataset.e, j = +el.dataset.s, e = w.ex[i], s = e?.sets[j]; if (!s) return;
   const def = exDef(e.id), wasDone = s.done;
   setFromInputs(s, num($(`#w${i}_${j}`)?.value), parseInt($(`#r${i}_${j}`)?.value, 10), def.u, rowAim(e, j, w.date, aimIn(w, i))?.w);
@@ -3952,6 +3998,7 @@ function setInput(el, final) {
     const now = new Set(prsIn({ date: w.date, ex: [e] }).map(p => p.s)), was = !!row?.classList.contains('pr');
     e.sets.forEach((x, k) => $(`#row${i}_${k}`)?.classList.toggle('pr', now.has(x)));
     if (now.has(s) && !was) toast(`New best · ${esc(def.name)} ${esc(fmtSet(e.id, s))}`, 'pr');
+    autoFold(w, e, foldDelay);
   }
   else if (final && row && !s.done) row.classList.remove('pr');
 }
