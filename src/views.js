@@ -491,12 +491,12 @@ function calendarHTML(ws) {
   const t = today(), [y, m] = t.split('-').map(Number), off = ui.calOff || 0, mm = ((m - 1 + off) % 12 + 12) % 12, yy = y + Math.floor((m - 1 + off) / 12);
   const first = `${yy}-${pad(mm + 1)}-01`, days = new Date(Date.UTC(yy, mm + 1, 0)).getUTCDate(), lead = dowMon(first), by = {};
   for (const w of ws) if (w.date.startsWith(first.slice(0, 7))) by[w.date] = w;
-  const o = order(), pc = sessCol, col = w => w.rest ? 'var(--ink-3)' : pc(w.s);
+  const o = order(), pc = sessCol, col = w => pc(w.s);
   let cells = Array.from({ length: lead }, () => '<span></span>').join('');
   for (let i = 1; i <= days; i++) { const d = `${first.slice(0, 8)}${pad(i)}`, w = by[d];
-    cells += w ? `<button class="cd${d === t ? ' now' : ''}" data-act="openlog" data-d="${d}" title="${esc(sessName(w))}"><b>${i}</b><i style="background:${col(w)}"></i></button>` : `<span class="cd${d === t ? ' now' : ''}${d > t ? ' fut' : ''}"><b>${i}</b></span>`; }
+    cells += w ? `<button class="cd${d === t ? ' now' : ''}${w.rest ? ' rest' : ''}" data-act="openlog" data-d="${d}" title="${esc(sessName(w))}"><b>${i}</b><i${w.rest ? '' : ` style="background:${col(w)}"`}></i></button>` : `<span class="cd${d === t ? ' now' : ''}${d > t ? ' fut' : ''}"><b>${i}</b></span>`; }
   const name = new Date(Date.UTC(yy, mm, 1)).toLocaleDateString('en-AU', { timeZone: 'UTC', month: 'long', year: 'numeric' });
-  const legend = o.filter(id => !isRestSlot(id)).map(id => `<span><i style="background:${pc(id)}"></i>${esc(sessDef(id).name)}</span>`).join('');
+  const legend = o.filter(id => !isRestSlot(id)).map(id => `<span><i style="background:${pc(id)}"></i>${esc(sessDef(id).name)}</span>`).join('') + (Object.values(by).some(w => w.rest) ? '<span><i class="rest"></i>Rest</span>' : '');
   return `<section class="card cal"><div class="card-h"><h2>${esc(name)}</h2><div class="ex-nav"><button class="iconbtn sm" data-act="calmon" data-n="-1" aria-label="Previous month">‹</button><button class="iconbtn sm" data-act="calmon" data-n="1" aria-label="Next month" ${off >= 0 ? 'disabled' : ''}>›</button></div></div>
     <div class="calg">${['M', 'T', 'W', 'T', 'F', 'S', 'S'].map(d => `<span class="cdh">${d}</span>`).join('')}${cells}</div><div class="calk">${legend}</div></section>`;
 }

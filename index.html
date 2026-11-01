@@ -421,6 +421,7 @@ button.sn { border: 0; background: transparent; padding: 0; min-height: 44px; te
 .calg .cd { aspect-ratio: 1 / 1; max-height: 52px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; background: transparent; border: 1px solid transparent; color: var(--ink-2); font: inherit; padding: 0; }
 .calg .cd b { font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; } .calg .cd i { width: 7px; height: 7px; border-radius: 50%; }
 .calg button.cd { background: var(--surface-2); color: var(--ink); cursor: pointer; } .calg .cd.now { border-color: var(--accent); } .calg .cd.fut { color: var(--ink-3); opacity: .5; }
+.calg button.cd.rest { background: transparent; border: 1px dashed var(--line-2); color: var(--ink-3); } .calg button.cd.rest.now { border: 1px solid var(--accent); } .calg .cd.rest i, .calk i.rest { background: transparent; box-shadow: inset 0 0 0 1.5px var(--ink-3); }
 .calk { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--ink-2); } .calk span { display: inline-flex; align-items: center; gap: 6px; } .calk i { width: 7px; height: 7px; border-radius: 50%; }
 .cal .ex-nav { display: flex; gap: 6px; }
 
@@ -760,7 +761,7 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.76'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.77'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
@@ -2792,12 +2793,12 @@ function calendarHTML(ws) {
   const t = today(), [y, m] = t.split('-').map(Number), off = ui.calOff || 0, mm = ((m - 1 + off) % 12 + 12) % 12, yy = y + Math.floor((m - 1 + off) / 12);
   const first = `${yy}-${pad(mm + 1)}-01`, days = new Date(Date.UTC(yy, mm + 1, 0)).getUTCDate(), lead = dowMon(first), by = {};
   for (const w of ws) if (w.date.startsWith(first.slice(0, 7))) by[w.date] = w;
-  const o = order(), pc = sessCol, col = w => w.rest ? 'var(--ink-3)' : pc(w.s);
+  const o = order(), pc = sessCol, col = w => pc(w.s);
   let cells = Array.from({ length: lead }, () => '<span></span>').join('');
   for (let i = 1; i <= days; i++) { const d = `${first.slice(0, 8)}${pad(i)}`, w = by[d];
-    cells += w ? `<button class="cd${d === t ? ' now' : ''}" data-act="openlog" data-d="${d}" title="${esc(sessName(w))}"><b>${i}</b><i style="background:${col(w)}"></i></button>` : `<span class="cd${d === t ? ' now' : ''}${d > t ? ' fut' : ''}"><b>${i}</b></span>`; }
+    cells += w ? `<button class="cd${d === t ? ' now' : ''}${w.rest ? ' rest' : ''}" data-act="openlog" data-d="${d}" title="${esc(sessName(w))}"><b>${i}</b><i${w.rest ? '' : ` style="background:${col(w)}"`}></i></button>` : `<span class="cd${d === t ? ' now' : ''}${d > t ? ' fut' : ''}"><b>${i}</b></span>`; }
   const name = new Date(Date.UTC(yy, mm, 1)).toLocaleDateString('en-AU', { timeZone: 'UTC', month: 'long', year: 'numeric' });
-  const legend = o.filter(id => !isRestSlot(id)).map(id => `<span><i style="background:${pc(id)}"></i>${esc(sessDef(id).name)}</span>`).join('');
+  const legend = o.filter(id => !isRestSlot(id)).map(id => `<span><i style="background:${pc(id)}"></i>${esc(sessDef(id).name)}</span>`).join('') + (Object.values(by).some(w => w.rest) ? '<span><i class="rest"></i>Rest</span>' : '');
   return `<section class="card cal"><div class="card-h"><h2>${esc(name)}</h2><div class="ex-nav"><button class="iconbtn sm" data-act="calmon" data-n="-1" aria-label="Previous month">‹</button><button class="iconbtn sm" data-act="calmon" data-n="1" aria-label="Next month" ${off >= 0 ? 'disabled' : ''}>›</button></div></div>
     <div class="calg">${['M', 'T', 'W', 'T', 'F', 'S', 'S'].map(d => `<span class="cdh">${d}</span>`).join('')}${cells}</div><div class="calk">${legend}</div></section>`;
 }
