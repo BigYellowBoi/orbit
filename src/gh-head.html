@@ -2,6 +2,9 @@
 <html lang="en" class="sbox">
 <head>
 <meta charset="utf-8">
+<!-- v1.79: this page holds the GitHub token, so it may only load scripts from itself and only talk to GitHub, the sync helper
+     (*.workers.dev) and friends' raw files. A helper on a custom domain needs adding to connect-src. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://api.github.com https://*.workers.dev https://raw.githubusercontent.com https://gist.githubusercontent.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">

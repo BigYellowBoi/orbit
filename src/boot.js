@@ -146,10 +146,18 @@ async function offerFile(filename, text) {
   }
   ui.exportText = text; render(true);
 }
-function restoreBackup(o) {
-  if (!o || !['orbit', 'rotation-logbook'].includes(o.app) || !o.settings || typeof o.workouts !== 'object' || typeof o.days !== 'object') throw new Error('This file isn’t an Orbit backup.');
+/* Restore is two steps (v1.79): checkBackup reads the file and says what it holds and what would be lost; nothing changes
+   until Restore is pressed on that preview, since applying it replaces every month here and in orbit-data. */
+function checkBackup(o, file) {
+  if (!o || !['orbit', 'rotation-logbook'].includes(o.app) || !o.settings || !o.workouts || typeof o.workouts !== 'object' || !o.days || typeof o.days !== 'object') throw new Error('This file isn’t an Orbit backup.');
   const okDate = k => /^\d{4}-\d{2}-\d{2}$/.test(k);
   const w = {}, d = {}; for (const k in o.workouts) if (okDate(k) && o.workouts[k]?.ex) w[k] = o.workouts[k]; for (const k in o.days) if (okDate(k)) d[k] = o.days[k];
+  const real = m => Object.keys(m).filter(k => !m[k].rest && !emptyW(m[k])).sort(), bs = real(w), hs = real(STATE.w), last = bs[bs.length - 1] || null;
+  return { w, d, settings: o.settings, file, at: typeof o.exportedAt === 'string' ? o.exportedAt.slice(0, 10) : null, n: bs.length, first: bs[0] || null, last,
+    here: hs.length, newer: hs.filter(k => !last || k > last).length, missing: hs.filter(k => !w[k]).length };
+}
+function restoreBackup(o) {
+  const { w, d } = checkBackup(o);
   const oldMonths = { wk: new Set(Object.keys(STATE.w).map(k => k.slice(0, 7))), dy: new Set(Object.keys(STATE.d).map(k => k.slice(0, 7))) };
   STATE.settings = migrateSettings(o.settings); STATE.w = w; STATE.d = d;
   saveSettings();
@@ -561,13 +569,18 @@ const ACT = {
     const bwf = $('#xe_bwf') ? num($('#xe_bwf').value) : null; if (x.u === 'bw' && bwf > 0 && bwf <= 100) x.bwf = bwf / 100; else if ($('#xe_bwf') || x.u !== 'bw') delete x.bwf;
     ui.editEx = null; saveSettings(); render(true);
   },
-  delex: el => { delete S().ex[el.dataset.id]; ui.editEx = null; saveSettings(); render(true); },
+  delex: el => { // v1.79: never for a lift with logged sessions (they'd lose its name, unit and muscle); two taps otherwise
+    const id = el.dataset.id; if (!S().ex[id] || exUses(id) || Object.values(S().prog.sessions).some(s => s.items.some(i => i.ex === id))) return;
+    if (ui.confirm !== 'delex' + id) { ui.confirm = 'delex' + id; el.textContent = 'Tap again to delete'; clearTimeout(ui.delexT); ui.delexT = setTimeout(() => { if (ui.confirm === 'delex' + id) { ui.confirm = null; if (el.isConnected) el.textContent = 'Delete exercise'; } }, 3000); return; }
+    delete S().ex[id]; ui.confirm = null; ui.editEx = null; saveSettings(); render(true); },
   doimport: el => { const src = el.dataset.v, p = ui.imp[src]; if (!p) return; const months = applyImport(p); saveMonths('dy', months);
     if (src === 'whoop') for (const w of Object.values(STATE.w)) if (p.days[w.date] && autoCardio(w)) saveW(w.date); saveSettings(); delete ui.imp[src]; toast(`Imported ${Object.keys(p.days).length} days from ${{ whoop: 'WHOOP', mf: 'MacroFactor', ah: 'Apple Health' }[src]}`); render(true); },
   cancelimp: el => { delete ui.imp[el.dataset.v]; render(true); },
   export: el => el.dataset.v === 'csv' ? offerFile(`orbit-sets-${today()}.csv`, exportCsv()) : offerFile(`orbit-backup-${today()}.json`, exportJson()),
   copyexport: async () => { const ta = $('#exporttext'); try { await navigator.clipboard.writeText(ta.value); toast('Copied'); } catch (e) { ta.select(); toast('Selected. Copy it with your keyboard or the share menu.'); } },
   reset: async () => { await resetAll(); ui.confirm = null; toast('Everything deleted'); go('today'); },
+  restoredo: () => { const r = ui.restore; if (!r) return; ui.restore = null; try { const n = restoreBackup(r.o); toast(`Restored ${n} sessions`); go('today'); } catch (e) { toast(esc(e.message), 'bad'); render(true); } },
+  restorecancel: () => { ui.restore = null; render(true); },
 };
 let navAt = 0;
 document.addEventListener('pointerdown', ev => {
@@ -634,8 +647,9 @@ const INP = {
   fah: el => readFiles(el, readAhFiles),
   fbackup: async el => {
     const f = el.files?.[0]; if (!f) return;
-    try { const n = restoreBackup(JSON.parse(await f.text())); toast(`Restored ${n} sessions`); go('today'); }
-    catch (e) { toast(esc(e.message || 'That file couldn’t be read.'), 'bad'); el.value = ''; }
+    try { let o; try { o = JSON.parse(await f.text()); } catch (e) { throw new Error('That file couldn’t be read.'); } ui.restore = { o, ...checkBackup(o, f.name) }; render(true); reveal('#restorebox', 0, true); }
+    catch (e) { toast(esc(e.message || 'That file couldn’t be read.'), 'bad'); }
+    el.value = ''; // the same file can be picked again after Cancel
   },
 };
 async function readFiles(el, reader) {

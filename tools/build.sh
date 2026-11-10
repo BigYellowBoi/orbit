@@ -2,6 +2,7 @@
 # Builds two targets from src/:
 #   dist/artifact.html  claude.ai artifact (the artifact host adds the document skeleton and window.claude)
 #   index.html          GitHub Pages: full document, home-screen icons, GitHub sync (src/gh.js)
+#   sw.js               GitHub Pages service worker (src/sw.js)
 set -e
 cd "$(dirname "$0")/.."
 # Version: the number in VERSION (bump it every time you ship). Shown at the bottom of the Data screen; version.json
@@ -11,6 +12,7 @@ JS="src/core.js src/engine.js src/imports.js src/charts.js src/explorer.js src/n
 mkdir -p dist
 { cat src/head.html; cat src/body.html; echo '<script>'; cat $JS; echo '</script>'; } > dist/artifact.html
 { cat src/gh-head.html; cat src/head.html; echo '</head>'; echo '<body>'; cat src/body.html; echo '<script>'; cat $JS src/gh.js; echo '</script>'; echo '</body>'; echo '</html>'; } > index.html
+sed "s/__APP_VERSION__/$VER/" src/sw.js > sw.js # Pages offline support (v1.79); the version names its cache
 for f in dist/artifact.html index.html; do sed -i "s/__APP_VERSION__/$VER/" $f; done
 printf '{"v":"%s"}\n' "$VER" > version.json
 echo "version $VER"

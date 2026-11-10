@@ -2,6 +2,9 @@
 <html lang="en" class="sbox">
 <head>
 <meta charset="utf-8">
+<!-- v1.79: this page holds the GitHub token, so it may only load scripts from itself and only talk to GitHub, the sync helper
+     (*.workers.dev) and friends' raw files. A helper on a custom domain needs adding to connect-src. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://api.github.com https://*.workers.dev https://raw.githubusercontent.com https://gist.githubusercontent.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -761,7 +764,7 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.78'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.79'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
@@ -829,6 +832,7 @@ function streak(t = today()) { // v1.54: days in a row with a log (a session or 
    Every lookup goes through one index of logged sets per lift (lix), rebuilt only when the data
    changes (STATE.v, bumped on every save, import and sync) or the day turns over.
    ============================================================ */
+function exUses(id) { let n = 0; for (const d in STATE.w) if ((STATE.w[d].ex || []).some(e => e.id === id)) n++; return n; } // days whose log has this exercise: those keep it (v1.79)
 function emptyW(w) { // a session started here (w.nw, set by Log) with nothing in it yet: no sets, cardio, notes or duration
   return !!w && !!w.nw && !w.rest && !(w.ex || []).some(e => (e.sets || []).some(s => s.done) || (e.note || '').trim()) && !w.cardio?.done && !(w.note || '').trim() && !w.durMin;
 }
@@ -1638,12 +1642,15 @@ function hsFlags(x6) { return Object.entries(HS.fit).filter(([m, [lo, hi]]) => x
    Parsing happens in the browser; nothing leaves the page.
    ============================================================ */
 const LIBS = { xlsx: 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js', jszip: 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js' };
+/* v1.79: the Pages app serves its own copies (vendor/, same versions, from npm), so no outside script ever runs on the page
+   that holds the GitHub token, and imports work offline. The retired artifact build still loads them from cdnjs. */
+const LIBS_SELF = { xlsx: 'vendor/xlsx-0.18.5.full.min.js', jszip: 'vendor/jszip-3.10.1.min.js' };
 const libP = {};
 function loadLib(k) {
   if (k === 'xlsx' && window.XLSX) return Promise.resolve(window.XLSX);
   if (k === 'jszip' && window.JSZip) return Promise.resolve(window.JSZip);
   return libP[k] || (libP[k] = new Promise((res, rej) => {
-    const s = document.createElement('script'); s.src = LIBS[k]; s.async = true;
+    const s = document.createElement('script'); s.src = (window.GH_SYNC ? LIBS_SELF : LIBS)[k]; s.async = true;
     s.onload = () => res(k === 'xlsx' ? window.XLSX : window.JSZip);
     s.onerror = () => { delete libP[k]; rej(new Error('Couldn’t load the file reader. Check your connection and try again.')); };
     document.head.appendChild(s);
@@ -2332,12 +2339,19 @@ function exOpts(ids, sel, first) {
 }
 function rxTxt(it) { const d = exDef(it.ex); return `${defSets(it.ex)} × ${d.lo}${d.hi > d.lo ? '–' + d.hi : ''}`; }
 function prevLine(exId, before, sid) { const sg = suggest(exId, before, usualCtx(exId, sid)), l = lastLine(exId, before); return [sg && sg.inj?.act !== 'skip' ? `<b class="aimtxt">Aim ${esc(suggestTxt(exId, sg))}</b>` : '', esc(l)].filter(Boolean).join(' · '); }
+function restoreBoxHTML(r) { // what a backup holds and what restoring it would throw away (v1.79)
+  const span = r.first ? `${fmtDMY(r.first)} to ${fmtDMY(r.last)}` : 'no sessions', where = window.GH_SYNC && GH.on() ? 'on every device and in your data repo' : 'on this device';
+  const loss = r.newer ? `<p class="small" style="color:var(--bad-ink)">You’d lose ${r.newer} session${r.newer === 1 ? '' : 's'} logged after ${r.last ? fmtDMY(r.last) : 'it was made'}.</p>`
+    : r.missing ? `<p class="small" style="color:var(--warn-ink)">${r.missing} session${r.missing === 1 ? '' : 's'} here ${r.missing === 1 ? 'isn’t' : 'aren’t'} in the backup and would be lost.</p>` : '';
+  return `<div class="prev" id="restorebox"><b>Restore ${esc(r.file || 'this backup')}?</b>
+    <p class="small dim">${r.at ? `Saved ${esc(fmtDMY(r.at))} · ` : ''}${r.n} session${r.n === 1 ? '' : 's'}, ${esc(span)}. You have ${r.here} now.</p>
+    ${loss}<p class="xs muted">Everything is replaced ${where}: sessions, imported days and settings.</p>
+    <div class="btnrow"><button class="btn sm danger" data-act="restoredo">Restore</button><button class="btn sm ghost" data-act="export" data-v="json">Back up current first</button><button class="link dim" data-act="restorecancel">Cancel</button></div></div>`;
+}
 function lastLine(exId, before) {
   const ix = lixEx(exId), n = nBefore(ix.list, before); // Best counts logged sets only; stated maxes just seed the Aim
   const b = n ? ix.logged[n - 1] : null; // logged sets only, same rule as new bests (v1.50)
-  const l = lastFor(exId, before), best = b ? `Best ${fmtSet(exId, b.s)}` : '';
-  if (l) return `Last ${fmtDate(l.date)} · ${setsTxt(exId, l.sets)}${best ? ' · ' + best : ''}`;
-  return ''; // never done before: nothing to say (v1.36; was "Not logged yet")
+  return b ? `Best ${fmtSet(exId, b.s)}` : ''; // v1.79: previews show Aim and Best only (he found last time noise there; the log shows it under each set). Never done: nothing
 }
 
 /* ---------- Today: the next session, then today's log once it's started ---------- */
@@ -3213,7 +3227,8 @@ function exEditor(id, x) {
     <label class="fl full">Note<input class="in left" id="xe_note" value="${esc(x.note || '')}" placeholder="optional"></label>
   </div>${x.fresh ? `<div class="btnrow"><button class="btn sm" data-act="saveex" data-id="${id}">Add exercise</button><button class="link dim" data-act="editex" data-id="">Discard</button></div></div>` // new and unsaved: one way in, one way out
   : `<div class="btnrow"><button class="btn sm" data-act="saveex" data-id="${id}">Save</button><button class="link dim" data-act="editex" data-id="">Cancel</button>
-  ${Object.values(S().prog.sessions).some(s => s.items.some(i => i.ex === id)) ? '' : `<button class="link danger" data-act="delex" data-id="${id}" style="margin-left:auto">Delete exercise</button>`}</div></div>`}`;
+  ${Object.values(S().prog.sessions).some(s => s.items.some(i => i.ex === id)) || exUses(id) ? '' : `<button class="link danger" data-act="delex" data-id="${id}" style="margin-left:auto">${ui.confirm === 'delex' + id ? 'Tap again to delete' : 'Delete exercise'}</button>`}</div>
+  ${exUses(id) && !Object.values(S().prog.sessions).some(s => s.items.some(i => i.ex === id)) ? `<p class="xs muted">In ${exUses(id)} logged session${exUses(id) === 1 ? '' : 's'}, so it stays to keep that history right.</p>` : ''}</div>`}`;
 }
 
 /* ---------- Data ---------- */
@@ -3237,7 +3252,7 @@ function vData() {
   h += `<section class="card"><div class="card-h"><h2>Backups</h2></div>
     <div class="btnrow"><button class="btn sm ghost" data-act="export" data-v="json">Save full backup (.json)</button><button class="btn sm ghost" data-act="export" data-v="csv">Save sets (.csv)</button></div>
     ${ui.exportText ? `<div class="exportbox sec"><span class="xs muted">Saving files isn't available here. Copy this instead.</span><textarea class="in" id="exporttext" readonly>${esc(ui.exportText)}</textarea><button class="btn sm" data-act="copyexport">Copy</button></div>` : ''}
-    <label class="btn sm ghost filebtn" style="align-self:flex-start">Restore from a backup<input type="file" class="vh" id="f_backup" accept=".json,application/json" data-in="fbackup"></label></section>`;
+    ${ui.restore ? restoreBoxHTML(ui.restore) : `<label class="btn sm ghost filebtn" style="align-self:flex-start">Restore from a backup<input type="file" class="vh" id="f_backup" accept=".json,application/json" data-in="fbackup"></label>`}</section>`;
   h += `<section class="card"><div class="card-h"><h2>Start over</h2></div>
     ${ui.confirm === 'reset' ? `<p class="small">This deletes every session, import and setting, here and in cloud storage. Save a backup first if you might want it.</p><div class="btnrow"><button class="btn danger sm" data-act="reset">Delete everything</button><button class="link dim" data-act="confirm" data-v="">Cancel</button></div>`
       : `<button class="link danger" data-act="confirm" data-v="reset" style="align-self:flex-start">Delete all data</button>`}</section>`;
@@ -3393,10 +3408,18 @@ async function offerFile(filename, text) {
   }
   ui.exportText = text; render(true);
 }
-function restoreBackup(o) {
-  if (!o || !['orbit', 'rotation-logbook'].includes(o.app) || !o.settings || typeof o.workouts !== 'object' || typeof o.days !== 'object') throw new Error('This file isn’t an Orbit backup.');
+/* Restore is two steps (v1.79): checkBackup reads the file and says what it holds and what would be lost; nothing changes
+   until Restore is pressed on that preview, since applying it replaces every month here and in orbit-data. */
+function checkBackup(o, file) {
+  if (!o || !['orbit', 'rotation-logbook'].includes(o.app) || !o.settings || !o.workouts || typeof o.workouts !== 'object' || !o.days || typeof o.days !== 'object') throw new Error('This file isn’t an Orbit backup.');
   const okDate = k => /^\d{4}-\d{2}-\d{2}$/.test(k);
   const w = {}, d = {}; for (const k in o.workouts) if (okDate(k) && o.workouts[k]?.ex) w[k] = o.workouts[k]; for (const k in o.days) if (okDate(k)) d[k] = o.days[k];
+  const real = m => Object.keys(m).filter(k => !m[k].rest && !emptyW(m[k])).sort(), bs = real(w), hs = real(STATE.w), last = bs[bs.length - 1] || null;
+  return { w, d, settings: o.settings, file, at: typeof o.exportedAt === 'string' ? o.exportedAt.slice(0, 10) : null, n: bs.length, first: bs[0] || null, last,
+    here: hs.length, newer: hs.filter(k => !last || k > last).length, missing: hs.filter(k => !w[k]).length };
+}
+function restoreBackup(o) {
+  const { w, d } = checkBackup(o);
   const oldMonths = { wk: new Set(Object.keys(STATE.w).map(k => k.slice(0, 7))), dy: new Set(Object.keys(STATE.d).map(k => k.slice(0, 7))) };
   STATE.settings = migrateSettings(o.settings); STATE.w = w; STATE.d = d;
   saveSettings();
@@ -3808,13 +3831,18 @@ const ACT = {
     const bwf = $('#xe_bwf') ? num($('#xe_bwf').value) : null; if (x.u === 'bw' && bwf > 0 && bwf <= 100) x.bwf = bwf / 100; else if ($('#xe_bwf') || x.u !== 'bw') delete x.bwf;
     ui.editEx = null; saveSettings(); render(true);
   },
-  delex: el => { delete S().ex[el.dataset.id]; ui.editEx = null; saveSettings(); render(true); },
+  delex: el => { // v1.79: never for a lift with logged sessions (they'd lose its name, unit and muscle); two taps otherwise
+    const id = el.dataset.id; if (!S().ex[id] || exUses(id) || Object.values(S().prog.sessions).some(s => s.items.some(i => i.ex === id))) return;
+    if (ui.confirm !== 'delex' + id) { ui.confirm = 'delex' + id; el.textContent = 'Tap again to delete'; clearTimeout(ui.delexT); ui.delexT = setTimeout(() => { if (ui.confirm === 'delex' + id) { ui.confirm = null; if (el.isConnected) el.textContent = 'Delete exercise'; } }, 3000); return; }
+    delete S().ex[id]; ui.confirm = null; ui.editEx = null; saveSettings(); render(true); },
   doimport: el => { const src = el.dataset.v, p = ui.imp[src]; if (!p) return; const months = applyImport(p); saveMonths('dy', months);
     if (src === 'whoop') for (const w of Object.values(STATE.w)) if (p.days[w.date] && autoCardio(w)) saveW(w.date); saveSettings(); delete ui.imp[src]; toast(`Imported ${Object.keys(p.days).length} days from ${{ whoop: 'WHOOP', mf: 'MacroFactor', ah: 'Apple Health' }[src]}`); render(true); },
   cancelimp: el => { delete ui.imp[el.dataset.v]; render(true); },
   export: el => el.dataset.v === 'csv' ? offerFile(`orbit-sets-${today()}.csv`, exportCsv()) : offerFile(`orbit-backup-${today()}.json`, exportJson()),
   copyexport: async () => { const ta = $('#exporttext'); try { await navigator.clipboard.writeText(ta.value); toast('Copied'); } catch (e) { ta.select(); toast('Selected. Copy it with your keyboard or the share menu.'); } },
   reset: async () => { await resetAll(); ui.confirm = null; toast('Everything deleted'); go('today'); },
+  restoredo: () => { const r = ui.restore; if (!r) return; ui.restore = null; try { const n = restoreBackup(r.o); toast(`Restored ${n} sessions`); go('today'); } catch (e) { toast(esc(e.message), 'bad'); render(true); } },
+  restorecancel: () => { ui.restore = null; render(true); },
 };
 let navAt = 0;
 document.addEventListener('pointerdown', ev => {
@@ -3881,8 +3909,9 @@ const INP = {
   fah: el => readFiles(el, readAhFiles),
   fbackup: async el => {
     const f = el.files?.[0]; if (!f) return;
-    try { const n = restoreBackup(JSON.parse(await f.text())); toast(`Restored ${n} sessions`); go('today'); }
-    catch (e) { toast(esc(e.message || 'That file couldn’t be read.'), 'bad'); el.value = ''; }
+    try { let o; try { o = JSON.parse(await f.text()); } catch (e) { throw new Error('That file couldn’t be read.'); } ui.restore = { o, ...checkBackup(o, f.name) }; render(true); reveal('#restorebox', 0, true); }
+    catch (e) { toast(esc(e.message || 'That file couldn’t be read.'), 'bad'); }
+    el.value = ''; // the same file can be picked again after Cancel
   },
 };
 async function readFiles(el, reader) {
@@ -4486,6 +4515,8 @@ async function checkUpdate() {
     const j = await r.json(); if (j.v && newerVer(j.v, APP_VERSION) && ui.update !== j.v) { ui.update = j.v; renderUpdate(); render(); }
   } catch (e) { }
 }
+// Offline (v1.79): the service worker keeps the last good copy of the app, so it opens with no signal. https only (not file:// tests).
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(e => console.warn('service worker', e));
 checkUpdate(); document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(); }); setInterval(checkUpdate, 15 * 60 * 1000);
 if (ui.tab === 'data') render(true);
 </script>

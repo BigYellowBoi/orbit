@@ -3,12 +3,15 @@
    Parsing happens in the browser; nothing leaves the page.
    ============================================================ */
 const LIBS = { xlsx: 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js', jszip: 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js' };
+/* v1.79: the Pages app serves its own copies (vendor/, same versions, from npm), so no outside script ever runs on the page
+   that holds the GitHub token, and imports work offline. The retired artifact build still loads them from cdnjs. */
+const LIBS_SELF = { xlsx: 'vendor/xlsx-0.18.5.full.min.js', jszip: 'vendor/jszip-3.10.1.min.js' };
 const libP = {};
 function loadLib(k) {
   if (k === 'xlsx' && window.XLSX) return Promise.resolve(window.XLSX);
   if (k === 'jszip' && window.JSZip) return Promise.resolve(window.JSZip);
   return libP[k] || (libP[k] = new Promise((res, rej) => {
-    const s = document.createElement('script'); s.src = LIBS[k]; s.async = true;
+    const s = document.createElement('script'); s.src = (window.GH_SYNC ? LIBS_SELF : LIBS)[k]; s.async = true;
     s.onload = () => res(k === 'xlsx' ? window.XLSX : window.JSZip);
     s.onerror = () => { delete libP[k]; rej(new Error('Couldn’t load the file reader. Check your connection and try again.')); };
     document.head.appendChild(s);

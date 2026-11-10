@@ -30,12 +30,19 @@ function exOpts(ids, sel, first) {
 }
 function rxTxt(it) { const d = exDef(it.ex); return `${defSets(it.ex)} × ${d.lo}${d.hi > d.lo ? '–' + d.hi : ''}`; }
 function prevLine(exId, before, sid) { const sg = suggest(exId, before, usualCtx(exId, sid)), l = lastLine(exId, before); return [sg && sg.inj?.act !== 'skip' ? `<b class="aimtxt">Aim ${esc(suggestTxt(exId, sg))}</b>` : '', esc(l)].filter(Boolean).join(' · '); }
+function restoreBoxHTML(r) { // what a backup holds and what restoring it would throw away (v1.79)
+  const span = r.first ? `${fmtDMY(r.first)} to ${fmtDMY(r.last)}` : 'no sessions', where = window.GH_SYNC && GH.on() ? 'on every device and in your data repo' : 'on this device';
+  const loss = r.newer ? `<p class="small" style="color:var(--bad-ink)">You’d lose ${r.newer} session${r.newer === 1 ? '' : 's'} logged after ${r.last ? fmtDMY(r.last) : 'it was made'}.</p>`
+    : r.missing ? `<p class="small" style="color:var(--warn-ink)">${r.missing} session${r.missing === 1 ? '' : 's'} here ${r.missing === 1 ? 'isn’t' : 'aren’t'} in the backup and would be lost.</p>` : '';
+  return `<div class="prev" id="restorebox"><b>Restore ${esc(r.file || 'this backup')}?</b>
+    <p class="small dim">${r.at ? `Saved ${esc(fmtDMY(r.at))} · ` : ''}${r.n} session${r.n === 1 ? '' : 's'}, ${esc(span)}. You have ${r.here} now.</p>
+    ${loss}<p class="xs muted">Everything is replaced ${where}: sessions, imported days and settings.</p>
+    <div class="btnrow"><button class="btn sm danger" data-act="restoredo">Restore</button><button class="btn sm ghost" data-act="export" data-v="json">Back up current first</button><button class="link dim" data-act="restorecancel">Cancel</button></div></div>`;
+}
 function lastLine(exId, before) {
   const ix = lixEx(exId), n = nBefore(ix.list, before); // Best counts logged sets only; stated maxes just seed the Aim
   const b = n ? ix.logged[n - 1] : null; // logged sets only, same rule as new bests (v1.50)
-  const l = lastFor(exId, before), best = b ? `Best ${fmtSet(exId, b.s)}` : '';
-  if (l) return `Last ${fmtDate(l.date)} · ${setsTxt(exId, l.sets)}${best ? ' · ' + best : ''}`;
-  return ''; // never done before: nothing to say (v1.36; was "Not logged yet")
+  return b ? `Best ${fmtSet(exId, b.s)}` : ''; // v1.79: previews show Aim and Best only (he found last time noise there; the log shows it under each set). Never done: nothing
 }
 
 /* ---------- Today: the next session, then today's log once it's started ---------- */
@@ -911,7 +918,8 @@ function exEditor(id, x) {
     <label class="fl full">Note<input class="in left" id="xe_note" value="${esc(x.note || '')}" placeholder="optional"></label>
   </div>${x.fresh ? `<div class="btnrow"><button class="btn sm" data-act="saveex" data-id="${id}">Add exercise</button><button class="link dim" data-act="editex" data-id="">Discard</button></div></div>` // new and unsaved: one way in, one way out
   : `<div class="btnrow"><button class="btn sm" data-act="saveex" data-id="${id}">Save</button><button class="link dim" data-act="editex" data-id="">Cancel</button>
-  ${Object.values(S().prog.sessions).some(s => s.items.some(i => i.ex === id)) ? '' : `<button class="link danger" data-act="delex" data-id="${id}" style="margin-left:auto">Delete exercise</button>`}</div></div>`}`;
+  ${Object.values(S().prog.sessions).some(s => s.items.some(i => i.ex === id)) || exUses(id) ? '' : `<button class="link danger" data-act="delex" data-id="${id}" style="margin-left:auto">${ui.confirm === 'delex' + id ? 'Tap again to delete' : 'Delete exercise'}</button>`}</div>
+  ${exUses(id) && !Object.values(S().prog.sessions).some(s => s.items.some(i => i.ex === id)) ? `<p class="xs muted">In ${exUses(id)} logged session${exUses(id) === 1 ? '' : 's'}, so it stays to keep that history right.</p>` : ''}</div>`}`;
 }
 
 /* ---------- Data ---------- */
@@ -935,7 +943,7 @@ function vData() {
   h += `<section class="card"><div class="card-h"><h2>Backups</h2></div>
     <div class="btnrow"><button class="btn sm ghost" data-act="export" data-v="json">Save full backup (.json)</button><button class="btn sm ghost" data-act="export" data-v="csv">Save sets (.csv)</button></div>
     ${ui.exportText ? `<div class="exportbox sec"><span class="xs muted">Saving files isn't available here. Copy this instead.</span><textarea class="in" id="exporttext" readonly>${esc(ui.exportText)}</textarea><button class="btn sm" data-act="copyexport">Copy</button></div>` : ''}
-    <label class="btn sm ghost filebtn" style="align-self:flex-start">Restore from a backup<input type="file" class="vh" id="f_backup" accept=".json,application/json" data-in="fbackup"></label></section>`;
+    ${ui.restore ? restoreBoxHTML(ui.restore) : `<label class="btn sm ghost filebtn" style="align-self:flex-start">Restore from a backup<input type="file" class="vh" id="f_backup" accept=".json,application/json" data-in="fbackup"></label>`}</section>`;
   h += `<section class="card"><div class="card-h"><h2>Start over</h2></div>
     ${ui.confirm === 'reset' ? `<p class="small">This deletes every session, import and setting, here and in cloud storage. Save a backup first if you might want it.</p><div class="btnrow"><button class="btn danger sm" data-act="reset">Delete everything</button><button class="link dim" data-act="confirm" data-v="">Cancel</button></div>`
       : `<button class="link danger" data-act="confirm" data-v="reset" style="align-self:flex-start">Delete all data</button>`}</section>`;

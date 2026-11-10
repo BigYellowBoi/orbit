@@ -54,6 +54,7 @@ function streak(t = today()) { // v1.54: days in a row with a log (a session or 
    Every lookup goes through one index of logged sets per lift (lix), rebuilt only when the data
    changes (STATE.v, bumped on every save, import and sync) or the day turns over.
    ============================================================ */
+function exUses(id) { let n = 0; for (const d in STATE.w) if ((STATE.w[d].ex || []).some(e => e.id === id)) n++; return n; } // days whose log has this exercise: those keep it (v1.79)
 function emptyW(w) { // a session started here (w.nw, set by Log) with nothing in it yet: no sets, cardio, notes or duration
   return !!w && !!w.nw && !w.rest && !(w.ex || []).some(e => (e.sets || []).some(s => s.done) || (e.note || '').trim()) && !w.cardio?.done && !(w.note || '').trim() && !w.durMin;
 }

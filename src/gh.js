@@ -374,5 +374,7 @@ async function checkUpdate() {
     const j = await r.json(); if (j.v && newerVer(j.v, APP_VERSION) && ui.update !== j.v) { ui.update = j.v; renderUpdate(); render(); }
   } catch (e) { }
 }
+// Offline (v1.79): the service worker keeps the last good copy of the app, so it opens with no signal. https only (not file:// tests).
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(e => console.warn('service worker', e));
 checkUpdate(); document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(); }); setInterval(checkUpdate, 15 * 60 * 1000);
 if (ui.tab === 'data') render(true);
