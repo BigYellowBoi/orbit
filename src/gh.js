@@ -192,7 +192,9 @@ const GH = {
     if (navigator.onLine === false) { this.setState('offline'); return; }
     this.busy = true; clearTimeout(this.timer); this.setState('syncing');
     try {
-      for (let tries = 0; tries < 4; tries++) { await this.pull(); if (await this.push()) break; }
+      let pushed = false;
+      for (let tries = 0; tries < 4 && !pushed; tries++) { await this.pull(); pushed = await this.push(); }
+      this.fails = pushed ? 0 : (this.fails || 0) + 1; // a round that still couldn't push backs the retries off (was a flat 1.5 s, which could hammer the rate limit)
       this.meta.at = Date.now(); this.err = null; this.saveMeta();
       this.setState(Object.keys(this.meta.dirty).length ? 'syncing' : 'ok');
     } catch (e) {
@@ -202,7 +204,7 @@ const GH = {
     } finally {
       this.busy = false; this.saveMeta();
       if (this.again) { this.again = false; setTimeout(() => this.sync(), 300); }
-      else if (Object.keys(this.meta.dirty).length && this.state === 'syncing') { clearTimeout(this.timer); this.timer = setTimeout(() => this.sync(), 1500); }
+      else if (Object.keys(this.meta.dirty).length && this.state === 'syncing') { clearTimeout(this.timer); this.timer = setTimeout(() => this.sync(), Math.min(60e3, 1500 * 2 ** (this.fails || 0))); }
     }
   },
   setState(s) { this.state = s; const el = $('#ghstat'); if (el) el.innerHTML = this.pill(); const at = $('#ghat'); if (at) at.textContent = this.atText(); const er = $('#gherr'); if (er) { er.textContent = this.state === 'error' ? this.err || '' : ''; er.hidden = this.state !== 'error'; } },
@@ -314,9 +316,10 @@ const Helper = {
       <div class="btnrow"><button class="link" data-act="helperrefresh">Refresh</button><button class="link dim" data-act="helperedit" style="margin-left:auto">Change address</button></div></section>`;
   },
   traffic() { // usage against limits, speeds per service, and the helper's recent sync log; refreshed in place every 2 s while open
-    const st = this.st, u = st?.usage, net = st?.net || {}, kb = b => b == null ? '–' : b < 1024 ? `${b} B` : `${fmt(b / 1024, 1)} KB`;
-    const short = n => n >= 1000 ? fmt(n / 1000, n % 1000 ? 1 : 0) + 'k' : String(n);
-    const bar = (lab, used, lim, note) => `<li><span class="lab">${esc(lab)}</span><span class="trk"><span class="fill" style="width:${Math.min(100, used / lim * 100)}%;background:var(--${used / lim > .8 ? 'bad' : used / lim > .5 ? 'warn' : 's1'})"></span></span><span class="v">${short(used)} / ${short(lim)}</span></li>${note ? `<li class="hb-note"><span class="xs muted">${note}</span></li>` : ''}`;
+    const st = this.st, u = st?.usage, net = st?.net || {}, nz = v => Number.isFinite(+v) ? +v : 0; // status.json comes from outside this page, so every number is coerced before it reaches the HTML
+    const kb = b => b == null ? '–' : (b = nz(b)) < 1024 ? `${b} B` : `${fmt(b / 1024, 1)} KB`;
+    const short = n => (n = nz(n)) >= 1000 ? fmt(n / 1000, n % 1000 ? 1 : 0) + 'k' : String(n);
+    const bar = (lab, used, lim, note) => (used = nz(used), lim = nz(lim) || 1) && `<li><span class="lab">${esc(lab)}</span><span class="trk"><span class="fill" style="width:${Math.min(100, used / lim * 100)}%;background:var(--${used / lim > .8 ? 'bad' : used / lim > .5 ? 'warn' : 's1'})"></span></span><span class="v">${short(used)} / ${short(lim)}</span></li>${note ? `<li class="hb-note"><span class="xs muted">${note}</span></li>` : ''}`;
     const speed = (down, ms) => down >= 2048 && ms > 0 ? `${fmt(down / 1024 / (ms / 1000), 0)} KB/s` : '–';
     const row = (name, x, scope) => !x || !x.n ? `<tr><td>${name}</td><td class="n muted" colspan="3">no requests yet</td></tr>`
       : `<tr><td>${name}<br><span class="xs muted">${scope}</span></td><td class="n">${fmt(x.ms / x.n, 0)} ms</td><td class="n">${speed(x.down, x.ms)}</td><td class="n">↓${kb(x.down)}<br><span class="xs muted">↑${kb(x.up)}</span></td></tr>`;
@@ -326,7 +329,7 @@ const Helper = {
     if (u) h += bar('WHOOP calls', u.whoop, u.whoopLimit) + bar('Cloudflare writes', u.kv, u.kvLimit);
     if (u && u.ghLeft != null) h += bar('GitHub, helper', u.ghLimit - u.ghLeft, u.ghLimit, `resets ${esc(reset({ reset: u.ghReset }))}`);
     if (rate) h += bar('GitHub, phone', rate.limit - rate.left, rate.limit, `resets ${esc(reset(rate))}`);
-    h += `</ul>${u ? `<span class="xs muted">${u.runs} checks, ${u.hooks} WHOOP notifications, ${u.health} Apple Health posts today.</span>` : ''}`;
+    h += `</ul>${u ? `<span class="xs muted">${nz(u.runs)} checks, ${nz(u.hooks)} WHOOP notifications, ${nz(u.health)} Apple Health posts today.</span>` : ''}`;
     h += `<div class="tblwrap"><table class="tbl net"><thead><tr><th>Link</th><th class="n">Response</th><th class="n">↓ Speed</th><th class="n">Data</th></tr></thead><tbody>
       ${row('Phone → GitHub', phoneGh, `${phoneGh.n} request${phoneGh.n === 1 ? '' : 's'} this session${phoneGh.n304 ? `, ${phoneGh.n304} unchanged` : ''}`)}
       ${row('Phone → Helper', NET.helper, `${NET.helper.n} request${NET.helper.n === 1 ? '' : 's'} this session`)}
@@ -336,7 +339,7 @@ const Helper = {
     // newest first; an entry a newer one supersedes is dropped (same rule as the helper's logEv)
     const lk = e => e.k === 'notify' ? 'notify:' + e.w : e.k === 'history' ? null : e.k, sup = (n, o) => { const k = lk(o); return k != null && (k === lk(n) || (n.k === 'full' && o.k === 'steps')); };
     const log = (st?.log || []).reduce((a, e) => (a.some(n => sup(n, e)) ? a : [...a, e]), []), lab = e => e.k === 'notify' ? `${e.w[0].toUpperCase() + e.w.slice(1)} (WHOOP notification)` : e.k === 'full' ? 'Full check' : e.k === 'steps' ? 'Steps and strain' : e.k === 'error' ? 'Problem' : e.w;
-    if (log.length) h += `<span class="xs muted">Recent syncs by the helper</span><ul class="rows synclog">${log.slice(0, 12).map(e => `<li><span>${esc(lab(e))}</span>${e.k === 'error' ? pill('bad', 'Error') : e.ch ? pill('good', 'New data') : pill('', 'No change')}<span class="sub">${esc(this.when(e.t))}${e.rq ? ` · ${e.rq} request${e.rq === 1 ? '' : 's'}` : ''}${e.k === 'error' ? ' · ' + esc(e.w) : ''}</span></li>`).join('')}</ul>`;
+    if (log.length) h += `<span class="xs muted">Recent syncs by the helper</span><ul class="rows synclog">${log.slice(0, 12).map(e => `<li><span>${esc(lab(e))}</span>${e.k === 'error' ? pill('bad', 'Error') : e.ch ? pill('good', 'New data') : pill('', 'No change')}<span class="sub">${esc(this.when(e.t))}${nz(e.rq) ? ` · ${nz(e.rq)} request${nz(e.rq) === 1 ? '' : 's'}` : ''}${e.k === 'error' ? ' · ' + esc(e.w) : ''}</span></li>`).join('')}</ul>`;
     else if (st && !u) h += `<p class="xs muted">Paste the latest orbit-sync.js into Cloudflare to see the helper's usage and sync log.</p>`;
     return h + `</section>`;
   },

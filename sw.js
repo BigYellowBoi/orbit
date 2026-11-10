@@ -4,7 +4,7 @@
    - Icons, manifest and vendor/ libraries: from the cache once fetched (new build = new cache, so they refresh then).
    - Google Fonts: the cached copy straight away, refreshed in the background.
    - Everything else (GitHub, the sync helper, friends' files, version.json) is left alone: always the network. */
-const VER = '1.79', CACHE = 'orbit-' + VER, SHELL = ['./', 'manifest.webmanifest', 'apple-touch-icon.png', 'icon-any-32.png', 'icon-any-192.png', 'icon-192.png'];
+const VER = '1.80', CACHE = 'orbit-' + VER, SHELL = ['./', 'manifest.webmanifest', 'apple-touch-icon.png', 'icon-any-32.png', 'icon-any-192.png', 'icon-192.png'];
 const PAGE = new URL('./', self.registration.scope).href;
 
 self.addEventListener('install', e => {

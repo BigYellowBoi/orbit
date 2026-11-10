@@ -83,6 +83,25 @@ const ok = (c, msg) => { if (c) passes++; else { fails++; console.log('FAIL', ms
   const keys = await p.evaluate(() => caches.keys());
   ok(keys.includes('orbit-' + (await p.evaluate(() => APP_VERSION))), 'cache named for this build: ' + keys.join(', '));
 
+  // a tampered helper status.json can't put markup into the Traffic card (v1.79 audit)
+  const inj = await p.evaluate(() => {
+    const P = '"><img src=x onerror="window.__hx=1">';
+    Helper.st = { whoop: { connected: true, checkedAt: Date.now() }, health: { at: Date.now() },
+      usage: { day: 'd', whoop: P, whoopLimit: P, kv: 1, kvLimit: 10, gh: 1, runs: P, hooks: P, health: P, ghLeft: P, ghLimit: P, ghReset: P },
+      net: { whoop: { n: 1, ms: P, up: P, down: P, at: 1 } }, log: [{ k: 'full', w: 'w', t: 1, rq: P, ch: 1 }] };
+    Helper.at = Date.now();
+    const out = Helper.traffic(); Helper.st = null;
+    return { img: /<img/i.test(out), ok: /Traffic/.test(out) };
+  });
+  ok(!inj.img && inj.ok, 'helper status numbers cannot inject markup into Traffic');
+  // a tampered friends cache can't inject through rpe
+  const frInj = await p.evaluate(() => {
+    localStorage.setItem('orbit-friends-v1', JSON.stringify({ f1: { at: Date.now(), name: 'F', sessions: [{ d: today(), n: 'S', lift: true, s: Date.now(), e: null, dur: 60, open: false, sets: 1, ex: [['E', ['20 kg × 8']]], c: '', rpe: '7<img src=x onerror=1>' }] } }));
+    FR.cache = null; S().friends = { f1: { name: 'F' } }; ui.fr = 'f1'; ui.frOpen = today() + '|S|' + frCache().f1.sessions[0].s;
+    go('friends'); const bad = !!document.querySelector('.frdet img'); S().friends = {}; go('today'); return bad;
+  });
+  ok(!frInj, 'friends cache rpe cannot inject markup');
+
   ok(!csp.filter(t => !/evil\.example/.test(t)).length, 'no CSP violations from the app itself: ' + csp.filter(t => !/evil\.example/.test(t)).slice(0, 3).join(' / '));
   ok(!errs.length, 'no page errors: ' + errs.slice(0, 3).join(' / '));
   console.log(`${passes} passed, ${fails} failed`);

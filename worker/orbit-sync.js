@@ -200,7 +200,10 @@ async function writeMonth(env, b, ym, mutate, msg) { // read, change, write back
   for (let attempt = 0; attempt < 3; attempt++) {
     const g = await ghReq(env, b, 'GET', `/contents/${path}?ref=${branch}`);
     let sha, data = { items: {} };
-    if (g.status === 200) { const j = await g.json(); sha = j.sha; try { data = JSON.parse(b64dec(j.content)); } catch (e) { } data.items = data.items || {}; }
+    if (g.status === 200) { const j = await g.json(); sha = j.sha;
+      try { data = JSON.parse(b64dec(j.content)); } catch (e) { data = null; }
+      if (!data || typeof data !== 'object') throw new Error(`${path} is unreadable; leaving it alone`); // never treat a bad read as an empty month: writing back would wipe it
+      data.items = data.items || {}; }
     else if (g.status !== 404) throw new Error('GitHub read ' + g.status + (g.status === 401 || g.status === 403 ? ' (check GH_TOKEN can read and write orbit-data)' : ''));
     const before = JSON.stringify(data.items); mutate(data.items);
     if (JSON.stringify(data.items) === before) return false;
@@ -291,6 +294,7 @@ async function run(env, { force, hook, at, kind } = {}) {
 async function webhook(env, req, ctx) {
   const raw = await req.text(), sig = req.headers.get('x-whoop-signature'), ts = req.headers.get('x-whoop-signature-timestamp');
   if (!sig || !ts) return text('missing signature', 401);
+  if (!(Math.abs(Date.now() - +ts) < 5 * 60e3)) return text('stale signature', 401); // a captured request can't be replayed later to burn the KV budget
   const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(env.WHOOP_CLIENT_SECRET), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
   const mac = new Uint8Array(await crypto.subtle.sign('HMAC', k, new TextEncoder().encode(ts + raw)));
   const want = btoa(String.fromCharCode(...mac));

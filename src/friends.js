@@ -115,7 +115,7 @@ function vFriends() {
     const key = x.d + '|' + x.n + '|' + (x.s || ''), on = ui.frOpen === key, time = x.s ? `${frClock(x.s)}${x.e ? ` – ${frClock(x.e)}` : ''}` : '';
     const meta = [time, x.dur ? fmtDur(x.dur) : '', x.sets ? `${x.sets} sets` : '', x.lift ? '' : x.c].filter(Boolean).join(' · ');
     h += `<button class="hrow frrow" data-act="fropen" data-k="${esc(key)}" aria-expanded="${on}"><span class="hdate"><b>${esc(fmtDow(x.d))}</b><small>${esc(fmtDate(x.d))}</small></span><span class="hmain"><b>${esc(x.n)}${x.open ? ' <span class="pill warn">In progress</span>' : ''}</b><small>${esc(meta || 'No details')}</small></span><span class="chev">${ICON.down}</span></button>`;
-    if (on) h += `<section class="card flat frdet">${x.ex.length ? `<ul class="exlist ro">${x.ex.map(([nm, sets]) => `<li><span>${esc(nm)}</span><span class="rx">${sets.map((v, i) => `<span class="rs"><i>${i + 1}</i><span>${esc(v)}</span></span>`).join('')}</span></li>`).join('')}</ul>` : ''}${x.c ? `<p class="small dim">${esc(x.c)}</p>` : ''}${x.rpe ? `<p class="xs muted">Felt ${x.rpe}/10</p>` : ''}</section>`;
+    if (on) h += `<section class="card flat frdet">${x.ex.length ? `<ul class="exlist ro">${x.ex.map(([nm, sets]) => `<li><span>${esc(nm)}</span><span class="rx">${sets.map((v, i) => `<span class="rs"><i>${i + 1}</i><span>${esc(v)}</span></span>`).join('')}</span></li>`).join('')}</ul>` : ''}${x.c ? `<p class="small dim">${esc(x.c)}</p>` : ''}${frNum(x.rpe) ? `<p class="xs muted">Felt ${frNum(x.rpe)}/10</p>` : ''}</section>`;
   }
   if (open) h += '</div>';
   if (ss.length > 30) h += `<button class="link" data-act="frall" style="align-self:flex-start">${ui.frAll ? 'Show the last 30' : `Show all ${ss.length}`}</button>`;

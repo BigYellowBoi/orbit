@@ -146,6 +146,9 @@ console.log('webhook');
 const body = JSON.stringify({ user_id: 1, id: 'x', type: 'recovery.updated', trace_id: 't' }), ts = String(Date.now());
 const sig = crypto.createHmac('sha256', 'csecret').update(ts + body).digest('base64');
 r = await req('/webhook', { method: 'POST', body, headers: { 'x-whoop-signature': 'AAAA', 'x-whoop-signature-timestamp': ts } }); ok(r.status === 401, 'bad signature refused');
+{ const old = String(Date.now() - 6 * 60e3), oldSig = crypto.createHmac('sha256', 'csecret').update(old + body).digest('base64');
+  r = await req('/webhook', { method: 'POST', body, headers: { 'x-whoop-signature': oldSig, 'x-whoop-signature-timestamp': old } });
+  ok(r.status === 401, 'a correctly signed request over 5 minutes old is refused (replay)'); }
 H.rec.find(x => x.sleep_id === 'S' + y).score.recovery_score = 99;
 const delW = H.wo.find(w => w.id === 'W' + wd); H.wo = H.wo.filter(w => w !== delW);
 calls = 0; r = await req('/webhook', { method: 'POST', body, headers: { 'x-whoop-signature': sig, 'x-whoop-signature-timestamp': ts } });
@@ -283,6 +286,18 @@ console.log('traffic');
   const key = e => e.k === 'notify' ? 'notify:' + e.w : e.k === 'history' ? null : e.k, keys = s2.log.map(key).filter(Boolean);
   const lastFull = s2.log.findIndex(e => e.k === 'full');
   ok(new Set(keys).size === keys.length && (lastFull < 0 || !s2.log.slice(lastFull + 1).some(e => e.k === 'steps')), `sync log has no superseded entries (${s2.log.map(e => e.k + (e.k === 'notify' ? ':' + e.w : '')).join(', ')})`);
+}
+
+/* ---------- unreadable month file is never wiped ---------- */
+{
+  console.log('corrupt month');
+  const ym = Object.keys(repo).filter(p => /dy/.test(p)).sort().pop(), was = repo[ym].text;
+  repo[ym] = { sha: repo[ym].sha, text: 'not json at all' };
+  const r = await req('/sync?key=k3y'), j = await r.json();
+  ok(!j.ok && /unreadable/.test(j.error || ''), 'a bad month read stops the sync with the file named: ' + (j.error || '').slice(0, 60));
+  ok(repo[ym].text === 'not json at all', 'the broken file is left for a human, not overwritten');
+  repo[ym] = { sha: repo[ym].sha, text: was };
+  const r2 = await req('/sync?key=k3y'); ok((await r2.json()).ok, 'sync recovers once the file is back');
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

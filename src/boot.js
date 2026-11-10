@@ -6,8 +6,16 @@
 const LS_KEY = 'rotation-logbook-v1';
 const Cloud = { db: null, uid: null, ready: false, failed: false, writing: 0, loaded: { settings: false, wk: false, dy: false }, cloud: { settings: undefined, wk: {}, dy: {} } };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-let lsT;
-function cacheLocal() { clearTimeout(lsT); lsT = setTimeout(() => { try { localStorage.setItem(LS_KEY, JSON.stringify({ settings: STATE.settings, w: STATE.w, d: STATE.d })); } catch (e) { } }, 250); }
+let lsT, lsDirty = false, lsWarned = false;
+function writeLocal() {
+  lsDirty = false;
+  try { localStorage.setItem(LS_KEY, JSON.stringify({ settings: STATE.settings, w: STATE.w, d: STATE.d })); }
+  catch (e) { if (!lsWarned) { lsWarned = true; toast('Couldn’t save to this browser (storage may be full). Recent changes could be lost when the app closes.', 'bad'); } console.warn('local save', e); }
+}
+function cacheLocal() { lsDirty = true; clearTimeout(lsT); lsT = setTimeout(writeLocal, 250); }
+function flushLocal() { if (!lsDirty) return; clearTimeout(lsT); writeLocal(); } // iOS can freeze the page mid-debounce; a pending save goes down before the app does
+window.addEventListener('pagehide', flushLocal);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushLocal(); });
 function loadLocal() { try { const s = localStorage.getItem(LS_KEY); if (!s) return null; const o = JSON.parse(s); return o && o.settings ? o : null; } catch (e) { return null; } }
 function migrateSettings(s) {
   const d = defaultSettings(), out = { ...d, ...(s || {}) };
