@@ -21,7 +21,7 @@ Day fields from it: WHOOP keys as the CSV import plus `stp` (WHOOP steps), `dst`
 
 ## WHOOP → Garmin transition (WHOOP membership ends 13 Dec 2026)
 Louis is replacing WHOOP with a Garmin Venu 3 (no subscription) and wears both until WHOOP ends. Plan:
-1. **Calibrate, 13 Nov to 13 Dec:** both every night; 14–21 paired nights is the minimum for fits, so the later steps must run before 13 Dec. Garmin's HRV status onboards for ~3 weeks.
+1. **Calibrate, 13 Nov to 13 Dec:** both every night; 14–21 paired nights is the minimum for fits. Steps 2–4 can run after 13 Dec: the worker already stores WHOOP's API data (full-precision HRV) in orbit-data, and Louis will do a final WHOOP export before cancelling (journal/alcohol is only in the export). Garmin's HRV status onboards for ~3 weeks.
 2. **Garmin into Orbit:** map raw files to day fields alongside WHOOP's without overwriting them (sleep on/off, stages, asleep, awake, RHR, overnight HRV `hrvSummary.lastNightAvg`, respiration, SpO2, steps, activities with HR zones, VO2 max; `sleepScores.overall`, Body Battery), tagged by source. Add a WHOOP vs Garmin card on Body (per-metric offset and agreement).
 3. **Fit conversions** Garmin → WHOOP scale on the paired nights: HRV (Garmin averages the whole night, WHOOP weights deep sleep, so Garmin reads lower), RHR, sleep durations. Stages: likely not worth converting (wrist staging disagrees most there).
 4. **Rebuild WHOOP-only scores from Garmin inputs:** Recovery (his model on converted HRV/RHR/sleep), Strain (from HR zones / TRIMP, calibrated against WHOOP strain on overlap days), sleep need/performance/debt, Healthspan (`HS_SRC` already takes a second source; never retune its fitted parameters).
