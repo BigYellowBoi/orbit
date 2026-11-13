@@ -44,10 +44,14 @@ export default {
         st.bf = { next: from, done: false }; await putJ(env, 'status', st); return text(`History backfill restarts from ${from}; it runs a month or two every 5 minutes.`);
       }
       if (url.pathname === '/health' && req.method === 'POST') { if (!authed) return text('Forbidden', 403); return health(env, req); }
+      if (url.pathname === '/garmin' && req.method === 'GET') { if (!authed) return text('Forbidden', 403); return json(await garminRun(env, { force: true })); }
       return text('Not found', 404);
     } catch (e) { return text('Error: ' + (e.message || e), 500); }
   },
-  async scheduled(ev, env, ctx) { ctx.waitUntil(run(env, { at: ev.scheduledTime })); }, // stamped with the scheduled minute, not the start time, so times stay round
+  async scheduled(ev, env, ctx) { // the every-5-minutes trigger is WHOOP; any other trigger is Garmin (its own run, so each gets the full 50-request allowance)
+    if (ev.cron && ev.cron.trim() !== '*/5 * * * *') { ctx.waitUntil(garminRun(env, { at: ev.scheduledTime })); return; }
+    ctx.waitUntil(run(env, { at: ev.scheduledTime })); // stamped with the scheduled minute, not the start time, so times stay round
+  },
 };
 
 /* ---------- small helpers ---------- */
@@ -290,6 +294,94 @@ async function run(env, { force, hook, at, kind } = {}) {
   out.requests = b.used; await putJ(env, 'status', st); return out;
 }
 
+/* ---------- Garmin (Personal API) → orbit-data/orbit/garmin/raw/YYYY-MM-DD.json ----------
+   Same raw files the old GitHub Action (scripts/garmin_sync.py) wrote: one per day, the API responses as they come,
+   keys sorted. Not mapped into orbit/dy yet (calibration against WHOOP first).
+   Each run pulls today and yesterday (and the day before at hh:00 for hh % 3 == 0, since sleep and HRV can firm up late),
+   newest first so today always lands inside the request budget. A day is written to GitHub only when its content changed
+   (hash kept in KV), so a quiet run costs Garmin calls only.
+   Settings: secret GARMIN_PERSONAL_API_KEY; a second Cron Trigger, every 10 minutes. */
+const GARMIN = 'https://personal.connectapi.garmin.com';
+const GARMIN_TOKEN_PATH = '/personalapitoken-service/personal-api/personal-api-key/token';
+async function garminToken(env, b, gs) {
+  const now = Date.now() / 1000;
+  if (gs.tok && gs.tok.exp - now > 3600) return gs.tok.t; // reuse until an hour before expiry, as the official client does
+  b.take();
+  const r = await mfetch(b, 'garmin', GARMIN + GARMIN_TOKEN_PATH, { method: 'POST', headers: { accept: '*/*', authorization: 'ApiKey ' + String(env.GARMIN_PERSONAL_API_KEY).trim() } });
+  const t = (await r.text()).trim();
+  if (!r.ok) throw new Error('Garmin key refused (' + r.status + '). Check GARMIN_PERSONAL_API_KEY.');
+  let exp; try { const p = t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'); exp = +JSON.parse(atob(p + '='.repeat((4 - p.length % 4) % 4))).exp; } catch (e) { }
+  if (!Number.isFinite(exp)) throw new Error('Garmin token had no expiry');
+  gs.tok = { t, exp }; return t;
+}
+async function gget(b, tok, path, params) {
+  b.take();
+  const q = params ? '?' + new URLSearchParams(params) : '';
+  const r = await mfetch(b, 'garmin', GARMIN + path + q, { headers: { accept: 'application/json', authorization: 'Bearer ' + tok } });
+  const body = await r.text();
+  if (!r.ok) return { _error: `${r.status} GET ${GARMIN + path}: ${body}`.slice(0, 500) };
+  if (!body) return null;
+  try { return JSON.parse(body); } catch (e) { return { _error: 'bad JSON from ' + path }; }
+}
+async function garminDay(b, tok, d) { // the same calls, in the same shape, as garmin_sync.py's pull_day
+  const out = {
+    summary: await gget(b, tok, '/usersummary-service/v2/dailysummaries', { startDate: d, endDate: d }),
+    sleep: await gget(b, tok, '/sleep-service/sleep/dailySleep', { date: d }),
+    hrv: await gget(b, tok, `/hrv-service/hrv/${d}`),
+    body_battery: await gget(b, tok, '/wellness-service/wellness/bodyBattery/reports/daily', { startDate: d, endDate: d }),
+    stress: await gget(b, tok, `/usersummary-service/stats/stress/daily/${d}/${d}`),
+    heart_rate: await gget(b, tok, '/wellness-service/wellness/dailyHeartRate', { date: d }),
+    spo2: await gget(b, tok, `/wellness-service/wellness/daily/spo2acclimation/${d}`),
+    weight: await gget(b, tok, `/weight-service/weight/range/${d}/${d}`, { includeAll: 'true' }),
+  };
+  const acts = await gget(b, tok, '/activitylist-service/activities/search/activities', { start: 0, limit: 50, startDate: d, endDate: d });
+  const details = [];
+  if (Array.isArray(acts)) for (const a of acts) if (a && a.activityId != null) details.push(await gget(b, tok, `/activity-service/activity/${a.activityId}`));
+  out.activities = acts; out.activity_details = details;
+  return out;
+}
+const sortKeys = v => Array.isArray(v) ? v.map(sortKeys) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map(k => [k, sortKeys(v[k])])) : v;
+const garminEmpty = day => !(day.summary && typeof day.summary === 'object' && Array.isArray(day.summary.data) && day.summary.data.length) && !(Array.isArray(day.activities) && day.activities.length);
+async function sha256(s) { return [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))].map(x => x.toString(16).padStart(2, '0')).join(''); }
+async function writeRaw(env, b, d, content) { // read for the sha, skip if identical, write; a concurrent commit (409/422) means read again
+  const path = `orbit/garmin/raw/${d}.json`, branch = env.GH_BRANCH || 'main';
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const g = await ghReq(env, b, 'GET', `/contents/${path}?ref=${branch}`); let sha;
+    if (g.status === 200) { const j = await g.json(); sha = j.sha; try { if (b64dec(j.content) === content) return false; } catch (e) { } }
+    else if (g.status !== 404) throw new Error('GitHub read ' + g.status);
+    const p = await ghReq(env, b, 'PUT', `/contents/${path}`, { message: `Garmin sync ${d}`, content: b64enc(content), branch, ...(sha ? { sha } : {}) });
+    if (p.ok) return true;
+    if (p.status !== 409 && p.status !== 422) throw new Error('GitHub write ' + p.status);
+  }
+  throw new Error('GitHub kept changing under us; will retry next run');
+}
+async function garminRun(env, { force, at } = {}) {
+  if (!env.GARMIN_PERSONAL_API_KEY) return { ok: false, msg: 'GARMIN_PERSONAL_API_KEY not set' };
+  const gs = await getJ(env, 'garmin') || {}, b = budget(), now = at || Date.now(), out = { ok: true, wrote: [] };
+  gs.h = gs.h || {};
+  const t = todayLocal(env), l = local(new Date(now).toISOString(), null, env), deep = force || (l.h % 3 === 0 && +l.hm.slice(3) < 10);
+  const days = [t, addDays(t, -1)]; if (deep) days.push(addDays(t, -2));
+  try {
+    const tok = await garminToken(env, b, gs);
+    for (const d of days) {
+      if (b.left() < 16) break; // a day needs ~10 Garmin calls plus 2 GitHub ones; the rest waits for the next run
+      const day = await garminDay(b, tok, d);
+      if (Object.values(day).some(v => v && v._error && /^401 /.test(v._error))) { gs.tok = null; throw new Error('Garmin token rejected; a new one is fetched next run'); }
+      const errs = Object.entries(day).filter(([, v]) => v && v._error).map(([k, v]) => k + ': ' + v._error.slice(0, 200));
+      if (errs.length) (out.errors = out.errors || {})[d] = errs;
+      if (garminEmpty(day)) { if (errs.length && !out.blocked) out.blocked = `${d} ${errs[0]}`; continue; } // no data and errors: report it, don't pass it off as an empty day
+      const content = JSON.stringify(sortKeys(day), null, 1), h = await sha256(content);
+      if (gs.h[d] === h) continue;
+      await writeRaw(env, b, d, content); gs.h[d] = h; out.wrote.push(d);
+    }
+    for (const d in gs.h) if (d < addDays(t, -7)) delete gs.h[d];
+    if (out.blocked) { gs.err = out.error = out.blocked; gs.errAt = Date.now(); out.ok = false; delete out.blocked; } else gs.err = null;
+  } catch (e) { gs.err = String(e.message || e); gs.errAt = Date.now(); out.ok = false; out.error = gs.err; }
+  gs.at = now; if (out.wrote.length) gs.dataAt = Date.now();
+  gs.net = b.net.garmin ? { ...b.net.garmin, at: Date.now() } : gs.net;
+  out.requests = b.used; await putJ(env, 'garmin', gs); return out;
+}
+
 /* ---------- WHOOP webhook: verify, then sync straight away (the flag lets the next scheduled run retry if this one fails) ---------- */
 async function webhook(env, req, ctx) {
   const raw = await req.text(), sig = req.headers.get('x-whoop-signature'), ts = req.headers.get('x-whoop-signature-timestamp');
@@ -376,12 +468,14 @@ async function statusJson(env) { // no secrets: connection state, times and the 
   const gh = [st.net?.gh, hl.net].filter(Boolean).sort((a, x) => x.at - a.at)[0] || null;
   o.net = { whoop: st.net?.whoop || null, gh }; // the latest run's totals per service
   o.log = [...(st.log || []), ...(hl.log || [])].sort((a, x) => x.t - a.t).slice(0, 20);
+  const g = await getJ(env, 'garmin'); o.garmin = g ? { checkedAt: g.at || null, dataAt: g.dataAt || null, error: g.err || null, errAt: g.err ? g.errAt || null : null } : null;
   return new Response(JSON.stringify(o), { headers: { 'content-type': 'application/json', 'access-control-allow-origin': '*', 'cache-control': 'no-store' } });
 }
+async function garminLine(env) { const g = await getJ(env, 'garmin'); return g ? `<li>Garmin: <b>checked ${ago(g.at)}${g.dataAt ? ', new data ' + ago(g.dataAt) : ''}</b>${g.err ? ' · problem: ' + g.err.replace(/</g, '&lt;') : ''}</li>` : ''; }
 async function statusPage(env) {
   const { st, conn, checked, healthAt } = await status(env);
   return html(page('Orbit sync', `<ul><li>WHOOP: <b>${conn ? 'connected' : 'not connected'}</b></li><li>Last sync: <b>${ago(checked)}</b></li>
-    <li>Apple Health: <b>${healthAt ? 'last received ' + ago(healthAt) : 'nothing received yet'}</b></li>
+    ${await garminLine(env)}<li>Apple Health: <b>${healthAt ? 'last received ' + ago(healthAt) : 'nothing received yet'}</b></li>
     <li>History: <b>${!st.bf ? 'not started' : st.bf.done ? 'complete' : 'filling in, next ' + st.bf.next}</b></li>
     ${st.lastError ? `<li>Last problem (${ago(st.errAt)}): <b>${st.lastError.replace(/</g, '&lt;')}</b></li>` : ''}</ul>`));
 }

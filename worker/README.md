@@ -3,6 +3,7 @@
 A small Cloudflare Worker (free plan) that fills Orbit's day data in by itself:
 
 - **WHOOP**: recovery, HRV, resting HR, sleep, strain, calories, steps and workouts through the WHOOP API. WHOOP pings the helper when something changes and it syncs straight away; it also does a full check at fixed times every 3 hours (12:00, 3:00, 6:00, 9:00 am and pm, your time). Today's steps and strain (which WHOOP doesn't ping about) are refreshed every 5 minutes. Your WHOOP history fills in a month or two every 5 minutes after you connect.
+- **Garmin**: every 10 minutes, the raw Garmin Connect data for today and yesterday (sleep, HRV, heart rate, Body Battery, stress, SpO2, weight, activities) through Garmin's Personal API, saved to `orbit/garmin/raw/YYYY-MM-DD.json`. Not shown in Orbit yet (see Garmin below).
 - **Apple Health**: MacroFactor's calories and macros, scale weight, iPhone steps and headphone levels, posted by an iPhone Shortcut.
 
 Everything lands in `orbit/dy/YYYY-MM.json` in your private `orbit-data` repo, and Orbit (the home-screen app) picks it up on its next sync. The claude.ai artifact keeps its own data and isn't touched.
@@ -102,6 +103,15 @@ Add the Automations widget to your home screen so runs aren't skipped in the bac
 
 Headphone minutes listened aren't part of this format, so only the level updates automatically; a full Health export (see `tools/health-to-orbit.py`) fills the minutes in.
 
+## 6. Garmin
+
+1. Garmin Connect: make a Personal API key.
+2. Cloudflare → the Worker → Settings → Variables and Secrets: add the secret `GARMIN_PERSONAL_API_KEY`. Put the same key in orbit-data's GitHub secret of the same name if you want manual backfills (Actions → Garmin sync → Run workflow, with start/end dates).
+3. Settings → Triggers: add a second Cron Trigger `*/10 * * * *`. Keep the WHOOP one exactly `*/5 * * * *`: that trigger runs WHOOP and any other trigger runs Garmin, each in its own run with its own request allowance.
+4. Open `/garmin?key=…` (the SYNC_KEY, not the Garmin key). It answers with the dates it saved, or the error Garmin gave.
+
+Each run pulls today and yesterday, plus the day before at 12:00, 3:00, 6:00 and 9:00. A day is written to GitHub only when it changed. Sleep and HRV appear once the watch has synced to the phone after you wake. The GitHub Action in orbit-data no longer runs on a schedule (it started hours late); it's kept for backfills.
+
 ## Addresses
 
 | Address | What it does |
@@ -112,6 +122,7 @@ Headphone minutes listened aren't part of this format, so only the level updates
 | `/sync?key=…` | Sync the last few days now |
 | `/backfill?key=…&from=2024-11` | Fetch WHOOP history again from a month |
 | `/health?key=…` | Apple Health numbers (POST, JSON) |
+| `/garmin?key=…` | Pull Garmin now (today and the two days before) |
 
 ## Limits
 
@@ -121,4 +132,4 @@ WHOOP's journal (alcohol) isn't in the API. A WHOOP export imported on the Data 
 
 ## Testing
 
-`node test/worker.mjs` runs the helper against a fake WHOOP, a fake GitHub and an in-memory KV.
+`node test/worker.mjs` runs the helper against a fake WHOOP, a fake GitHub and an in-memory KV. `node test/garmin-worker.mjs` does the same for Garmin.
