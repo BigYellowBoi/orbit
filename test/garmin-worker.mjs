@@ -64,6 +64,12 @@ let ran = []; const ctx = { waitUntil(p) { ran.push(p); } };
 const gs0 = kv.get('garmin');
 await W.scheduled({ cron: '*/10 * * * *', scheduledTime: Date.parse(today + 'T01:20:00Z') }, env, ctx); await Promise.all(ran);
 ok(kv.get('garmin') !== gs0, 'second cron runs Garmin');
+{ const g = JSON.parse(kv.get('garmin')); g.savedAt = Date.now(); kv.set('garmin', JSON.stringify(g)); }
+const gs1 = kv.get('garmin'); ran = []; await W.scheduled({ cron: '*/10 * * * *', scheduledTime: Date.now() + 60e3 }, env, ctx); await Promise.all(ran);
+ok(kv.get('garmin') === gs1, 'quiet Garmin run: no KV write');
+{ const g = JSON.parse(kv.get('garmin')); g.savedAt = Date.now() - 31 * 60e3; kv.set('garmin', JSON.stringify(g)); }
+const gs2 = kv.get('garmin'); ran = []; await W.scheduled({ cron: '*/10 * * * *', scheduledTime: Date.now() }, env, ctx); await Promise.all(ran);
+ok(kv.get('garmin') !== gs2 && JSON.parse(kv.get('garmin')).use.kv >= 1, 'Garmin heartbeat after 30 min, counted in usage');
 ran = []; await W.scheduled({ cron: '*/5 * * * *', scheduledTime: Date.now() }, env, ctx); const res = await Promise.all(ran);
 ok(res[0] && res[0].msg === 'WHOOP not connected', 'the */5 cron still runs WHOOP');
 

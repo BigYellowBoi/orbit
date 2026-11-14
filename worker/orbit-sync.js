@@ -16,7 +16,10 @@
    Cron (every 5 min): sync the last 3 days at fixed local times (00:00, 03:00 … 21:00) or if a notification sync failed; otherwise refresh today's
    steps and strain (WHOOP has no webhook for those), and fill in history a month or two at a time.
    Daily budget: ~288 cron runs x 1 WHOOP call + ~8 full syncs and a few notification syncs x ~6 calls, well inside
-   WHOOP's 10,000 a day and 100 a minute (one run uses at most 45). KV writes stay far below the free plan's 1,000 a day.
+   WHOOP's 10,000 a day and 100 a minute (one run uses at most 45).
+   KV writes (free plan: 1,000 a day): a run saves its status only when something that matters changed (sync slot,
+   notification, error, token, history), else at most every 30 min as a heartbeat (BEAT). Before 15 Nov 2026 every WHOOP and
+   Garmin run wrote (~290 + 144 + tokens a day), which hit Cloudflare's 50% warning on 15 Nov 2026. Now ~150 a day.
 
    Settings (Cloudflare → Worker → Settings)
      Variables: WHOOP_CLIENT_ID, GH_REPO (e.g. BigYellowBoi/orbit-data), optional GH_BRANCH (main),
@@ -27,6 +30,10 @@
    ============================================================ */
 const WHOOP = 'https://api.prod.whoop.com', SCOPES = 'offline read:recovery read:cycles read:sleep read:workout';
 const BUDGET = 45;
+const BEAT = 30 * 60e3; // longest a cron run goes without saving its status (only check times and counters would be lost)
+const QUIET = ['todayAt', 'use', 'net', 'ghRate', 'savedAt', 'today', 'dataAt', 'dataWhat', 'log', 'errAt', 'at', 'h']; // fields that change every run and don't force a save
+const sig = o => JSON.stringify(o, (k, v) => QUIET.includes(k) ? undefined : v);
+const mustSave = (prevSig, doc, now, forced) => forced || sig(doc) !== prevSig || !doc.savedAt || now - doc.savedAt >= BEAT || now < doc.savedAt;
 
 export default {
   async fetch(req, env, ctx) {
@@ -249,8 +256,8 @@ async function pollToday(env, b, st) { // today's cycle: steps and strain grow a
   }
   if (!vals || !Object.keys(vals).length) return false;
   const key = JSON.stringify([t, vals]); if (st.today === key) return false; // unchanged since the last look: no GitHub calls
-  await writeMonth(env, b, t.slice(0, 7), items => { items[t] = { ...(items[t] || {}), ...vals }; }, `WHOOP today ${t}`);
-  st.today = key; return true;
+  const wrote = await writeMonth(env, b, t.slice(0, 7), items => { items[t] = { ...(items[t] || {}), ...vals }; }, `WHOOP today ${t}`);
+  st.today = key; return wrote; // st.today may not be saved (see BEAT); writeMonth skips identical content, so a lost key costs one GitHub read
 }
 async function backfillStep(env, b, st) {
   let done = 0;
@@ -268,7 +275,7 @@ async function backfillStep(env, b, st) {
 }
 const KIND = { sleep: 'sleep', recovery: 'recovery', workout: 'workout' };
 async function run(env, { force, hook, at, kind } = {}) {
-  const st = await getJ(env, 'status') || {}, b = budget(); b.hook = !!hook;
+  const st = await getJ(env, 'status') || {}, b = budget(), sig0 = sig(st); b.hook = !!hook;
   if (!(await env.ORBIT_KV.get('tok'))) return { ok: false, msg: 'WHOOP not connected' };
   const now = at || Date.now(), slot = hook ? null : fullSlot(now, env); // scheduled runs carry their round scheduled time
   const dirty = hook ? null : await env.ORBIT_KV.get('dirty'), due = force || dirty || !st.lastSync || (slot && st.fullSlot !== slot) || now - st.lastSync > 3.25 * 3600e3; // fixed times; the fallback only if a slot was missed
@@ -287,8 +294,9 @@ async function run(env, { force, hook, at, kind } = {}) {
     if (!hook && st.bf && !st.bf.done && b.left() > 22) { out.months = await backfillStep(env, b, st); if (out.months) logEv(st, { k: 'history', w: `${out.months} month${out.months === 1 ? '' : 's'} of history`, ch: true, rq: b.used }); }
     st.lastError = null;
   } catch (e) { st.lastError = String(e.message || e); st.errAt = Date.now(); out.ok = false; out.error = st.lastError; logEv(st, { k: 'error', w: st.lastError }); if (hook) { await env.ORBIT_KV.put('dirty', '1'); b.kv++; } }
-  // today's usage against the free limits; saved on every run so the counts are exact (~290 KV writes a day of 1,000)
-  const day = todayLocal(env); if (!st.use || st.use.day !== day) st.use = { day, whoop: 0, gh: 0, kv: 0, runs: 0, hooks: 0 };
+  if (b.kv === 0 && !mustSave(sig0, st, now, force || hook)) { out.requests = b.used; out.saved = false; return out; } // nothing that matters changed: skip the KV write (counters for this run are dropped)
+  // today's usage against the free limits; counts saved runs
+  st.savedAt = now; const day = todayLocal(env); if (!st.use || st.use.day !== day) st.use = { day, whoop: 0, gh: 0, kv: 0, runs: 0, hooks: 0 };
   const u = st.use; u.whoop += b.net.whoop?.n || 0; u.gh += b.net.gh?.n || 0; u.kv += b.kv + 1 + (hook ? 1 : 0); if (hook) u.hooks++; else u.runs++; // +1 this status write, +1 the notification's flag
   st.net = st.net || {}; for (const k in b.net) st.net[k] = { ...b.net[k], at: Date.now() }; if (b.ghRate) st.ghRate = b.ghRate;
   out.requests = b.used; await putJ(env, 'status', st); return out;
@@ -357,7 +365,7 @@ async function writeRaw(env, b, d, content) { // read for the sha, skip if ident
 }
 async function garminRun(env, { force, at } = {}) {
   if (!env.GARMIN_PERSONAL_API_KEY) return { ok: false, msg: 'GARMIN_PERSONAL_API_KEY not set' };
-  const gs = await getJ(env, 'garmin') || {}, b = budget(), now = at || Date.now(), out = { ok: true, wrote: [] };
+  const gs = await getJ(env, 'garmin') || {}, b = budget(), now = at || Date.now(), out = { ok: true, wrote: [] }, sig0 = sig(gs);
   gs.h = gs.h || {};
   const t = todayLocal(env), l = local(new Date(now).toISOString(), null, env), deep = force || (l.h % 3 === 0 && +l.hm.slice(3) < 10);
   const days = [t, addDays(t, -1)]; if (deep) days.push(addDays(t, -2));
@@ -379,7 +387,10 @@ async function garminRun(env, { force, at } = {}) {
   } catch (e) { gs.err = String(e.message || e); gs.errAt = Date.now(); out.ok = false; out.error = gs.err; }
   gs.at = now; if (out.wrote.length) gs.dataAt = Date.now();
   gs.net = b.net.garmin ? { ...b.net.garmin, at: Date.now() } : gs.net;
-  out.requests = b.used; await putJ(env, 'garmin', gs); return out;
+  out.requests = b.used;
+  if (!mustSave(sig0, gs, now, force)) { out.saved = false; return out; } // day hashes are only a shortcut: writeRaw compares with GitHub anyway
+  gs.savedAt = now; const day = todayLocal(env); if (!gs.use || gs.use.day !== day) gs.use = { day, kv: 0 }; gs.use.kv++;
+  await putJ(env, 'garmin', gs); return out;
 }
 
 /* ---------- WHOOP webhook: verify, then sync straight away (the flag lets the next scheduled run retry if this one fails) ---------- */
@@ -463,12 +474,13 @@ async function status(env) {
 async function statusJson(env) { // no secrets: connection state, times and the last problem
   const { st, hl, conn, checked, healthAt } = await status(env);
   const o = { v: 2, whoop: { connected: conn, checkedAt: checked, error: st.lastError || null, errAt: st.lastError ? st.errAt || null : null, history: !st.bf ? null : st.bf.done ? 'complete' : st.bf.next, dataAt: st.dataAt || null, dataWhat: st.dataWhat || null }, health: { at: healthAt, dataAt: hl.dataAt || null } };
+  const g = await getJ(env, 'garmin'), gk = g?.use && g.use.day === (st.use || {}).day ? g.use.kv : 0;
   const u = st.use || {}, same = hl.day && hl.day === u.day, ghr = [st.ghRate, hl.ghRate].filter(Boolean).sort((a, x) => x.at - a.at)[0] || null;
-  o.usage = { day: u.day || hl.day || null, whoop: u.whoop || 0, whoopLimit: 10000, kv: (u.kv || 0) + (same ? hl.kv || 0 : 0), kvLimit: 1000, gh: (u.gh || 0) + (same ? hl.gh || 0 : 0), runs: u.runs || 0, hooks: u.hooks || 0, health: same ? hl.n || 0 : 0, ghLeft: ghr ? ghr.left : null, ghLimit: ghr ? ghr.limit : null, ghReset: ghr ? ghr.reset : null };
+  o.usage = { day: u.day || hl.day || null, whoop: u.whoop || 0, whoopLimit: 10000, kv: (u.kv || 0) + gk + (same ? hl.kv || 0 : 0), kvLimit: 1000, gh: (u.gh || 0) + (same ? hl.gh || 0 : 0), runs: u.runs || 0, hooks: u.hooks || 0, health: same ? hl.n || 0 : 0, ghLeft: ghr ? ghr.left : null, ghLimit: ghr ? ghr.limit : null, ghReset: ghr ? ghr.reset : null };
   const gh = [st.net?.gh, hl.net].filter(Boolean).sort((a, x) => x.at - a.at)[0] || null;
   o.net = { whoop: st.net?.whoop || null, gh }; // the latest run's totals per service
   o.log = [...(st.log || []), ...(hl.log || [])].sort((a, x) => x.t - a.t).slice(0, 20);
-  const g = await getJ(env, 'garmin'); o.garmin = g ? { checkedAt: g.at || null, dataAt: g.dataAt || null, error: g.err || null, errAt: g.err ? g.errAt || null : null } : null;
+  o.garmin = g ? { checkedAt: g.at || null, dataAt: g.dataAt || null, error: g.err || null, errAt: g.err ? g.errAt || null : null } : null;
   return new Response(JSON.stringify(o), { headers: { 'content-type': 'application/json', 'access-control-allow-origin': '*', 'cache-control': 'no-store' } });
 }
 async function garminLine(env) { const g = await getJ(env, 'garmin'); return g ? `<li>Garmin: <b>checked ${ago(g.at)}${g.dataAt ? ', new data ' + ago(g.dataAt) : ''}</b>${g.err ? ' · problem: ' + g.err.replace(/</g, '&lt;') : ''}</li>` : ''; }

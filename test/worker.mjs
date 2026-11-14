@@ -125,7 +125,7 @@ ok(!repo['orbit/dy/2026-04.json'], 'the month before the backfill start is left 
 
 /* ---------- 3. idle runs ---------- */
 console.log('idle');
-kvPuts = 0; const c0 = await cron(); ok(c0 === 1 && kvPuts === 1, 'nothing new: one WHOOP look at today, no GitHub calls, one KV write (the usage counters)');
+kvPuts = 0; const c0 = await cron(); ok(c0 === 1 && kvPuts === 0, 'nothing new: one WHOOP look at today, no GitHub calls, no KV write (status saved under 30 min ago)');
 
 /* ---------- 3b. every run looks at today's steps and strain ---------- */
 console.log('today refresh');
@@ -134,10 +134,12 @@ const tc = H.cycle.find(c => c.end === utc(today, '22:30')); tc.step_count = 432
 const cq = await cron(); ok(day(today).stp === 4321 && day(today).str === 6.8, `today's steps and strain refreshed (${cq} requests)`);
 ok(cq <= 4, 'refresh is cheap (one WHOOP list, one GitHub read and write)');
 ok(day(today).rec != null && day(today).slp != null, "today's other fields kept");
-kvPuts = 0; const cq2 = await cron(); ok(cq2 === 1 && kvPuts === 1, 'unchanged steps: one WHOOP call, no GitHub calls, one KV write');
+kvPuts = 0; const cq2 = await cron(); ok(cq2 <= 2 && kvPuts === 0, 'unchanged steps: one WHOOP call, at most one GitHub read (no commit), no KV write');
 tc.step_count = 4400; const cq3 = await cron(); ok(cq3 <= 4 && day(today).stp === 4400, 'next run (5 min later) picks up new steps');
-kvPuts = 0; await cron(); ok(kvPuts === 1 && Date.now() - JSON.parse(kv.get('status')).todayAt < 5e3, 'every run records its check time');
-ok(288 + 30 * 3 + 24 + 20 < 1000, 'KV writes a day: ~290 runs + notifications + Apple Health, well under 1,000');
+kvPuts = 0; await cron(); ok(kvPuts === 0, 'quiet run after new steps: no KV write');
+{ const s = JSON.parse(kv.get('status')); s.savedAt = Date.now() - 31 * 60e3; kv.set('status', JSON.stringify(s)); }
+kvPuts = 0; await cron(); ok(kvPuts === 1 && Date.now() - JSON.parse(kv.get('status')).todayAt < 5e3, 'heartbeat: a quiet run still saves its check time once 30 min have passed');
+ok(48 + 8 + 32 + 30 * 2 + 20 + 48 < 300, 'KV writes a day: heartbeats + full syncs + token renewals + notifications + Apple Health + Garmin, ~200 of 1,000');
 // budget: one WHOOP call per 5-minute run all day, plus full syncs, stays far inside 10,000 a day
 ok(288 * 1 + 8 * 8 + 30 * 8 < 10000, 'daily WHOOP calls ~600 worst case vs 10,000 limit');
 
