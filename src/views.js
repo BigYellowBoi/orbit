@@ -728,7 +728,7 @@ function healthspanCard() {
       <div class="hsr-b">${hsBar(m, x6, x30, isOpen)}<div class="hsr-y hs-t-${t}"><b>${sgn(i6)}</b><small>years</small></div></div>${body}</div>`;
   };
   return `<section class="card hscard"><div class="card-h"><h2>Healthspan</h2>${h.miles.length ? `<span class="eyebrow">best ${Math.max(...h.miles.map(m => m.yrs))} yrs</span>` : ''}</div>
-    <div class="hsnav"><button class="iconbtn" data-act="hsweek" data-d="1" aria-label="Previous week" ${off >= n - 1 ? 'disabled' : ''}>‹</button><b>${esc(fmtD(addDays(w.W, -6)))} – ${esc(fmtD(w.W))}</b><button class="iconbtn" data-act="hsweek" data-d="-1" aria-label="Next week" ${off ? '' : 'disabled'}>›</button></div>
+    <div class="hsnav"><button class="iconbtn" data-act="hsweek" data-d="1" aria-label="Previous week" ${off >= n - 1 ? 'disabled' : ''}>‹</button><b>${esc(fmtD(w.W))} – ${esc(fmtD(addDays(w.W, 6)))}</b><button class="iconbtn" data-act="hsweek" data-d="-1" aria-label="Next week" ${off ? '' : 'disabled'}>›</button></div>
     <div class="hshero"><div class="hsst"><b class="hs-t-${yrs > 0 ? 'g2' : yrs < 0 ? 'a2' : 'n'}">${yrs ? Math.abs(yrs) : '0'}</b><span>${yrs < 0 ? 'Years older' : 'Years younger'}</span></div>
       <div class="hsorb hs-o-${orbTone}" aria-label="${oAge != null ? 'Orbit Age ' + oAge : ''}"><i class="hsorb-g"></i>${HS_DOTS}<div class="hsorb-c">${oAge != null ? `<b>${oAge}</b><span>Orbit Age</span>` : `<b>${yrs ? Math.abs(yrs) : '0'}</b><span>${yrs < 0 ? 'yrs older' : 'yrs younger'}</span>`}</div></div>
       <div class="hsst"><b>${fmt(w.pace, 1)}×</b><span>Pace of Aging</span></div></div>
