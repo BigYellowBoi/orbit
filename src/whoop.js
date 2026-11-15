@@ -105,9 +105,20 @@ function doneActs(w) { // the WHOOP activities sessStats uses (lifting, and the 
 /* ---------- shared detail-screen pieces ---------- */
 const NAV_NAME = { today: 'Today', health: 'Health monitor', sleep: 'Sleep', recovery: 'Recovery', strain: 'Strain', trend: 'Trends', alcohol: 'Morning after', log: 'Log' };
 function navName(e) { if (e.screen === 'activity') return STATE.d[e.params?.d]?.acts?.[e.params?.i]?.n || 'Activity'; return NAV_NAME[e.screen] || 'Back'; }
-function wBack() { const e = ui.nav[ui.nav.length - 1]; return e ? `<button class="wback" data-act="navback">‹ ${esc(navName(e))}</button>` : ''; }
+function wBack() { return ''; } // v1.89: the back button lives in the header, where the logo is (renderHback)
+const RING_SCREENS = ['sleep', 'recovery', 'strain'];
+function renderHback() { // while the back stack has a screen: chevron in place of the logo; ring screens name the day in the centre, as WHOOP does
+  const b = $('#hback'), c = $('#hday'), br = $('.brand'); if (!b) return;
+  const e = ui.nav[ui.nav.length - 1], on = !!e && ui.tab !== 'data';
+  b.hidden = !on; if (br) br.hidden = on;
+  if (on) b.setAttribute('aria-label', 'Back to ' + navName(e));
+  const day = on && RING_SCREENS.includes(ui.tab) ? (d => { const n = Math.round((Date.parse(d) - Date.parse(today())) / 864e5); return n === 0 ? 'Today' : n === -1 ? 'Yesterday' : n === 1 ? 'Tomorrow' : fmtDow(d) + ' ' + fmtDate(d); })(wDay()) : '';
+  c.hidden = !day; if (c.textContent !== day) c.textContent = day;
+}
 const wTitle = (eye, title) => `<div class="wtitle"><span class="wlab">${esc(eye)}</span><h1>${esc(title)}</h1></div>`;
-const wBigRing = (f, col, inner, lab, aria, extra = '') => `<div class="wbig">${wRing(f, col, 184, 10, `${inner}<span class="wlab">${esc(lab)}</span>${extra}`, aria)}</div>`;
+/* v1.89 big ring, sized off WHOOP's (241pt on a 393pt screen, 15pt stroke): Orbit wordmark, number, label; the card under it points up at it. */
+const wBigRing = (f, col, inner, lab, aria, extra = '') => { const S = 240, sw = 15, r = (S - sw) / 2, c = 2 * Math.PI * r, k = S / 2, fr = Math.max(0, Math.min(1, f || 0));
+  return `<div class="wbig"><span class="wbr"><svg viewBox="0 0 ${S} ${S}" role="img" aria-label="${esc(aria)}"><circle cx="${k}" cy="${k}" r="${r}" fill="none" stroke="${WC.track}" stroke-width="${sw}"/>${fr > 0 ? `<circle cx="${k}" cy="${k}" r="${r}" fill="none" stroke="${col}" stroke-width="${sw}" stroke-dasharray="${(c * fr).toFixed(2)} ${c.toFixed(2)}"/>` : ''}</svg><b><i class="wbr-m">Orbit</i><span class="wbr-v">${inner}</span><span class="wlab">${esc(lab)}</span>${extra}</b></span></div>`; };
 const avg30 = (d, f) => { const v = []; for (let i = 1; i <= 30; i++) { const x = f(addDays(d, -i)); if (x != null) v.push(x); } return v.length ? mean(v) : null; };
 /* A "Today vs. last 30 days" row: icon, label, value with a small arrow (green when the change is good), the average under it. */
 function cmpRow({ ico, label, v, avg, f, unit = '', better = 1, act = '' }) {
@@ -194,11 +205,11 @@ function vHealth() {
 const pctile = (a, p) => { if (!a.length) return null; const s = [...a].sort((x, y) => x - y), i = (s.length - 1) * p, lo = Math.floor(i); return s[lo] + (s[Math.min(s.length - 1, lo + 1)] - s[lo]) * (i - lo); };
 function vSleep() {
   const d = wDay(), x = STATE.d[d] || {}, f0 = v => fmt(v, 0) + '%';
-  let h = wBack() + wTitle(`${d === today() ? 'Last night' : 'Night before ' + fmtDow(d) + ' ' + fmtDate(d)} · vs prior 30 days`, 'Sleep');
-  h += wBigRing(x.sp / 100, WC.sleep, pctIn(x.sp), 'Sleep performance', `Sleep performance ${x.sp == null ? 'no data' : fmt(x.sp, 0) + '%'}`, wSeg3(x.sp));
+  let h = '';
+  h += wBigRing(x.sp / 100, WC.sleep, pctIn(x.sp), 'Sleep\nperformance', `Sleep performance ${x.sp == null ? 'no data' : fmt(x.sp, 0) + '%'}`, wSeg3(x.sp));
   const hvnp = dd => { const a = dayVal(dd, 'slp'), b = dayVal(dd, 'sn'); return a != null && b ? a / b * 100 : null; };
   const crow = (id, ico, label, v) => `<button class="wrow" data-act="wscroll" data-id="${id}"><span class="wrow-l">${wIco(ico)}<span class="wlab">${esc(label)}</span></span><span class="wrow-c">${wSeg3(v, true)}<b class="wnum">${v == null ? '–' : f0(v)}</b></span></button>`;
-  h += `<section class="wcard rows">${crow('hvn', 'moon', 'Hours vs. needed', hvnp(d))}${crow('cons', 'cons', 'Sleep consistency', x.sc)}${crow('eff', 'eff', 'Sleep efficiency', x.se)}
+  h += `<section class="wcard rows wpt">${crow('hvn', 'moon', 'Hours vs. needed', hvnp(d))}${crow('cons', 'cons', 'Sleep consistency', x.sc)}${crow('eff', 'eff', 'Sleep efficiency', x.se)}
     <div class="wleg gap"><span><i class="bar" style="background:#ffb35c"></i>Poor</span><span><i class="bar" style="background:#8e9293"></i>Sufficient</span><span><i class="bar" style="background:${WC.up}"></i>Optimal</span></div></section>`;
   h += `<h2 class="wh2">${d === today() ? "Last night's sleep" : 'That night’s sleep'}</h2>` + alcRow(d);
   // hours of sleep + stages
@@ -271,10 +282,10 @@ function consChart(nights) {
 /* ---------- Recovery detail ---------- */
 function vRecovery() {
   const d = wDay(), x = STATE.d[d] || {}, a = k => avg30(d, dd => dayVal(dd, k));
-  let h = wBack() + wTitle(`${d === today() ? 'This morning' : fmtDow(d) + ' ' + fmtDate(d)} · vs last 30 days`, 'Recovery');
+  let h = '';
   h += wBigRing(x.rec / 100, recCol(x.rec), pctIn(x.rec), 'Recovery', `Recovery ${x.rec == null ? 'no data' : fmt(x.rec, 0) + '%'}`);
   const tr = m => `data-act="nav" data-s="trend" data-m="${m}" data-d="${d}"`;
-  h += `<section class="wcard rows">${cmpRow({ ico: 'hrv', label: 'Heart rate variability', v: x.hrv, avg: a('hrv'), f: v => fmt(v, 0), unit: 'ms', act: tr('hrv') })}${cmpRow({ ico: 'heart', label: 'Resting heart rate', v: x.rhr, avg: a('rhr'), f: v => fmt(v, 0), unit: 'bpm', better: -1, act: tr('rhr') })}${cmpRow({ ico: 'lungs', label: 'Respiratory rate', v: x.rr, avg: a('rr'), f: v => v.toFixed(1), unit: 'rpm', better: -1, act: tr('rr') })}${cmpRow({ ico: 'moon', label: 'Sleep performance', v: x.sp, avg: a('sp'), f: v => fmt(v, 0) + '%', act: `data-act="nav" data-s="sleep" data-d="${d}"` })}${cmpLeg}</section>`;
+  h += `<section class="wcard rows wpt">${cmpRow({ ico: 'hrv', label: 'Heart rate variability', v: x.hrv, avg: a('hrv'), f: v => fmt(v, 0), unit: 'ms', act: tr('hrv') })}${cmpRow({ ico: 'heart', label: 'Resting heart rate', v: x.rhr, avg: a('rhr'), f: v => fmt(v, 0), unit: 'bpm', better: -1, act: tr('rhr') })}${cmpRow({ ico: 'lungs', label: 'Respiratory rate', v: x.rr, avg: a('rr'), f: v => v.toFixed(1), unit: 'rpm', better: -1, act: tr('rr') })}${cmpRow({ ico: 'moon', label: 'Sleep performance', v: x.sp, avg: a('sp'), f: v => fmt(v, 0) + '%', act: `data-act="nav" data-s="sleep" data-d="${d}"` })}${cmpLeg}</section>`;
   h += `<button class="wlink" data-act="nav" data-s="alcohol" data-d="${d}"><span><span class="wlab">Recovery the morning after</span><span>What moves your recovery, on Body.</span></span>${CHEV6}</button>`;
   const dv2 = k => dd => dayVal(dd, k);
   h += `<h2 class="wh2">Weekly trends</h2>`
@@ -295,9 +306,9 @@ const onWhoopDay = (dd, f) => STATE.d[dd]?.str != null ? (f(dd) ?? 0) : null; //
 function vStrain() {
   const d = wDay(), x = STATE.d[d] || {}, zs = zoneSplit(d), tr = m => `data-act="nav" data-s="trend" data-m="${m}" data-d="${d}"`;
   const z13 = dd => zoneSplit(dd)?.z13, z45 = dd => zoneSplit(dd)?.z45;
-  let h = wBack() + wTitle(`${d === today() ? 'Today so far' : fmtDow(d) + ' ' + fmtDate(d)} · vs last 30 days`, 'Strain');
+  let h = '';
   h += wBigRing(x.str / 21, WC.strain, strIn(x.str), 'Strain', `Strain ${x.str == null ? 'no data' : fmt(x.str, 1)} of 21`);
-  h += `<section class="wcard rows">${cmpRow({ ico: 'heart', label: 'Heart rate zones 1-3', v: x.str != null ? zs?.z13 ?? 0 : null, avg: avg30(d, dd => onWhoopDay(dd, z13)), f: wHM, act: tr('z13') })}${cmpRow({ ico: 'heart', label: 'Heart rate zones 4-5', v: x.str != null ? zs?.z45 ?? 0 : null, avg: avg30(d, dd => onWhoopDay(dd, z45)), f: wHM, act: tr('z45') })}${cmpRow({ ico: 'lift', label: 'Strength activity time', v: x.str != null ? liftMin(d) ?? 0 : null, avg: avg30(d, dd => onWhoopDay(dd, liftMin)), f: wHM, act: tr('lift') })}${cmpRow({ ico: 'shoe', label: 'Steps', v: stepsOf(d), avg: avg30(d, stepsOf), f: v => fmt(v, 0), act: tr('stp') })}${cmpLeg}</section>`;
+  h += `<section class="wcard rows wpt">${cmpRow({ ico: 'heart', label: 'Heart rate zones 1-3', v: x.str != null ? zs?.z13 ?? 0 : null, avg: avg30(d, dd => onWhoopDay(dd, z13)), f: wHM, act: tr('z13') })}${cmpRow({ ico: 'heart', label: 'Heart rate zones 4-5', v: x.str != null ? zs?.z45 ?? 0 : null, avg: avg30(d, dd => onWhoopDay(dd, z45)), f: wHM, act: tr('z45') })}${cmpRow({ ico: 'lift', label: 'Strength activity time', v: x.str != null ? liftMin(d) ?? 0 : null, avg: avg30(d, dd => onWhoopDay(dd, liftMin)), f: wHM, act: tr('lift') })}${cmpRow({ ico: 'shoe', label: 'Steps', v: stepsOf(d), avg: avg30(d, stepsOf), f: v => fmt(v, 0), act: tr('stp') })}${cmpLeg}</section>`;
   const acts = x.acts || [];
   if (acts.length) h += `<h2 class="wh2">${d === today() ? 'Today’s activities' : 'Activities'}</h2><div class="acts lone">${acts.map((a, i) => i).sort((a, b) => (clockMin(acts[a].t) ?? 0) - (clockMin(acts[b].t) ?? 0)).map(i => actTile(d, i)).join('')}</div>`;
   const zz = (dd, ks) => { const s = zoneSplit(dd); return s ? ks.map(k => s.z[k]) : null; };

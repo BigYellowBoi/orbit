@@ -63,14 +63,14 @@ const ok = (c, msg) => { if (c) passes++; else { fails++; console.log('FAIL', ms
   await p.$eval('.wring[data-s="strain"]', e => e.click()); await p.waitForTimeout(80); ok(await y() === 0 && await p.evaluate(() => ui.tab) === 'strain', 'ring opens Strain at the top');
   await p.evaluate(() => scrollToY(500)); await p.waitForTimeout(80); const y2 = await y();
   await p.$eval('#view .acts .act', e => e.click()); await p.waitForTimeout(80); ok(await p.evaluate(() => ui.tab) === 'activity', 'activity tile opens Activity detail');
-  ok(await p.$eval('.wback', e => e.textContent) === '‹ Strain', 'back link names the screen underneath');
+  ok(await p.$eval('#hback', e => e.getAttribute('aria-label')) === 'Back to Strain', 'back link names the screen underneath');
   await p.evaluate(() => scrollToY(250)); await p.waitForTimeout(80); const y3 = await y();
   await p.$eval('#view .wcard .wch .wlab', e => e.click()); await p.waitForTimeout(80);
   ok(await p.evaluate(() => ui.tab === 'trend' && ui.metric === 'zall' && ui.per === 'W'), 'zones card opens the Trend screen on zall, period W');
-  ok(/Weightlifting/.test(await p.$eval('.wback', e => e.textContent)), 'back link: ‹ Weightlifting');
-  await p.click('.wback'); await p.waitForTimeout(120); ok(await p.evaluate(() => ui.tab) === 'activity' && Math.abs(await y() - y3) <= 1, `back to Activity at the same place (${await y()} vs ${y3})`);
-  await p.click('.wback'); await p.waitForTimeout(120); ok(await p.evaluate(() => ui.tab) === 'strain' && Math.abs(await y() - y2) <= 1, `back to Strain at the same place (${await y()} vs ${y2})`);
-  await p.click('.wback'); await p.waitForTimeout(120); ok(await p.evaluate(() => ui.tab) === 'today' && Math.abs(await y() - y1) <= 1, `back to Today at the same place (${await y()} vs ${y1})`);
+  ok(/Weightlifting/.test(await p.$eval('#hback', e => e.getAttribute('aria-label'))), 'back link: ‹ Weightlifting');
+  await p.click('#hback'); await p.waitForTimeout(120); ok(await p.evaluate(() => ui.tab) === 'activity' && Math.abs(await y() - y3) <= 1, `back to Activity at the same place (${await y()} vs ${y3})`);
+  await p.click('#hback'); await p.waitForTimeout(120); ok(await p.evaluate(() => ui.tab) === 'strain' && Math.abs(await y() - y2) <= 1, `back to Strain at the same place (${await y()} vs ${y2})`);
+  await p.click('#hback'); await p.waitForTimeout(120); ok(await p.evaluate(() => ui.tab) === 'today' && Math.abs(await y() - y1) <= 1, `back to Today at the same place (${await y()} vs ${y1})`);
   // background render keeps the place
   await p.click('.wring[data-s="sleep"]'); await p.evaluate(() => scrollToY(700)); await p.waitForTimeout(80); const yb = await y();
   await p.evaluate(() => { STATE.d[today()].sp = 61; bump(); render(); }); await p.waitForTimeout(80);
@@ -85,7 +85,7 @@ const ok = (c, msg) => { if (c) passes++; else { fails++; console.log('FAIL', ms
   // past day: detail screens show that day, back returns to it
   await p.evaluate(() => { ui.dayOff = -3; render(true); });
   await p.click('.wring[data-s="recovery"]'); ok(await p.evaluate(() => ui.np.d === addDays(today(), -3)), 'detail opened from a past day shows that day');
-  await p.click('.wback'); ok(await p.evaluate(() => ui.tab === 'today' && ui.dayOff === -3), 'back returns to that day on Today');
+  await p.click('#hback'); ok(await p.evaluate(() => ui.tab === 'today' && ui.dayOff === -3), 'back returns to that day on Today');
   // Health monitor: a night in Last 7 nights changes the day without a stack entry; a tile opens its Trend
   await p.evaluate(() => { go('today'); }); await p.click('.wtile[data-s="health"]'); const n0 = await p.evaluate(() => ui.nav.length);
   await p.click('.hm7 button:first-child'); ok(await p.evaluate(() => ui.np.d === addDays(today(), -6) && ui.nav.length) === n0 || await p.evaluate(() => ui.np.d === addDays(today(), -6)), 'Last 7 nights: that night, no new stack entry');
