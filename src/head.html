@@ -644,8 +644,8 @@ body:has(#updp) .fab { bottom: calc(var(--tabh) + max(8px, calc(env(safe-area-in
 .wr > b .nil { color: var(--ink-3); }
 .wring > .wlab { display: flex; align-items: center; gap: 6px; font-size: 11px; }
 .chev6 { width: 6px; height: 10px; flex: none; }
-.wbig { display: flex; justify-content: center; padding: 26px 0 16px; } /* v1.89: WHOOP's spacing: ring ~44pt under the header row, ~29pt above the card */
-.wbr { position: relative; display: block; width: min(240px, 62vw); aspect-ratio: 1; flex: none; -webkit-user-select: none; user-select: none; }
+.wbig { display: flex; justify-content: center; margin-top: -5px; padding: 0 0 12px; } /* v1.90, measured off his WHOOP screenshot: ring top 45pt under the header row's centre, 30pt above the card */
+.wbr { position: relative; display: block; width: min(260px, 60.7vw); aspect-ratio: 1; flex: none; -webkit-user-select: none; user-select: none; }
 .wbr > svg { display: block; width: 100%; height: 100%; transform: rotate(-90deg); }
 .wbr > b { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: 400; color: #fff; text-align: center; }
 .wbr-m { font-family: var(--f-geist); font-style: normal; font-weight: 300; font-size: 19px; letter-spacing: .14em; text-transform: uppercase; color: #9aa0a6; line-height: 1; }
@@ -654,16 +654,18 @@ body:has(#updp) .fab { bottom: calc(var(--tabh) + max(8px, calc(env(safe-area-in
 .wbr > b > .wlab { font-size: 14px; letter-spacing: .14em; white-space: pre-line; line-height: 1.3; }
 .wbr .wseg3 { margin-top: 12px; }
 @media (max-width: 360px) { .wbr-v > span { font-size: 54px; } .wbr-v small { font-size: 28px; } .wbr-m { font-size: 16px; } .wbr > b > .wlab { font-size: 12.5px; } }
-.wcard.wpt { position: relative; margin-top: 4px; padding: 6px 15px 16px; border-radius: 16px; background: linear-gradient(180deg, #23282d, #1a1e22); border-color: #2c3237; }
+/* card: 16pt sides, 65pt rows (first centred 41pt down), icon 20pt in, 8pt to the label, value 24pt in with the arrow beside it and the average under the value */
+.wcard.wpt { position: relative; margin-top: 4px; padding: 9px 16px 16px; border-radius: 16px; background: linear-gradient(180deg, #23282d, #1a1e22); border-color: #2c3237; }
 .wcard.wpt::before { content: ''; position: absolute; left: 50%; top: -10px; width: 20px; height: 20px; transform: translateX(-50%) rotate(45deg); background: #23282d; border-left: 1px solid #2c3237; border-top: 1px solid #2c3237; border-radius: 3px 0 0 0; clip-path: polygon(0 0, 100% 0, 0 100%); }
-.wcard.wpt .wrow { padding: 0; min-height: 60px; }
+.wcard.wpt .wrow { padding: 0 8px 0 4px; min-height: 65px; }
 .wcard.wpt .wrow + .wrow { border-top-color: #353b40; }
-.wcard.wpt .wrow-l { gap: 14px; } .wcard.wpt .wrow-l svg { width: 22px; height: 22px; color: #8e9499; }
-.wcard.wpt .wrow-l .wlab { font-size: 13px; letter-spacing: .12em; }
-.wcard.wpt .wrow-r b { font-size: 25px; } .wcard.wpt .wrow-r b small { font-size: 13px; margin-left: 2px; } .wcard.wpt .wrow-r > em { font-size: 13.5px; margin-top: 2px; } .wcard.wpt .warr { width: 12px; height: 11px; }
-.wcard.wpt .wrow-c b { font-size: 25px; }
+.wcard.wpt .wrow-l { gap: 8px; } .wcard.wpt .wrow-l svg { width: 20px; height: 20px; color: #8e9499; }
+.wcard.wpt .wrow-l .wlab { font-size: 11px; letter-spacing: .11em; }
+.wcard.wpt .wrow-r > span { gap: 8px; } .wcard.wpt .wrow-r b { font-size: 22.5px; } .wcard.wpt .wrow-r > em { font-size: 12px; margin: 2px 16px 0 0; } .wcard.wpt .warr { width: 8px; height: 7px; }
+.wcard.wpt .wrow-r > span:not(:has(.warr)) { padding-right: 16px; }
+.wcard.wpt .wrow-c b { font-size: 22.5px; }
 .wcard.wpt .wrow-r b small { display: none; } /* WHOOP shows no units here */
-.wcard.wpt .wleg { background: #0b0d0f; border-radius: 10px; padding: 9px 12px; margin-top: 6px; font-size: 13.5px; }
+.wcard.wpt .wleg { background: #0b0d0f; border-radius: 10px; padding: 7px 12px; margin-top: 8.5px; min-height: 31px; font-size: 12.5px; color: var(--ink-3); } .wcard.wpt .wleg b { color: #fff; font-weight: 600; }
 .top .hback { flex: none; width: 38px; height: 38px; margin: 0 auto 0 -8px; display: grid; place-items: center; background: none; border: 0; color: #fff; padding: 0; }
 .top .hback svg { width: 13px; height: 22px; }
 .hday { position: absolute; left: 50%; transform: translateX(-50%); top: calc(env(safe-area-inset-top, 0px) + 12px + var(--hdrdrop)); height: 38px; display: flex; align-items: center; font-family: var(--f-body); font-weight: 700; font-size: 14px; letter-spacing: .14em; text-transform: uppercase; color: #fff; pointer-events: none; white-space: nowrap; }

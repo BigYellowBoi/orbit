@@ -126,7 +126,7 @@ function cmpRow({ ico, label, v, avg, f, unit = '', better = 1, act = '' }) {
   const tag = act ? 'button' : 'div';
   return `<${tag} class="wrow" ${act}><span class="wrow-l">${wIco(ico)}<span class="wlab">${esc(label)}</span></span><span class="wrow-r"><span><b class="wnum">${v == null ? '–' : f(v)}${unit && v != null ? `<small>${esc(unit)}</small>` : ''}</b>${arr}</span><em>${avg == null ? '–' : f(avg) + (unit === '%' ? '%' : '')}</em></span></${tag}>`;
 }
-const cmpLeg = `<div class="wleg">${wArr(true, true)}${wArr(false, false)}<span>Today vs. last 30 days</span></div>`;
+const cmpLeg = `<div class="wleg">${wArr(true, true)}${wArr(false, false)}<span><b>Today</b> vs. last 30 days</span></div>`;
 const INFO_TXT = {
   hos: 'Time asleep last night, against your average over the 30 nights before.',
   hvn: 'Hours of sleep as a share of what WHOOP said you needed: a healthy minimum, plus need from recent strain and sleep debt.',
