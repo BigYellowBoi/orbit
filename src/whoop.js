@@ -3,7 +3,7 @@
    Activity detail screens, the Trend screen, the alcohol check, and one back stack with scroll restore (ui.nav).
    Design reference: the "Orbit Today" Claude Design canvas. Numbers are real day fields (STATE.d).
    ============================================================ */
-const WC = { sleep: '#83a0b8', strain: '#408fdf', yellow: '#f9df4a', track: '#373d42', up: '#6eeda5', dn: '#ffb35c', lt: '#a3a6f5', deep: '#f19cf0', rem: '#a35be6', aw: '#e8ebef',
+const WC = { sleep: '#83a0b8', strain: '#408fdf', yellow: '#f9df4a', track: '#373d42', up: '#6eeda5', dn: '#ffb35c', lt: '#a3a6f5', deep: '#f19cf0', rem: '#a35be6', aw: '#c8c8c8',
   z: ['#b8c4cc', '#4f8fc0', '#6abf8e', '#f5b06b', '#f2683c'], hm: '#5a6168', debt: '#d9dcde', grid: '#222830', dim: '#80889a', ink: '#e8ebef', card: '#111418' };
 const WP = { // line icons (24px grid)
   moon: 'M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z', cons: 'M14 3.5a8.5 8.5 0 1 0 6.5 13.5M17 3.5a8.5 8.5 0 0 1 4 7', eff: 'M4 20v-6M8 20V9M12 20V5M16 20v-8M20 20v-4',
