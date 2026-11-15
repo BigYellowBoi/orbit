@@ -248,13 +248,21 @@ function render(force) {
   v.classList.toggle('cols', ['strength', 'body', 'data'].includes(ui.tab) || (ui.tab === 'today' && !(STATE.w[today()] && (!STATE.w[today()].fin || ui.editToday)) && !ui.dayOff)); // two columns on wide screens (CSS decides when)
   document.querySelectorAll('.tabs [data-tab]').forEach(b => b.setAttribute('aria-current', b.dataset.tab === ({ log: 'history', friends: 'history', injuries: 'today', ...Object.fromEntries(NAV_SCREENS.map(k => [k, 'today'])) }[ui.tab] || ui.tab) ? 'page' : 'false'));
   const g = $('#gear'); g.setAttribute('aria-current', ui.tab === 'data' ? 'page' : 'false'); g.setAttribute('aria-label', ui.tab === 'data' ? 'Back' : 'Settings: sync, imports and backups');
-  renderSync(); renderMark(); renderUpdate(); renderFab(); renderReorder();
+  renderSync(); renderMark(); renderUpdate(); renderFab(); renderReorder(); renderDaybar();
   fadeCheck();
   if (ui.tab === 'history' && (ui.histQ || ui.histS)) filterHist(); if (ui.pick && ui.pick.q) filterPick(); // in-place filters survive a re-render
   if (snap) flashChanged(snap);
   if (ui.justDone) { ui.justDone = false; setTimeout(() => $('.hero.just')?.classList.remove('just'), 1400); }
 }
 /* Values that change while you're looking (a sync brought new WHOOP or Health numbers) flash once, so an update is visible. */
+function renderDaybar() { // v1.82: Today's day arrows and streak sit in the header
+  const b = $('#daybar'), k = $('#streak'); if (!b) return; const on = ui.tab === 'today';
+  b.hidden = !on; k.hidden = true; if (!on) { b.innerHTML = ''; return; }
+  const h = dayNav(ui.dayOff || 0); if (b.innerHTML !== h) b.innerHTML = h;
+  const n = streak(); k.hidden = !n; k.className = 'pill plain streak';
+  k.title = `${n} day${n === 1 ? '' : 's'} in a row with a session or rest day logged`; k.setAttribute('aria-label', `Streak: ${n} day${n === 1 ? '' : 's'}`);
+  const sh = `${ICON.flame}<b>${n}</b>`; if (n && k.innerHTML !== sh) k.innerHTML = sh;
+}
 function renderReorder() { // the reorder button sits left of the gear on Strength and Body; while reordering it reads Done
   const b = $('#reorder'); if (!b) return; const on = ui.tab === 'strength' || ui.tab === 'body';
   b.hidden = !on; if (!on) return; b.classList.toggle('txt', !!ui.reo);
@@ -847,7 +855,7 @@ function filterEx() {
 document.addEventListener('input', ev => { if (ev.target.id === 'exq') { ui.exQ = ev.target.value; filterEx(); } });
 /* Swipe the Today header left or right to step a day (v1.36); vertical moves are scrolls and are ignored. */
 let swipe0 = null;
-document.addEventListener('touchstart', ev => { const h = ev.target.closest && ev.target.closest('.page-h.day'); swipe0 = h && ev.touches.length === 1 ? { x: ev.touches[0].clientX, y: ev.touches[0].clientY } : null; }, { passive: true });
+document.addEventListener('touchstart', ev => { const h = ev.target.closest && ev.target.closest('.top'); swipe0 = h && ev.touches.length === 1 ? { x: ev.touches[0].clientX, y: ev.touches[0].clientY } : null; }, { passive: true });
 document.addEventListener('touchend', ev => { if (!swipe0 || ui.tab !== 'today') return; const t = ev.changedTouches[0], dx = t.clientX - swipe0.x, dy = t.clientY - swipe0.y; swipe0 = null;
   if (Math.abs(dx) > 50 && Math.abs(dy) < 30) ACT.dayoff({ dataset: { n: dx < 0 ? '1' : '-1' } }); }, { passive: true });
 function fadeCheck(el) { (el ? [el] : document.querySelectorAll('.tblwrap.fade')).forEach(w => w.classList.toggle('end', w.scrollLeft + w.clientWidth >= w.scrollWidth - 2)); } // the fade marks more columns to the right

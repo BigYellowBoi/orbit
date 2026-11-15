@@ -9,7 +9,7 @@ const WP = { // line icons (24px grid)
   moon: 'M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z', cons: 'M14 3.5a8.5 8.5 0 1 0 6.5 13.5M17 3.5a8.5 8.5 0 0 1 4 7', eff: 'M4 20v-6M8 20V9M12 20V5M16 20v-8M20 20v-4',
   hrv: 'M3 12h4l2-4 3 8 2-4h7', heart: 'M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.5-7 10-7 10z', lungs: 'M12 4v7M12 11c-1.5 0-2.5-2-4.5-2S4 12 4 15.5 5 20 7 20s4-2 5-4.5M12 11c1.5 0 2.5-2 4.5-2s3.5 3 3.5 6.5S19 20 17 20s-4-2-5-4.5',
   lift: 'M6 6v12M18 6v12M3 9v6M21 9v6M6 12h12', shoe: 'M3 17h18v2.5H3zM4 17l2.5-9 4.5 3 4-1 5.5 7', stairs: 'M4 20h4v-4h4v-4h4V8h4', walk: 'M13 4.5a1.5 1.5 0 1 0 0 .01M10 21l2-6 3 3v3M9 12l3-4 3 2 3 1M12 8l-1 5',
-  pulse: 'M3 12h4l2-5 4 10 2-5h6', glass: 'M7 3h10l-1 7a4 4 0 0 1-8 0L7 3zM12 14v6M8.5 20h7', tick: 'M5 12.5l4.5 4.5L19 7.5', warn: 'M12 4l9 16H3zM12 10v4M12 17v.5' };
+  pulse: 'M3 12h4l2-5 4 10 2-5h6', glass: 'M7 3h10l-1 7a4 4 0 0 1-8 0L7 3zM12 14v6M8.5 20h7', tick: 'M5 12.5l4.5 4.5L19 7.5', excl: 'M12 6v8M12 17.6v.4', warn: 'M12 4l9 16H3zM12 10v4M12 17v.5' };
 const wIco = (k, cls = '', sw = 1.7) => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${WP[k]}"/></svg>`;
 const wMoon = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="' + WP.moon + '"/></svg>';
 const CHEV6 = '<svg class="chev6" viewBox="0 0 6 10" fill="none" stroke="#8e9293" stroke-width="1.8" aria-hidden="true"><path d="M1 1l4 4-4 4"/></svg>';
@@ -41,7 +41,7 @@ function todayTop(d) {
   let h = `<div class="wrings">${ring('sleep', x.sp / 100, WC.sleep, pctIn(x.sp), 'Sleep', `Sleep ${x.sp == null ? 'no data' : fmt(x.sp, 0) + '%'}`)}${ring('recovery', x.rec / 100, rc, pctIn(x.rec), 'Recovery', `Recovery ${x.rec == null ? 'no data' : fmt(x.rec, 0) + '%'}`)}${ring('strain', x.str / 21, WC.strain, strIn(x.str), 'Strain', `Strain ${x.str == null ? 'no data' : fmt(x.str, 1)} of 21`)}</div>`;
   const ir = inRangeCount(d), out = ir.of - ir.n;
   const hmT = !ir.of ? `<span class="wico nil">${wIco('pulse', '', 2)}</span><span class="wtile-t"><b class="st nil">No range yet</b><span>Needs 14 nights</span></span>`
-    : `<span class="wico ${out ? 'warn' : 'ok'}">${wIco(out ? 'warn' : 'tick', '', 2.6)}</span><span class="wtile-t"><b class="st${out ? ' warn' : ''}">${out ? `${out} out of range` : 'Within range'}</b><span class="wnum" style="font-family:var(--f-body)">${ir.n}/${ir.of} Metrics</span></span>`;
+    : `<span class="wico ${out ? 'warn' : 'ok'}">${wIco(out ? 'excl' : 'tick', '', 2.6)}</span><span class="wtile-t"><b class="st${out ? ' warn' : ''}">${out ? `${out} out of range` : 'Within range'}</b><span class="wnum" style="font-family:var(--f-body)">${ir.n}/${ir.of} Metrics</span></span>`;
   const sl = x.slp != null ? `<span class="wico moon">${wMoon}</span><span class="wtile-t"><b class="wnum">${wHM(x.slp)} asleep</b><span class="tm">${esc(wSpan(x.on, x.off))}</span></span>`
     : `<span class="wico nil">${wMoon}</span><span class="wtile-t"><b class="st nil">No sleep yet</b><span class="tm">&nbsp;</span></span>`;
   h += `<div class="wtiles"><button class="wtile" data-act="nav" data-s="health" data-d="${d}" data-live="hm"><span class="wlab">Health monitor<span aria-hidden="true">›</span></span><span class="wtile-b">${hmT}</span></button>
@@ -172,7 +172,7 @@ function vHealth() {
   const d = wDay(), ir = inRangeCount(d), out = ir.of - ir.n;
   let h = wBack() + wTitle(`${d === today() ? 'Last night' : fmtDow(d) + ' ' + fmtDate(d)} · vs your 30-day normal`, 'Health monitor');
   h += `<section class="hmsum">${!ir.of ? `<span class="wico lg nil">${wIco('pulse', '', 2)}</span><span><b class="nil">No range yet</b><span>Ranges need 14 of the 30 nights before</span></span>`
-    : `<span class="wico lg ${out ? 'warn' : 'ok'}">${wIco(out ? 'warn' : 'tick', '', 2.6)}</span><span><b class="${out ? 'warn' : ''}">${out ? `${out} out of range` : 'Within range'}</b><span>${ir.n} of ${ir.of} in your normal range</span></span>`}</section>`;
+    : `<span class="wico lg ${out ? 'warn' : 'ok'}">${wIco(out ? 'excl' : 'tick', '', 2.6)}</span><span><b class="${out ? 'warn' : ''}">${out ? `${out} out of range` : 'Within range'}</b><span>${ir.n} of ${ir.of} in your normal range</span></span>`}</section>`;
   const tile = k => {
     const r = healthRange(d, k), [lab, unit] = HM_LAB[k], dec = HM_DEC[k], v = dayVal(d, k), sk = k === 'skt';
     const sh = x => sk && r ? x - r.mean : x, fv = x => sk ? sgn(rnd(sh(x), dec), dec) : rnd(x, dec).toFixed(dec);

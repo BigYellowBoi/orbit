@@ -49,12 +49,12 @@ function lastLine(exId, before) {
 /* Day navigation on Today: ‹ › step through past days (what was logged, with that day's WHOOP numbers) and coming days
    (the planned session with its Aims, or rest, with a toggle to plan rest). Tapping the Today tab comes back. */
 const CHEV = d => `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg>`;
-function dayNav(off) {
-  return `<div class="daynav">${off ? '<button class="link" data-act="dayoff" data-n="0">Today</button>' : ''}<button class="iconbtn sm" data-act="dayoff" data-n="-1" aria-label="Previous day">${CHEV('M15 5l-7 7 7 7')}</button><button class="iconbtn sm" data-act="dayoff" data-n="1" aria-label="Next day">${CHEV('M9 5l7 7-7 7')}</button></div>`;
+function dayNav(off) { // v1.82: in the header, centred on the logo's row (WHOOP style); the middle button comes back to today
+  const d = addDays(today(), off), lab = off === 0 ? 'Today' : off === -1 ? 'Yesterday' : off === 1 ? 'Tomorrow' : `${fmtDow(d)} ${fmtDate(d)}`;
+  return `<button class="dn-a" data-act="dayoff" data-n="-1" aria-label="Previous day">${CHEV('M15 5l-7 7 7 7')}</button><button class="dn-m" data-act="dayoff" data-n="0" aria-label="${esc(off ? `${fmtDow(d)} ${fmtDate(d, { year: 'numeric' })}. Back to today` : 'Today')}">${esc(lab)}</button><button class="dn-a" data-act="dayoff" data-n="1" aria-label="Next day">${CHEV('M9 5l7 7-7 7')}</button>`;
 }
 function vDay(off) {
-  const d = addDays(today(), off), long = new Date(toUTC(d)).toLocaleDateString('en-AU', { timeZone: 'UTC', weekday: 'long' });
-  let h = `<div class="page-h day"><div><div class="eyebrow">${esc(fmtDow(d))} ${esc(fmtDate(d, { year: 'numeric' }))}</div><h1>${off === -1 ? 'Yesterday' : off === 1 ? 'Tomorrow' : esc(long)}</h1></div>${dayNav(off)}</div>`;
+  const d = addDays(today(), off), h = ''; // the day and its arrows are in the header (v1.82)
   if (off < 0) return h + todayTop(d) + alcRow(d) + pastDayHTML(d) + whoopCard(d); // v1.81: that day's rings, tiles and alcohol answer
   return h + futureDayHTML(d, off) + stripHTML();
 }
@@ -90,11 +90,12 @@ function futureDayHTML(d, off) {
 function vToday() {
   if (ui.dayOff) return vDay(ui.dayOff);
   const t = today(), w = STATE.w[t], sid = w ? w.s : sessionFor(t), sd = sessDef(sid), o = order(), idx = o.indexOf(sid);
-  let h = `<div class="page-h day"><div><div class="eyebrow">${esc(fmtDow(t))} ${esc(fmtDate(t, { year: 'numeric' }))}</div><h1>Today</h1></div><div class="hdr-r">${(() => { const n = streak(); return n ? `<span class="pill plain streak" data-live="streak" title="${n} day${n === 1 ? '' : 's'} in a row with a session or rest day logged" aria-label="Streak: ${n} day${n === 1 ? '' : 's'}">${ICON.flame}<b>${n}</b></span>` : ''; })()}${dayNav(0)}</div></div>`;
-  h += injBannerHTML(t);
+  let h = ''; // v1.82: the day, its arrows and the streak live in the header
+  const injDone = injActive(t).every(i => i.log?.[t] != null), inj = injBannerHTML(t); // v1.82: once today's pain is logged the card moves under Recovery
+  if (!injDone) h += inj;
   const top = () => todayTop(t) + alcToday(t) + (sd ? `<div class="myday"><h2>My day</h2><span class="eyebrow">${esc(w ? sessName(w) : sd.name)}${idx >= 0 ? ` · ${idx + 1} of ${o.length}` : ''}</span></div>` : ''); // v1.81
-  const tail = () => whoopCard() + stripHTML() + weekCard() + (injActive(t).length ? '' : injList().length ? '<button class="link dim" data-act="go" data-tab="injuries" style="align-self:center">Injuries</button>' : '<button class="link dim" data-act="injnew" style="align-self:center">Log an injury</button>');
-  if (w && (!w.fin || ui.editToday)) return (ui.nav.length ? wBack() : '') + h + logBody(t) + stripHTML() + weekCard(); // the log; no rings, tiles or Recovery card while logging // the log, until you press Done (no Recovery card while logging, v1.36)
+  const tail = () => whoopCard() + (injDone ? inj : '') + stripHTML() + weekCard() + (injActive(t).length ? '' : injList().length ? '<button class="link dim" data-act="go" data-tab="injuries" style="align-self:center">Injuries</button>' : '<button class="link dim" data-act="injnew" style="align-self:center">Log an injury</button>');
+  if (w && (!w.fin || ui.editToday)) return (ui.nav.length ? wBack() : '') + h + logBody(t) + (injDone ? inj : '') + stripHTML() + weekCard(); // the log; no rings, tiles or Recovery card while logging // the log, until you press Done (no Recovery card while logging, v1.36)
   h += top();
   if (w) return h + doneHero(w, idx, o) + tail();
   if (!sd) return h + `<section class="card"><p>Your programme has no sessions. Add one in Plan.</p><button class="btn" data-act="go" data-tab="plan">Open Plan</button></section>`;
