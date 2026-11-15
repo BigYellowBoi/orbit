@@ -38,8 +38,8 @@ const ok = (c, msg) => { if (c) passes++; else { fails++; console.log('FAIL', ms
   ok(await p.evaluate(() => { const t = today(), keep = STATE.d[t].rhr; for (let i = 1; i <= 30; i++) STATE.d[addDays(t, -i)].rhr = 45; const r = healthRange(t, 'rhr'); STATE.d[t].rhr = keep; return r.hi - r.lo >= 1 - 1e-9; }), 'band never narrower than the display rounding');
   // sleepOptimal: midpoint weighting and span = sn − sd
   const so = await p.evaluate(() => { const t = addDays(today(), 100); for (let i = 1; i <= 7; i++) STATE.d[addDays(t, -i)] = { on: '23:00', off: '07:00' }; STATE.d[t] = { sn: 600, sd: 80 }; const o = sleepOptimal(t); STATE.d[addDays(t, -1)] = { on: '00:00', off: '08:00' }; const o2 = sleepOptimal(t); for (let i = 0; i <= 7; i++) delete STATE.d[addDays(t, -i)]; return { o, o2 }; });
-  ok(Math.abs(so.o.mid - 180) < 1e-6 && so.o.span === 520 && Math.abs(so.o.bed + 80) < 1e-6 && Math.abs(so.o.wake - 440) < 1e-6, 'sleepOptimal: 3 am midpoint, span sn − sd');
-  ok(so.o2.mid > 180 && so.o2.mid < 240, 'the latest night weighs most (half-life 2): ' + so.o2.mid.toFixed(1));
+  ok(Math.abs(so.o.wake - 420) < 1e-6 && so.o.span === 520 && Math.abs(so.o.bed + 100) < 1e-6, 'sleepOptimal: wake anchored on the 7 am wakes, bed = wake − (sn − sd)');
+  ok(so.o2.wake > 420 + 60 / 5 && so.o2.wake < 480, 'the latest night weighs most (half-life 3): ' + so.o2.wake.toFixed(1));
   const cs = await p.evaluate(() => { const t = addDays(today(), 200); for (let i = 0; i < 4; i++) STATE.d[addDays(t, -i)] = { on: '23:00', off: '07:00', aw: 0 }; const a = sleepCons(t); STATE.d[t] = { on: '01:00', off: '09:00', aw: 0 }; const b = sleepCons(t); STATE.d[addDays(t, -4)] = { on: '20:00', off: '04:00' }; const c = sleepCons(t); delete STATE.d[addDays(t, -2)].on; const d = sleepCons(t); for (let i = 0; i <= 4; i++) delete STATE.d[addDays(t, -i)]; return { a, b, c, d }; });
   ok(cs.a === 100 && Math.abs(cs.b - (200 * (1 - 240 / 1440) - 100)) <= 1 && cs.c === cs.b && cs.d === null, 'sleepCons: identical nights 100, a 2 h shift lowers it, only the last 4 nights count, a gap gives none: ' + JSON.stringify(cs));
   // detail screens render
@@ -48,7 +48,9 @@ const ok = (c, msg) => { if (c) passes++; else { fails++; console.log('FAIL', ms
   ok((await p.$$('#view .wstage')).length === 4 && (await p.$$('#view .wtrack > s')).length === 4, 'Sleep: 4 stages with typical ranges');
   ok(await p.$$eval('#cons path[stroke-dasharray]', es => es.length) === 2, 'Sleep consistency: optimal bed and wake contours');
   ok((await p.$$('#view .wsvg')).length === 9, 'Sleep: consistency chart and 8 weekly charts');
-  await p.click('[data-act="winfo"][data-k="cons"]'); ok(!!(await p.$('.winfo-t')), '(i) opens a one-line explanation');
+  const ch = await p.$eval('#cons', e => e.offsetHeight); await p.click('[data-act="winfo"][data-k="cons"]'); await p.waitForTimeout(400);
+  ok(/Sleep Consistency/.test(await p.$eval('#wsheet .wsheet h3', e => e.textContent)) && (await p.$$('#wsheet li')).length === 3 && await p.$eval('#cons', e => e.offsetHeight) === ch, '(i) opens a bottom sheet and the card keeps its size');
+  await p.mouse.click(200, 60); await p.waitForTimeout(400); ok(!(await p.$('.wsheet-bg')), 'tapping outside the sheet closes it');
   // Done hero: activity tiles
   await p.evaluate(() => { go('today'); const t = today(), w = newWorkout(t, sessionFor(t)); w.ex.forEach(e => e.sets.forEach(s => { s.w = 40; s.r = 8; s.done = true; })); w.fin = true; w.cardio = { name: 'Stairmaster', min: 30, done: true, src: 'whoop' }; STATE.w[t] = w; bump(); render(true); });
   const tiles = await p.$$eval('.hero .act', es => es.map(e => e.textContent.replace(/\s+/g, ' ').trim()));

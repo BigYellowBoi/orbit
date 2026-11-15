@@ -731,7 +731,15 @@ body:has(#updp) .fab { bottom: calc(var(--tabh) + max(8px, calc(env(safe-area-in
 .wch { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .wch .wlab { background: none; border: 0; padding: 0; text-align: left; cursor: pointer; display: flex; align-items: center; gap: 8px; }
 .winfo { width: 32px; height: 32px; margin: -7px -7px -7px 0; border: 0; background: none; color: var(--ink-3); display: grid; place-items: center; flex: none; } .winfo svg { width: 18px; height: 18px; }
-.winfo-t { font-size: 13px; color: var(--ink-2); background: var(--bg); border-radius: 8px; padding: 8px 10px; margin: 0; }
+.wsheet-bg { position: fixed; inset: 0; z-index: 1000; background: rgba(0, 0, 0, 0); transition: background .25s ease; touch-action: none; }
+.wsheet-bg.on { background: rgba(0, 0, 0, .62); }
+.wsheet { position: absolute; left: 0; right: 0; bottom: 0; max-height: 80%; overflow: auto; box-sizing: border-box; padding: 12px 22px calc(36px + env(safe-area-inset-bottom)); border-radius: 22px 22px 0 0; background: linear-gradient(170deg, #26313a 0%, #171c21 55%, #121519 100%); color: var(--ink); transform: translateY(100%); transition: transform .26s cubic-bezier(.2, .8, .2, 1); font-family: var(--f-body); }
+.wsheet-bg.on .wsheet { transform: none; }
+.wsheet .grab { display: block; width: 60px; height: 4px; border-radius: 2px; background: #5a6168; margin: 0 auto 44px; }
+.wsheet h3 { font-size: 22px; font-weight: 600; margin: 0 0 6px; color: #fff; letter-spacing: 0; }
+.wsheet p { font-size: 15.5px; line-height: 1.45; color: #a5adb8; margin: 0 0 16px; }
+.wsheet ul { margin: 0 0 18px; padding-left: 28px; font-size: 15.5px; line-height: 1.45; color: #a5adb8; }
+.wsheet li { margin: 0 0 4px; } .wsheet li::marker { color: #a5adb8; } .wsheet li b { color: #fff; font-weight: 700; }
 .wbigv { display: flex; flex-direction: column; line-height: 1.1; } .wbigv > span { display: flex; align-items: center; gap: 6px; } .wbigv b { font-size: 30px; } .wbigv > em { font-family: var(--f-num); font-weight: 700; font-size: 12.5px; color: var(--ink-3); font-style: normal; }
 .wsep { border-top: 1px solid var(--line); }
 .wkv { display: flex; justify-content: space-between; align-items: center; gap: 8px; } .wkv b { font-size: 15px; } .wkv b.lg { font-size: 18px; } .wkv b.xl { font-size: 20px; }

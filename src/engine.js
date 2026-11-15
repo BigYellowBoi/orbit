@@ -898,25 +898,25 @@ function sleepCons(date) {
   for (let i = 0; i < 3; i++) for (let m = -720; m < 720; m++) { const x = p(L, m), y = p(P[i], m); s += x * y + (1 - x) * (1 - y); }
   return Math.round(200 * s / (3 * 1440) - 100);
 }
-/* Optimal bed and wake times (WHOOP's come from its Sleep Planner and aren't in the API or export). Midpoint: the 4
-   nights before (WHOOP's consistency window, ending the night before, since the line is the plan for that night),
-   weighted with a 2-night half-life; span: that night's sleep need less its debt part (sn − sd), falling back to
-   the same weighting of time in bed. On the 5 nights read off his WHOOP card (15 Nov 2026): about 22 min RMS for bed
-   and wake (the old 7-night version 20, within the ±5 min read error); equal weights 25; that night plus the 3 before
-   27 to 54. Free weights reached 15 only by dropping one night entirely, so they overfit 5 points. Minutes from
+/* Optimal bed and wake times (WHOOP's come from its Sleep Planner and aren't in the API or export). Wake: that night's
+   and the 5 before, weighted with a 3-night half-life; bed = wake less that night's sleep need minus its debt part
+   (sn − sd), falling back to the same weighting of time in bed. WHOOP's past values don't change between screenshots,
+   so each night's line includes that night. Read off his WHOOP cards (15 and 16 Nov 2026, 6 nights, ±5 min): 16 min RMS
+   for bed and wake; the v1.83 midpoint model (4 nights before, half-life 2) 30 on the same nights. WHOOP's bed line
+   runs earlier than any recent bedtime when wakes were early, so it anchors on wake, not the midpoint. Minutes from
    midnight, evening negative. */
 const clockMin = s => { const m = /^(\d{1,2}):(\d{2})/.exec(s || ''); if (!m) return null; let v = +m[1] * 60 + +m[2]; if (v >= 15 * 60) v -= 1440; return v; };
-const SO = { hl: 2, n: 4 };
+const SO = { hl: 3, n: 6 };
 function sleepOptimal(date) {
-  let wm = 0, ws = 0, wb = 0;
-  for (let i = 1; i <= SO.n; i++) {
+  let ww = 0, ws = 0, wb = 0;
+  for (let i = 0; i < SO.n; i++) {
     const d = addDays(date, -i), a = clockMin(dayVal(d, 'on')), b = clockMin(dayVal(d, 'off'));
     if (a == null || b == null || b <= a) continue;
-    const w = 0.5 ** ((i - 1) / SO.hl); wm += w * (a + b) / 2; wb += w * (b - a); ws += w;
+    const w = 0.5 ** (i / SO.hl); ww += w * b; wb += w * (b - a); ws += w;
   }
   if (!ws) return null;
-  const mid = wm / ws, sn = dayVal(date, 'sn'), span = sn != null ? sn - (dayVal(date, 'sd') || 0) : wb / ws;
-  return { bed: mid - span / 2, wake: mid + span / 2, mid, span };
+  const wake = ww / ws, sn = dayVal(date, 'sn'), span = sn != null ? sn - (dayVal(date, 'sd') || 0) : wb / ws;
+  return { bed: wake - span, wake, mid: wake - span / 2, span };
 }
 /* Alcohol (replaces the WHOOP journal question, which ends with the membership): stored on the morning after as `alc`,
    the field and date the journal import writes, so alcoholCard and recoveryAfter read it unchanged. `alcSrc: 'me'` keeps a

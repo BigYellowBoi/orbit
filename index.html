@@ -777,7 +777,15 @@ body:has(#updp) .fab { bottom: calc(var(--tabh) + max(8px, calc(env(safe-area-in
 .wch { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .wch .wlab { background: none; border: 0; padding: 0; text-align: left; cursor: pointer; display: flex; align-items: center; gap: 8px; }
 .winfo { width: 32px; height: 32px; margin: -7px -7px -7px 0; border: 0; background: none; color: var(--ink-3); display: grid; place-items: center; flex: none; } .winfo svg { width: 18px; height: 18px; }
-.winfo-t { font-size: 13px; color: var(--ink-2); background: var(--bg); border-radius: 8px; padding: 8px 10px; margin: 0; }
+.wsheet-bg { position: fixed; inset: 0; z-index: 1000; background: rgba(0, 0, 0, 0); transition: background .25s ease; touch-action: none; }
+.wsheet-bg.on { background: rgba(0, 0, 0, .62); }
+.wsheet { position: absolute; left: 0; right: 0; bottom: 0; max-height: 80%; overflow: auto; box-sizing: border-box; padding: 12px 22px calc(36px + env(safe-area-inset-bottom)); border-radius: 22px 22px 0 0; background: linear-gradient(170deg, #26313a 0%, #171c21 55%, #121519 100%); color: var(--ink); transform: translateY(100%); transition: transform .26s cubic-bezier(.2, .8, .2, 1); font-family: var(--f-body); }
+.wsheet-bg.on .wsheet { transform: none; }
+.wsheet .grab { display: block; width: 60px; height: 4px; border-radius: 2px; background: #5a6168; margin: 0 auto 44px; }
+.wsheet h3 { font-size: 22px; font-weight: 600; margin: 0 0 6px; color: #fff; letter-spacing: 0; }
+.wsheet p { font-size: 15.5px; line-height: 1.45; color: #a5adb8; margin: 0 0 16px; }
+.wsheet ul { margin: 0 0 18px; padding-left: 28px; font-size: 15.5px; line-height: 1.45; color: #a5adb8; }
+.wsheet li { margin: 0 0 4px; } .wsheet li::marker { color: #a5adb8; } .wsheet li b { color: #fff; font-weight: 700; }
 .wbigv { display: flex; flex-direction: column; line-height: 1.1; } .wbigv > span { display: flex; align-items: center; gap: 6px; } .wbigv b { font-size: 30px; } .wbigv > em { font-family: var(--f-num); font-weight: 700; font-size: 12.5px; color: var(--ink-3); font-style: normal; }
 .wsep { border-top: 1px solid var(--line); }
 .wkv { display: flex; justify-content: space-between; align-items: center; gap: 8px; } .wkv b { font-size: 15px; } .wkv b.lg { font-size: 18px; } .wkv b.xl { font-size: 20px; }
@@ -949,7 +957,7 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.94'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.95'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
@@ -1861,25 +1869,25 @@ function sleepCons(date) {
   for (let i = 0; i < 3; i++) for (let m = -720; m < 720; m++) { const x = p(L, m), y = p(P[i], m); s += x * y + (1 - x) * (1 - y); }
   return Math.round(200 * s / (3 * 1440) - 100);
 }
-/* Optimal bed and wake times (WHOOP's come from its Sleep Planner and aren't in the API or export). Midpoint: the 4
-   nights before (WHOOP's consistency window, ending the night before, since the line is the plan for that night),
-   weighted with a 2-night half-life; span: that night's sleep need less its debt part (sn − sd), falling back to
-   the same weighting of time in bed. On the 5 nights read off his WHOOP card (15 Nov 2026): about 22 min RMS for bed
-   and wake (the old 7-night version 20, within the ±5 min read error); equal weights 25; that night plus the 3 before
-   27 to 54. Free weights reached 15 only by dropping one night entirely, so they overfit 5 points. Minutes from
+/* Optimal bed and wake times (WHOOP's come from its Sleep Planner and aren't in the API or export). Wake: that night's
+   and the 5 before, weighted with a 3-night half-life; bed = wake less that night's sleep need minus its debt part
+   (sn − sd), falling back to the same weighting of time in bed. WHOOP's past values don't change between screenshots,
+   so each night's line includes that night. Read off his WHOOP cards (15 and 16 Nov 2026, 6 nights, ±5 min): 16 min RMS
+   for bed and wake; the v1.83 midpoint model (4 nights before, half-life 2) 30 on the same nights. WHOOP's bed line
+   runs earlier than any recent bedtime when wakes were early, so it anchors on wake, not the midpoint. Minutes from
    midnight, evening negative. */
 const clockMin = s => { const m = /^(\d{1,2}):(\d{2})/.exec(s || ''); if (!m) return null; let v = +m[1] * 60 + +m[2]; if (v >= 15 * 60) v -= 1440; return v; };
-const SO = { hl: 2, n: 4 };
+const SO = { hl: 3, n: 6 };
 function sleepOptimal(date) {
-  let wm = 0, ws = 0, wb = 0;
-  for (let i = 1; i <= SO.n; i++) {
+  let ww = 0, ws = 0, wb = 0;
+  for (let i = 0; i < SO.n; i++) {
     const d = addDays(date, -i), a = clockMin(dayVal(d, 'on')), b = clockMin(dayVal(d, 'off'));
     if (a == null || b == null || b <= a) continue;
-    const w = 0.5 ** ((i - 1) / SO.hl); wm += w * (a + b) / 2; wb += w * (b - a); ws += w;
+    const w = 0.5 ** (i / SO.hl); ww += w * b; wb += w * (b - a); ws += w;
   }
   if (!ws) return null;
-  const mid = wm / ws, sn = dayVal(date, 'sn'), span = sn != null ? sn - (dayVal(date, 'sd') || 0) : wb / ws;
-  return { bed: mid - span / 2, wake: mid + span / 2, mid, span };
+  const wake = ww / ws, sn = dayVal(date, 'sn'), span = sn != null ? sn - (dayVal(date, 'sd') || 0) : wb / ws;
+  return { bed: wake - span, wake, mid: wake - span / 2, span };
 }
 /* Alcohol (replaces the WHOOP journal question, which ends with the membership): stored on the morning after as `alc`,
    the field and date the journal import writes, so alcoholCard and recoveryAfter read it unchanged. `alcSrc: 'me'` keeps a
@@ -3628,24 +3636,51 @@ function cmpRow({ ico, label, v, avg, f, unit = '', better = 1, act = '' }) {
   return `<${tag} class="wrow" ${act}><span class="wrow-l">${wIco(ico)}<span class="wlab">${esc(label)}</span></span><span class="wrow-r"><span><b class="wnum">${v == null ? '–' : f(v)}${unit && v != null ? `<small>${esc(unit)}</small>` : ''}</b>${arr}</span><em>${avg == null ? '–' : f(avg) + (unit === '%' ? '%' : '')}</em></span></${tag}>`;
 }
 const cmpLeg = `<div class="wleg">${wArr(true, true)}${wArr(false, false)}<span><b>Today</b> vs. last 30 days</span></div>`;
+/* (i) explanations open as a bottom sheet over the screen (WHOOP's), never inside the card, so the card keeps its size.
+   Each: title, lead, optional bands [bold, rest], optional closing paragraphs. */
 const INFO_TXT = {
-  hos: 'Time asleep last night, against your average over the 30 nights before.',
-  hvn: 'Hours of sleep as a share of what WHOOP said you needed: a healthy minimum, plus need from recent strain and sleep debt.',
-  cons: 'How closely your bed and wake times match the nights before. Dashed lines: Orbit’s estimate of your optimal times.',
-  eff: 'Time asleep as a share of time in bed. Wake events are disturbances WHOOP counted.',
-  zones: 'Time in each heart-rate zone during this activity, from WHOOP.',
+  hos: { t: 'Hours of sleep', p: 'Time asleep last night, against your average over the 30 nights before.' },
+  hvn: { t: 'What is Hours vs. Needed?', p: 'How much you slept last night against how much you needed.',
+    l: [['High (85%+):', 'best for health and performance.'], ['Moderate (70 to 85%):', 'enough to get by.'], ['Low (under 70%):', 'holds back recovery.']],
+    n: ['Sleep needed is your baseline plus extra for recent strain, naps and sleep debt.'] },
+  cons: { t: 'What is Sleep Consistency?', p: 'How alike your bed and wake times are over 4 days, from 0 to 100%.',
+    l: [['High (80%+):', 'best for health and performance.'], ['Moderate (70 to 80%):', 'enough to get by.'], ['Low (under 70%):', 'can throw off your body clock and leave you tired.']],
+    n: ['Naps outside your usual sleep window lower it, even though they cut sleep debt.', 'Dashed lines: Orbit’s estimate of your optimal bed and wake times.'] },
+  eff: { t: 'What is Sleep Efficiency?', p: 'Time asleep as a share of time in bed.',
+    l: [['High (85%+):', 'optimal, so you need less time in bed for the same sleep.'], ['Under 85%:', 'a darker, quieter room can help.']],
+    n: ['Wake events are the disturbances WHOOP counted.'] },
+  zones: { t: 'Heart rate zones', p: 'Time in each heart-rate zone during this activity, from WHOOP.' },
 };
 function wStatHead(label, ikey, metric) {
-  const open = ui.winfo === ikey;
-  return `<div class="wch">${metric ? `<button class="wlab" data-act="nav" data-s="trend" data-m="${metric}" data-d="${wDay()}">${esc(label)}</button>` : `<span class="wlab">${esc(label)}</span>`}<button class="winfo" data-act="winfo" data-k="${ikey}" aria-label="About ${esc(label)}" aria-expanded="${open}">${INFO}</button></div>${open ? `<p class="winfo-t">${esc(INFO_TXT[ikey])}</p>` : ''}`;
+  return `<div class="wch">${metric ? `<button class="wlab" data-act="nav" data-s="trend" data-m="${metric}" data-d="${wDay()}">${esc(label)}</button>` : `<span class="wlab">${esc(label)}</span>`}<button class="winfo" data-act="winfo" data-k="${ikey}" aria-label="About ${esc(label)}" aria-haspopup="dialog">${INFO}</button></div>`;
 }
+function infoSheet(key) {
+  const x = INFO_TXT[key]; if (!x) return;
+  closeSheet(true);
+  const bg = document.createElement('div'); bg.className = 'wsheet-bg'; bg.id = 'wsheet';
+  bg.innerHTML = `<div class="wsheet" role="dialog" aria-modal="true" aria-label="${esc(x.t)}"><i class="grab" aria-hidden="true"></i><h3>${esc(x.t)}</h3><p>${esc(x.p)}</p>${x.l ? `<ul>${x.l.map(([b, t]) => `<li><b>${esc(b)}</b> ${esc(t)}</li>`).join('')}</ul>` : ''}${(x.n || []).map(t => `<p>${esc(t)}</p>`).join('')}</div>`;
+  document.body.appendChild(bg);
+  const sh = bg.firstChild; let y0 = null, dy = 0;
+  bg.addEventListener('click', ev => { if (ev.target === bg) closeSheet(); });
+  sh.addEventListener('pointerdown', ev => { y0 = ev.clientY; dy = 0; sh.style.transition = 'none'; sh.setPointerCapture?.(ev.pointerId); });
+  sh.addEventListener('pointermove', ev => { if (y0 == null) return; dy = Math.max(0, ev.clientY - y0); sh.style.transform = `translateY(${dy}px)`; });
+  const up = () => { if (y0 == null) return; y0 = null; sh.style.transition = ''; if (dy > 70) closeSheet(); else sh.style.transform = ''; };
+  sh.addEventListener('pointerup', up); sh.addEventListener('pointercancel', up);
+  requestAnimationFrame(() => requestAnimationFrame(() => bg.classList.add('on')));
+}
+function closeSheet(now) {
+  const bg = document.getElementById('wsheet'); if (!bg) return;
+  if (now) { bg.remove(); return; }
+  bg.classList.remove('on'); bg.firstChild.style.transform = ''; bg.id = ''; setTimeout(() => bg.remove(), 260);
+}
+document.addEventListener('keydown', ev => { if (ev.key === 'Escape') closeSheet(); });
 function wBigVal(txt, v, avg, f, better = 1) {
   const arr = v != null && avg != null && f(v) !== f(avg) ? wArr(v > avg, (v > avg) === (better > 0)) : '';
   return `<div class="wbigv"><span><b class="wnum">${txt}</b>${arr}</span><em>${avg == null ? '–' : f(avg)}</em></div>`;
 }
 
-/* ---------- Weekly trends charts: Mon to Sun of the viewed day's week, its column highlighted ---------- */
-function wkDays(d) { const ws = weekStart(d); return [0, 1, 2, 3, 4, 5, 6].map(i => addDays(ws, i)); }
+/* ---------- Weekly trends charts: the 7 days up to the viewed day, which is the highlighted column on the right ---------- */
+function wkDays(d) { return [6, 5, 4, 3, 2, 1, 0].map(i => addDays(d, -i)); }
 const CX = i => 26 + 52 * i, PB = 150, PT = 18;
 function wkFrame(days, hi, body) {
   const grid = [37.5, 75, 112.5, 150].map(y => `<line x1="0" x2="364" y1="${y}" y2="${y}" stroke="${WC.grid}" stroke-width="1"/>`).join('');
@@ -3655,7 +3690,7 @@ function wkFrame(days, hi, body) {
 function wkChart(d, spec) {
   const days = wkDays(d), hi = days.indexOf(d), vals = days.map(spec.v);
   const has = vals.filter(v => v != null && (!Array.isArray(v) || v.some(x => x != null)));
-  if (!has.length) return `<p class="xs muted">No data this week.</p>`;
+  if (!has.length) return `<p class="xs muted">No data in these 7 days.</p>`;
   const tot = v => Array.isArray(v) ? sum(v.map(x => x || 0)) : v;
   let lo = spec.yMin ?? 0, hiV = spec.yMax ?? (Math.max(...has.map(tot)) * 1.05 || 1);
   if (spec.type === 'line' || spec.type === 'dual') { const all = spec.type === 'dual' ? has.flat().filter(x => x != null) : has; const mn = Math.min(...all), mx = Math.max(...all), pad = Math.max((mx - mn) * 0.35, Math.abs(mx) * 0.02, 0.5); lo = spec.yMin ?? mn - pad; hiV = spec.yMax ?? mx + pad; }
@@ -3756,7 +3791,7 @@ function vSleep() {
     + wkCard(d, 'Sleep performance', 'sp', { type: 'bar', v: dv2('sp'), color: WC.sleep, f: f0, yMin: 0, yMax: 100 })
     + wkCard(d, 'Hours vs. needed (hours)', 'hvn', { type: 'dual', v: dd => { const a = dayVal(dd, 'slp'), b = dayVal(dd, 'sn'); return a == null && b == null ? null : [a, b]; }, colors: [WC.sleep, '#8e9293'], f: wHM, legend: [[WC.sleep, 'Hours of sleep'], ['#8e9293', 'Sleep needed', true]] })
     + wkCard(d, 'Hours vs. needed (%)', 'hvnp', { type: 'bar', v: hvnp, color: WC.sleep, f: f0, yMin: 0, yMax: 100 })
-    + wkCard(d, 'Restorative sleep', 'resth', { type: 'stack', v: dd => { const y = STATE.d[dd]; return y && (y.deep != null || y.rem != null) ? [y.deep, y.rem] : null; }, colors: [WC.deep, WC.rem], f: wHM, legend: [[WC.deep, 'SWS (deep)'], [WC.rem, 'REM']] })
+    + wkCard(d, 'Restorative sleep', 'resth', { type: 'stack', v: dd => { const y = STATE.d[dd]; return y && (y.deep != null || y.rem != null) ? [y.rem, y.deep] : null; }, colors: [WC.rem, WC.deep], f: wHM, legend: [[WC.deep, 'SWS (deep)'], [WC.rem, 'REM']] })
     + wkCard(d, 'Sleep consistency', 'sc', { type: 'bar', v: dv2('sc'), color: WC.sleep, f: f0, yMin: 0, yMax: 100 })
     + wkCard(d, 'Time in bed', 'bed', { type: 'float', v: dd => { const a = clockMin(dayVal(dd, 'on')), b = clockMin(dayVal(dd, 'off')); return a != null && b != null && b > a ? [a, b] : null; }, color: WC.sleep })
     + wkCard(d, 'Sleep efficiency', 'se', { type: 'line', v: dv2('se'), color: WC.sleep, f: f0 })
@@ -3873,7 +3908,7 @@ const WACT = {
   navday: el => { ui.np = { ...(ui.np || {}), d: el.dataset.d }; render(true); }, // the same screen on another night; no stack entry
   navlog: el => { const d = el.dataset.d; if (d === today()) navOpen('today', {}); else navOpen('log', { d }); },
   wscroll: el => reveal('#' + el.dataset.id),
-  winfo: el => { ui.winfo = ui.winfo === el.dataset.k ? null : el.dataset.k; render(true); },
+  winfo: el => infoSheet(el.dataset.k),
   alc: el => { const d = el.dataset.d, v = el.dataset.v === '1'; setAlc(d, v); ui.alcEdit = null; changed('dy', d); render(true); },
   alcedit: el => { ui.alcEdit = el.dataset.d; render(true); },
 };
