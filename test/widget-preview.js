@@ -33,6 +33,7 @@ const src = fs.readFileSync(path.join(__dirname, '../tools/orbit-widget.js'), 'u
       set size(z) { if (z.width) this.el.style.width = z.width + 'px'; if (z.height) this.el.style.height = z.height + 'px'; this.el.style.flex = '0 0 auto'; }
       bottomAlignContent() { this.el.style.alignItems = 'flex-end'; } topAlignContent() { this.el.style.alignItems = 'flex-start'; } centerAlignContent() { this.el.style.alignItems = 'center'; } setPadding() {} }
     window.ListWidget = class extends Stack { set backgroundImage(im) { G.drawImage(im, 0, 0, 1092, 510); } constructor() { const e = document.createElement('div'); e.style.cssText = 'position:absolute;left:28px;top:20px;width:364px;height:170px'; document.body.appendChild(e); super(e); this.layoutVertically(); } async presentMedium() {} };
+    window.Device = { screenScale: () => 3 };
     window.Keychain = { contains: () => true, get: () => '{"url":"x","key":"k"}', remove() {}, set() {} };
     window.Request = class { async loadJSON() { return data; } }; window.FileManager = { local: () => ({ joinPath: (a, b) => b, documentsDirectory: () => '', writeString() {}, fileExists: () => false }) };
     window.config = { runsInApp: true, runsInWidget: false }; window.args = {}; window.Script = { setWidget() {}, complete() {} };

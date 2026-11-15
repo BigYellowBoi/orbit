@@ -4,20 +4,27 @@
 // Setup: paste into a new Scriptable script, run it once in the app and enter the helper address and SYNC_KEY
 // (kept in the iOS Keychain, never in this file), then add a medium Scriptable widget and pick this script.
 // To change the address or key later, run it in the app with the widget parameter "reset".
-const KC = 'orbit-widget', CACHE = 'orbit-widget.json', OPEN = 'https://bigyellowboi.github.io/orbit/';
-const W = 364, H = 170;
-// Drawn at K pixels per point. His widget is ~5% bigger than 364 x 170 (large home screen icons), so 3x was upscaled and soft.
-// But WidgetKit caps a widget image at about 1.5x the widget's own pixel area (Apple forum logs: max 836,141 px for a 3x
-// 364 x 170 widget); 4x (1456 x 680 = 990k px) went over, so iOS shrank it hard and it came out blurrier. 3.5x is 758k px.
-const K = 3.5, P = (x, y) => new Point(x * K, y * K), RR = (x, y, w, h) => new Rect(x * K, y * K, w * K, h * K);
+// No tap URL: Safari can't open the home screen web app. iOS always opens Scriptable on a widget tap, so keep the
+// widget's When Interacting setting on Open App.
+const KC = 'orbit-widget', CACHE = 'orbit-widget.json';
+const W = 364, H = 170; // the layout below is measured on a 364 x 170 pt widget
+// Sharpness. The canvas is sized in POINTS with respectScreenScale on, so getImage() returns a true @3x image (scale 3,
+// e.g. 1092 x 510 px) that iOS maps 1:1 onto screen pixels. The old way (a big canvas in pixels, respectScreenScale off)
+// gave a scale-1 image that iOS treats as ~1274 pt wide and resamples down, and Scriptable/WidgetKit also shrink oversized
+// widget images, so it stayed soft whatever K was.
+// WIDGET_W: the widget's real width in points. Large home screen icons make it bigger than 364. To measure: take a home
+// screen screenshot, measure the widget's width in pixels, divide by 3. The whole layout scales to fit exactly.
+const WIDGET_W = 364;
+const K = WIDGET_W / W, P = (x, y) => new Point(x * K, y * K), RR = (x, y, w, h) => new Rect(x * K, y * K, w * K, h * K);
+const SC = Device.screenScale(); // 3 on current iPhones
 const PALETTE = 'whoop'; // 'whoop': yellow, blue and grey as sampled from the WHOOP widget; 'orbit': the app's own (--warn, --strain, --ink-2)
 const C = { bg0: '#383f45', bg1: '#1b1f22', track: '#43474a', blue: '#4190df', grey: '#95999b', white: '#ffffff', purple: '#b388ff', purpleIn: '#e2d3ff', markOff: '#4b535d',
   green: '#16ec06', yellow: '#fadf48', red: '#ff0026' };
 if (PALETTE === 'orbit') Object.assign(C, { yellow: '#ffde00', blue: '#0093e7', grey: '#a5adb8' });
 // Text weight. iOS has no DIN as heavy or wide as WHOOP's, so all text is drawn into the image: each string is drawn
 // a few times shifted right by up to FAUX points (thicker strokes), then stretched sideways by STRETCH (wider letters).
-// Each string is drawn at TK = 2K first and shrunk into place: stretching a K image by 1.15 resampled it up and smeared it.
-const FAUX = 0.5, STRETCH = 1.15, TK = 2 * K;
+// Each string is drawn at TK = 2x screen pixels first and shrunk into place, so the 1.15 stretch never upsamples.
+const FAUX = 0.5, STRETCH = 1.15, TK = 2 * SC * K;
 const FLAME = [[[12.6,2.3],[12.66,3.15],[12.61,4],[12.44,4.83],[12.15,5.63],[11.75,6.38],[11.28,7.09],[10.75,7.75],[10.18,8.39],[9.6,9.01],[9.02,9.63],[8.46,10.28],[7.95,10.95],[7.49,11.67],[7.11,12.43],[6.83,13.24],[6.66,14.07],[6.6,14.92],[6.65,15.77],[6.84,16.59],[7.15,17.38],[7.59,18.11],[8.13,18.77],[8.77,19.33],[9.49,19.78],[10.27,20.12],[11.1,20.32],[11.95,20.4],[12.79,20.34],[13.62,20.15],[14.41,19.83],[15.14,19.39],[15.79,18.85],[16.35,18.2],[16.8,17.48],[17.13,16.7],[17.33,15.87],[17.4,15.03],[17.35,14.18],[17.2,13.34],[16.96,12.53],[16.62,11.75],[16.2,11],[15.72,10.3],[15.34,10.23],[15.09,11.04],[14.68,11.78],[14.09,12.39],[13.63,12.43],[13.68,11.58],[13.7,10.73],[13.68,9.88],[13.63,9.03],[13.55,8.18],[13.45,7.33],[13.34,6.49],[13.21,5.65],[13.07,4.81],[12.91,3.97],[12.76,3.14]],[[12,21],[11.61,20.98],[11.23,20.9],[10.87,20.78],[10.52,20.61],[10.2,20.4],[9.9,20.14],[9.64,19.86],[9.42,19.54],[9.25,19.19],[9.12,18.83],[9.03,18.45],[9,18.07],[9.02,17.68],[9.07,17.3],[9.18,16.92],[9.32,16.57],[9.51,16.22],[9.71,15.9],[9.95,15.59],[10.19,15.29],[10.45,15],[10.71,14.72],[10.97,14.43],[11.11,14.73],[11.27,15.08],[11.47,15.41],[11.71,15.72],[11.99,15.99],[12.3,16.21],[12.65,16.38],[12.78,16.07],[12.83,15.69],[12.85,15.3],[12.83,14.92],[12.77,14.53],[12.74,14.23],[13.05,14.46],[13.35,14.7],[13.63,14.97],[13.89,15.25],[14.14,15.55],[14.36,15.87],[14.55,16.2],[14.71,16.56],[14.84,16.92],[14.93,17.3],[14.99,17.68],[15,18.07],[14.97,18.45],[14.88,18.83],[14.75,19.19],[14.58,19.54],[14.36,19.86],[14.1,20.14],[13.8,20.4],[13.48,20.61],[13.13,20.78],[12.77,20.9],[12.39,20.98]]]; // Orbit's flame icon (24-unit box): outer shape, inner tongue
 
 async function settings() {
@@ -55,7 +62,7 @@ function arc(dc, cx, cy, r, f0, f1, color, width, alpha = 1) { // fractions of a
   for (let i = 0; i <= n; i++) { const a = (f0 + (f1 - f0) * i / n) * 2 * Math.PI; pts.push(P(cx + r * Math.sin(a), cy - r * Math.cos(a))); }
   const p = new Path(); p.addLines(pts); dc.addPath(p); dc.setStrokeColor(new Color(color, alpha)); dc.setLineWidth(width * K); dc.strokePath();
 }
-function band(dc, cx, cy, r, width, f0, f1, color, rc = 1.2) { // a filled ring segment with slightly rounded corners, as WHOOP's
+function band(dc, cx, cy, r, width, f0, f1, color, rc = 1.2, alpha = 1) { // a filled ring segment with slightly rounded corners, as WHOOP's
   if (f1 - f0 < 1e-4) return; const ro = r + width / 2, ri = r - width / 2, A = f => f * 2 * Math.PI;
   rc = Math.min(rc, width / 2, (f1 - f0) * Math.PI * ri); const a0 = A(f0), a1 = A(f1), dO = rc / ro, dI = rc / ri;
   const Q = (rr, a) => P(cx + rr * Math.sin(a), cy - rr * Math.cos(a)), p = new Path(), n = Math.max(2, Math.ceil((f1 - f0) * 360));
@@ -63,12 +70,12 @@ function band(dc, cx, cy, r, width, f0, f1, color, rc = 1.2) { // a filled ring 
   p.addQuadCurve(Q(ro - rc, a1), Q(ro, a1)); p.addLine(Q(ri + rc, a1)); p.addQuadCurve(Q(ri, a1 - dI), Q(ri, a1));
   for (let i = 1; i <= n; i++) p.addLine(Q(ri, a1 - dI - (a1 - a0 - 2 * dI) * i / n));
   p.addQuadCurve(Q(ri + rc, a0), Q(ri, a0)); p.addLine(Q(ro - rc, a0)); p.addQuadCurve(Q(ro, a0 + dO), Q(ro, a0)); p.closeSubpath();
-  dc.addPath(p); dc.setFillColor(new Color(color)); dc.fillPath();
+  dc.addPath(p); dc.setFillColor(new Color(color, alpha)); dc.fillPath();
 }
 function poly(dc, pts, x, y, s, color) { const p = new Path(); p.addLines(pts.map(([a, b]) => P(x + a * s, y + b * s))); p.closeSubpath(); dc.addPath(p); dc.setFillColor(new Color(color)); dc.fillPath(); }
 
 function draw(d) {
-  const dc = new DrawContext(); dc.size = new Size(W * K, H * K); dc.respectScreenScale = false;
+  const dc = new DrawContext(); dc.respectScreenScale = true; dc.size = new Size(W * K, H * K); // points, rendered @SC
   const din = (s, k = K) => new Font('DINAlternate-Bold', s * k), lab = (s, k = K) => Font.boldSystemFont(s * k);
   // background: WHOOP's diagonal grey, lighter top left (bands across the diagonal; DrawContext has no gradients)
   const mix = (a, b, t) => '#' + [1, 3, 5].map(i => Math.round(parseInt(a.substr(i, 2), 16) * (1 - t) + parseInt(b.substr(i, 2), 16) * t).toString(16).padStart(2, '0')).join('');
@@ -94,8 +101,15 @@ function draw(d) {
   const cx = 181.7, cy = 81.9, rc = recCol(d?.rec);
   arc(dc, cx, cy, 51.6, 0, 1, C.track, 6.6); band(dc, cx, cy, 51.6, 6.6, 0, Math.min(1, (d?.str || 0) / 21), C.blue);
   arc(dc, cx, cy, 40.1, 0, 1, C.track, 7); band(dc, cx, cy, 40.1, 7, 0, Math.min(1, (d?.rec || 0) / 100), rc);
-  // centre: Orbit's mark, as in the app's header (one segment per rotation slot, done ones purple, round ends; no glow, since DrawContext can't blur)
+  // centre: Orbit's mark, as in the app's header (one segment per rotation slot, done ones purple, round ends)
   const n = d?.rot?.n || 4, k = d?.rot?.k ?? 0, r = 9.75, sw = 2.6, gap = n > 1 ? Math.min(25, 360 / n * 0.35) / 360 : 0;
+  // glow: the header's drop-shadow(0 0 2.5px rgba(179,136,255,.45)), scaled to this mark. DrawContext can't blur, so it is
+  // GL see-through purple outlines of the whole mark (segments, round ends and the dot, as the CSS shadow takes the mark's
+  // shape), each GLOW / GL wider: they stack to ~.4 at the mark's edge and fade to nothing GLOW points out.
+  const GLOW = 2.7, GL = 7, GA = 0.07;
+  for (let j = GL; j >= 1; j--) { const gw = sw + 2 * GLOW * j / GL, ext = gw / 2 / (2 * Math.PI * r), dr = 2.8 + GLOW * j / GL;
+    for (let i = 0; i < n; i++) band(dc, cx, cy, r, gw, i / n + gap / 2 - ext, (i + 1) / n - gap / 2 + ext, C.purple, gw / 2, GA);
+    dc.setFillColor(new Color(C.purple, GA)); dc.fillEllipse(RR(cx - dr, cy - dr, 2 * dr, 2 * dr)); }
   const end = (f, col, wd, al) => { const a = f * 2 * Math.PI, x = cx + r * Math.sin(a), y = cy - r * Math.cos(a); dc.setFillColor(new Color(col, al)); dc.fillEllipse(RR(x - wd / 2, y - wd / 2, wd, wd)); };
   const seg = (a0, a1, col, wd, al) => { arc(dc, cx, cy, r, a0, a1, col, wd, al); end(a0, col, wd, al); end(a1, col, wd, al); };
   for (let i = 0; i < n; i++) { const a0 = i / n + gap / 2, a1 = (i + 1) / n - gap / 2; seg(a0, a1, i < k ? C.purple : C.markOff, sw, 1); }
@@ -115,6 +129,6 @@ function draw(d) {
 const c = await settings(), data = c ? await load(c) : null;
 const w = new ListWidget(); w.setPadding(0, 0, 0, 0); w.backgroundColor = new Color(C.bg1);
 w.backgroundImage = draw(data);
-w.addSpacer(); w.url = OPEN; w.refreshAfterDate = new Date(Date.now() + 10 * 60e3);
+w.addSpacer(); w.refreshAfterDate = new Date(Date.now() + 10 * 60e3);
 if (config.runsInWidget) Script.setWidget(w); else await w.presentMedium();
 Script.complete();
