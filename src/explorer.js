@@ -61,7 +61,7 @@ const METRICS = [
 function explorerHTML() {
   const m = METRICS.find(x => x.id === ui.metric) || METRICS[0], [n0, word] = PERIODS[ui.per] || PERIODS.M, t = today();
   const n = m.weekly && n0 > 7 ? Math.round(n0 / 7) * 7 : n0; // weekly totals use whole 7-day weeks ending on the period's last day
-  const end = addDays(t, -(ui.off || 0) * n), start = addDays(end, -(n - 1)), pEnd = addDays(start, -1), pStart = addDays(pEnd, -(n - 1));
+  const base = ui.tab === 'trend' && ui.exEnd ? ui.exEnd : t, end = addDays(base, -(ui.off || 0) * n), start = addDays(end, -(n - 1)), pEnd = addDays(start, -1), pStart = addDays(pEnd, -(n - 1));
   const span = (a, b) => { const o = []; for (let d = a; d <= b; d = addDays(d, 1)) o.push(d); return o; };
   const days = span(start, end), pdays = span(pStart, pEnd);
   const use = ds => m.partial ? ds.filter(d => d !== t) : ds;
@@ -90,7 +90,7 @@ function explorerHTML() {
     <select class="in metric" id="metric" data-in="metric">${[...new Set(METRICS.map(x => x.g))].map(g => `<optgroup label="${esc(g)}">${METRICS.filter(x => x.g === g).map(x => `<option value="${x.id}" ${x.id === m.id ? 'selected' : ''}>${esc(x.label)}</option>`).join('')}</optgroup>`).join('')}</select>
     <div class="ex-top"><div class="stats ex-head"><div class="stat"><span>${m.weekly ? 'Avg. weekly total' : 'Average'}</span><b>${fmtH(cur)}<small>${esc(unitTxt)}</small></b></div>${extra}</div>
       <div class="ex-ctl"><div class="seg" role="group" aria-label="Period">${Object.keys(PERIODS).map(k => `<button class="${(ui.per || 'M') === k ? 'on' : ''}" data-act="per" data-v="${k}">${k}</button>`).join('')}</div>
-      <div class="ex-nav"><button class="iconbtn sm" data-act="poff" data-n="1" aria-label="Previous period">‹</button><span class="mono xs rng">${esc(fmtD(start))} – ${esc(fmtD(end))}</span><button class="iconbtn sm" data-act="poff" data-n="-1" aria-label="Next period" ${ui.off ? '' : 'disabled style="opacity:.3"'}>›</button></div></div></div>
+      <div class="ex-nav"><button class="iconbtn sm" data-act="poff" data-n="1" aria-label="Previous period">‹</button><span class="mono xs rng">${esc(fmtD(start))} – ${esc(fmtD(end))}</span><button class="iconbtn sm" data-act="poff" data-n="-1" aria-label="Next period" ${end < t ? '' : 'disabled style="opacity:.3"'}>›</button></div></div></div>
     ${delta ? `<div>${delta}</div>` : ''}${sentence}`;
   h += explorerChart(m, days, start, n);
   if (m.partial && end === t) h += `<p class="xs muted">Average leaves out today, which isn't finished yet.</p>`;
@@ -198,7 +198,7 @@ function alcoholCard() {
   const last30 = Object.keys(STATE.d).filter(d => d > addDays(today(), -30) && STATE.d[d].alc).length;
   const rY = a(yes, 'rec'), rN = a(no, 'rec'), hY = a(yes, 'hrv'), hN = a(no, 'hrv'), sY = a(yes, 'rhr'), sN = a(no, 'rhr');
   const row = (label, v, nn, tone) => `<li><span class="lab">${label}</span><span class="trk"><span class="fill" style="width:${Math.max(2, v)}%;background:var(--${tone})"></span></span><span class="v">${fmt(v, 0)}% <span class="muted">${nn} nights</span></span></li>`;
-  return `<section class="card"><div class="card-h"><h2>Alcohol and recovery</h2><span class="eyebrow">WHOOP journal</span></div>
+  return `<section class="card"><div class="card-h"><h2>Alcohol and recovery</h2><span class="eyebrow">Journal</span></div>
     <ul class="hbars">${row('After alcohol', rY, yes.length, recTone(rY))}${row('No alcohol', rN, no.length, recTone(rN))}</ul>
     <div class="stats">${stat(`${rY - rN >= 0 ? '+' : '−'}${fmt(Math.abs(rY - rN), 0)}`, 'pts', 'recovery')}${stat(`${hY - hN >= 0 ? '+' : '−'}${fmt(Math.abs(hY - hN), 0)}`, 'ms', 'HRV')}${stat(`${sY - sN >= 0 ? '+' : '−'}${fmt(Math.abs(sY - sN), 0)}`, 'bpm', 'resting HR')}</div>
     <p class="xs muted">Average next-morning numbers when you logged alcohol the day before, against nights you didn't, across all imported days. ${last30} alcohol ${last30 === 1 ? 'night' : 'nights'} in the last 30 days.</p></section>`;

@@ -859,3 +859,62 @@ function healthspan() { // every eligible week (Sunday W) up to the latest Sunda
   HSC.key = key; return HSC.r = { weeks, miles, cur: weeks[weeks.length - 1] || null };
 }
 function hsFlags(x6) { return Object.entries(HS.fit).filter(([m, [lo, hi]]) => x6[m] != null && (x6[m] < lo || x6[m] > hi)).map(([m]) => m); }
+
+/* ============================================================
+   TODAY REDESIGN (v1.81): Health monitor ranges, optimal bed/wake times, alcohol answers
+   ============================================================ */
+/* Health monitor: Orbit's own normal range (WHOOP doesn't publish its method). The 30 nights before the date (14 needed),
+   mean ± 1.5 SD, HRV on a log scale like hrvBand. In or out is judged on the shown rounding, and the band is never narrower
+   than one step of it. Each night uses its own trailing window, so the 7-night row needs nothing stored. */
+const HM_KEYS = ['rr', 'spo2', 'rhr', 'hrv', 'skt'], HM_DEC = { rr: 1, spo2: 0, rhr: 0, hrv: 0, skt: 1 };
+const rnd = (x, d) => Math.round(x * 10 ** d) / 10 ** d;
+function healthRange(date, key) {
+  const lg = key === 'hrv', v = [];
+  for (let i = 1; i <= 30; i++) { const x = dayVal(addDays(date, -i), key); if (x != null && (!lg || x > 0)) v.push(lg ? Math.log(x) : x); }
+  if (v.length < 14) return null;
+  const m = mean(v), sd = Math.sqrt(sum(v.map(a => (a - m) ** 2)) / (v.length - 1)), dec = HM_DEC[key], step = 10 ** -dec;
+  let lo = lg ? Math.exp(m - 1.5 * sd) : m - 1.5 * sd, hi = lg ? Math.exp(m + 1.5 * sd) : m + 1.5 * sd;
+  if (hi - lo < step) { const c = (hi + lo) / 2; lo = c - step / 2; hi = c + step / 2; }
+  const x = dayVal(date, key), r = x == null ? null : rnd(x, dec);
+  return { lo, hi, mean: lg ? Math.exp(m) : m, n: v.length, v: x, state: r == null ? null : r < rnd(lo, dec) ? 'below' : r > rnd(hi, dec) ? 'above' : 'within' };
+}
+function inRangeCount(date) { // metrics present that night with a range, and how many sit inside it (a missing metric drops out: 4/4)
+  let n = 0, of = 0; const out = [];
+  for (const k of HM_KEYS) { const r = healthRange(date, k); if (!r || r.state == null) continue; of++; if (r.state === 'within') n++; else out.push(k); }
+  return { n, of, out };
+}
+/* Optimal bed and wake times (WHOOP's come from its Sleep Planner and aren't in the API or export). Midpoint: the previous
+   7 nights' sleep midpoints, weighted with a 2-night half-life; span: that night's sleep need less its debt part
+   (sn − sd), falling back to the same weighting of time in bed. Fitted 15 Nov 2026 on 5 nights read off WHOOP's
+   consistency card: about 20 min RMS (bed 3 to 26 min, wake −28 to +43). Minutes from midnight, evening negative. */
+const clockMin = s => { const m = /^(\d{1,2}):(\d{2})/.exec(s || ''); if (!m) return null; let v = +m[1] * 60 + +m[2]; if (v >= 15 * 60) v -= 1440; return v; };
+const SO = { hl: 2, n: 7 };
+function sleepOptimal(date) {
+  let wm = 0, ws = 0, wb = 0;
+  for (let i = 1; i <= SO.n; i++) {
+    const d = addDays(date, -i), a = clockMin(dayVal(d, 'on')), b = clockMin(dayVal(d, 'off'));
+    if (a == null || b == null || b <= a) continue;
+    const w = 0.5 ** ((i - 1) / SO.hl); wm += w * (a + b) / 2; wb += w * (b - a); ws += w;
+  }
+  if (!ws) return null;
+  const mid = wm / ws, sn = dayVal(date, 'sn'), span = sn != null ? sn - (dayVal(date, 'sd') || 0) : wb / ws;
+  return { bed: mid - span / 2, wake: mid + span / 2, mid, span };
+}
+/* Alcohol (replaces the WHOOP journal question, which ends with the membership): stored on the morning after as `alc`,
+   the field and date the journal import writes, so alcoholCard and recoveryAfter read it unchanged. `alcSrc: 'me'` keeps a
+   later WHOOP import from overwriting an answer given here. */
+function setAlc(date, v) {
+  const cur = STATE.d[date] || {};
+  if (v == null) { const nx = { ...cur }; delete nx.alc; delete nx.alcSrc; STATE.d[date] = nx; }
+  else STATE.d[date] = { ...cur, alc: !!v, alcSrc: 'me' };
+}
+function alcDue(date, now = new Date()) { // Today's question shows from wake (today's `off`, or 4 am with no sleep yet) until answered
+  if (STATE.d[date]?.alc != null) return false;
+  const off = clockMin(dayVal(date, 'off')), m = now.getHours() * 60 + now.getMinutes();
+  return off != null && off >= 0 ? m >= off : m >= 240;
+}
+function zoneSplit(date) { // minutes in zones 1-3 and 4-5 from WHOOP activities (zone time outside workouts isn't in the data)
+  const acts = (STATE.d[date]?.acts || []).filter(a => a.z && a.min); if (!acts.length) return null;
+  const z = [0, 0, 0, 0, 0]; for (const a of acts) a.z.forEach((p, i) => z[i] += a.min * p / 100);
+  return { z, z13: z[0] + z[1] + z[2], z45: z[3] + z[4] };
+}

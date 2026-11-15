@@ -174,6 +174,7 @@ async function pullWhoop(env, b, from, to) { // local dates [from, to)
     const need = ['baseline_milli', 'need_from_sleep_debt_milli', 'need_from_recent_strain_milli', 'need_from_recent_nap_milli'].reduce((a, k) => a + (n[k] || 0), 0);
     Object.assign(D(e.date), clean({ slp: mins(asleep), deep: mins(ss.total_slow_wave_sleep_time_milli), rem: mins(ss.total_rem_sleep_time_milli), lt: mins(ss.total_light_sleep_time_milli),
       aw: mins(ss.total_awake_time_milli), bed: mins(ss.total_in_bed_time_milli), sn: need ? mins(need) : null, sd: mins(n.need_from_sleep_debt_milli),
+      snb: mins(n.baseline_milli), sns: n.need_from_recent_strain_milli != null || n.need_from_recent_nap_milli != null ? mins((n.need_from_recent_strain_milli || 0) + (n.need_from_recent_nap_milli || 0)) : null, // v1.81: sleep need parts for Sleep detail (naps fold into strain)
       sp: s.score.sleep_performance_percentage, se: r1(s.score.sleep_efficiency_percentage), sc: s.score.sleep_consistency_percentage, rr: r1(s.score.respiratory_rate), on: st.hm, off: e.hm,
       dst: ss.disturbance_count, cyc: ss.sleep_cycle_count })); // dst/cyc: for the recovery model
   }

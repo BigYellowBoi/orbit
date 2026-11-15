@@ -29,9 +29,9 @@ const ok = (c, msg) => { if (c) passes++; else { fails++; console.log('FAIL', ms
   await p.evaluate(() => document.activeElement.blur()); await p.waitForTimeout(100); await p.click('[data-act="extras"]'); await p.click('[data-act="cardiorem"]');
   await p.fill('#r0_0', '9'); await p.evaluate(() => { for (const e of STATE.w[today()].ex) for (const s of e.sets) { s.w = s.w ?? 20; s.r = s.r || 8; s.done = true; } saveW(today()); render(true); }); // v1.67: Done needs every set filled
   await p.click('[data-act="logdone"]'); await p.waitForSelector('.hero.just, .hero');
-  ok(await p.locator('.hero .stats .stat').count() === 2, 'summary: sets and duration only');
+  ok(!/stairmaster|treadmill/i.test(await p.locator('.hero').innerText()), 'summary: no cardio tile after removal'); // v1.81: activity tiles
   await p.evaluate(() => { STATE.d[today()] = { acts: [{ n: 'Stairmaster', t: '18:30', min: 24 }] }; bump(); sweepCardio(); render(true); });
-  ok(await p.locator('.hero .stats .stat').count() === 3 && /24/.test(await p.locator('.hero .stats').innerText()), 'WHOOP cardio after removal: it comes back');
+  ok(/stairmaster/i.test(await p.locator('.hero .acts').innerText()), 'WHOOP cardio after removal: it comes back');
   // Strength trend from a log card lands on the chart, wherever it is in the card order
   await p.evaluate(() => { go('strength'); go('today'); S().layout = { ...(S().layout || {}), strength: [...CARD_KEYS.strength.filter(k => k !== 'chart'), 'chart'] }; ui.editToday = true; render(true); });
   await p.click('#ex0 [data-act="exopen"]'); await p.click('#ex0 [data-act="exhist"]'); await p.click('#ex0 [data-act="liftgo"]'); // v1.76: a filled exercise is folded await p.waitForTimeout(150);

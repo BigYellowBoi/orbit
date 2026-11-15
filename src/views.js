@@ -55,7 +55,7 @@ function dayNav(off) {
 function vDay(off) {
   const d = addDays(today(), off), long = new Date(toUTC(d)).toLocaleDateString('en-AU', { timeZone: 'UTC', weekday: 'long' });
   let h = `<div class="page-h day"><div><div class="eyebrow">${esc(fmtDow(d))} ${esc(fmtDate(d, { year: 'numeric' }))}</div><h1>${off === -1 ? 'Yesterday' : off === 1 ? 'Tomorrow' : esc(long)}</h1></div>${dayNav(off)}</div>`;
-  if (off < 0) return h + pastDayHTML(d) + whoopCard(d);
+  if (off < 0) return h + todayTop(d) + alcRow(d) + pastDayHTML(d) + whoopCard(d); // v1.81: that day's rings, tiles and alcohol answer
   return h + futureDayHTML(d, off) + stripHTML();
 }
 function pastDayHTML(d) {
@@ -92,8 +92,10 @@ function vToday() {
   const t = today(), w = STATE.w[t], sid = w ? w.s : sessionFor(t), sd = sessDef(sid), o = order(), idx = o.indexOf(sid);
   let h = `<div class="page-h day"><div><div class="eyebrow">${esc(fmtDow(t))} ${esc(fmtDate(t, { year: 'numeric' }))}</div><h1>Today</h1></div><div class="hdr-r">${(() => { const n = streak(); return n ? `<span class="pill plain streak" data-live="streak" title="${n} day${n === 1 ? '' : 's'} in a row with a session or rest day logged" aria-label="Streak: ${n} day${n === 1 ? '' : 's'}">${ICON.flame}<b>${n}</b></span>` : ''; })()}${dayNav(0)}</div></div>`;
   h += injBannerHTML(t);
+  const top = () => todayTop(t) + alcToday(t) + (sd ? `<div class="myday"><h2>My day</h2><span class="eyebrow">${esc(w ? sessName(w) : sd.name)}${idx >= 0 ? ` · ${idx + 1} of ${o.length}` : ''}</span></div>` : ''); // v1.81
   const tail = () => whoopCard() + stripHTML() + weekCard() + (injActive(t).length ? '' : injList().length ? '<button class="link dim" data-act="go" data-tab="injuries" style="align-self:center">Injuries</button>' : '<button class="link dim" data-act="injnew" style="align-self:center">Log an injury</button>');
-  if (w && (!w.fin || ui.editToday)) return h + logBody(t) + stripHTML() + weekCard(); // the log, until you press Done (no Recovery card while logging, v1.36)
+  if (w && (!w.fin || ui.editToday)) return (ui.nav.length ? wBack() : '') + h + logBody(t) + stripHTML() + weekCard(); // the log; no rings, tiles or Recovery card while logging // the log, until you press Done (no Recovery card while logging, v1.36)
+  h += top();
   if (w) return h + doneHero(w, idx, o) + tail();
   if (!sd) return h + `<section class="card"><p>Your programme has no sessions. Add one in Plan.</p><button class="btn" data-act="go" data-tab="plan">Open Plan</button></section>`;
   if (plannedRest(t) && !sd.rest) return h + oneOffRestHero(t, sid) + tail();
@@ -119,7 +121,7 @@ function doneHero(w, idx, o) { // today after Done: a summary, with the log one 
   return `<section class="card hero${ui.justDone ? ' just' : ''}"><div class="card-h"><span class="eyebrow">Logged today · ${idx + 1} of ${o.length}</span>${pill('good', 'Done')}</div>
     <div class="rot">${o.map((id, i) => `<i class="${i === idx ? 'on' : i < idx ? 'done' : ''}"></i>`).join('')}</div>
     <div><h1>${esc(sessName(w))}</h1><p class="focus">${esc(sessDef(w.s)?.focus || '')}</p></div>
-    ${sessStats(w)}
+    ${doneActs(w)}
     ${(() => { // v1.70: working sets against their Aims (replaced the tonnage comparison with the last same session)
       const a = aimsMet(w), nb = prs.length ? ` · ${prs.length} new best${prs.length > 1 ? 's' : ''}` : ''; if (!a.n) return nb ? `<p class="small dim">${nb.slice(3)}</p>` : '';
       const sh = a.short.slice(0, 3).map(x => `${exDef(x.id).name} set ${x.k}`).join(', ') + (a.short.length > 3 ? ` +${a.short.length - 3}` : '');
@@ -170,46 +172,7 @@ function weekCard() {
 }
 
 /* ---------- WHOOP on Today: only this morning's numbers, so nothing stale shows ---------- */
-function ring(v, tone, strain) { // inner ring: recovery (0–100%); outer ring: today's strain so far (0–21) in WHOOP blue, as on the WHOOP home screen
-  const arc = (r, f, col, w) => { const c = 2 * Math.PI * r; return `<circle cx="56" cy="56" r="${r}" fill="none" stroke="var(--surface-3)" stroke-width="${w}"/>` + (f > 0 ? `<circle cx="56" cy="56" r="${r}" fill="none" stroke="${col}" stroke-width="${w}" stroke-linecap="round" stroke-dasharray="${(c * Math.min(1, f)).toFixed(1)} ${c.toFixed(1)}"/>` : ''); };
-  const col = { good: 'var(--good)', warn: 'var(--warn)', bad: 'var(--bad)' }[tone] || 'var(--ink-3)';
-  return `<div class="ring" data-live="ring" role="img" aria-label="Recovery ${v == null ? 'unknown' : Math.round(v) + '%'}${strain != null ? `, strain ${fmt(strain, 1)}` : ''}"><svg viewBox="0 0 112 112">${arc(51, strain != null ? strain / 21 : 0, 'var(--strain)', 6)}${arc(40, Math.max(0, Math.min(100, v || 0)) / 100, col, 6)}</svg><b style="color:${col}">${v == null ? '–' : Math.round(v)}<small style="color:inherit;opacity:.75">%</small></b></div>`;
-}
-function whoopCard(day) {
-  const t = day || today(), isT = t === today(), x = STATE.d[t];
-  if (!x || (x.rec == null && x.slp == null)) return ''; // older numbers live in Body
-  const tone = recTone(x.rec), hb = hrvBand(t), base = k => avgOver(k, t, 30, true)?.avg, str = x.str;
-  let note = '';
-  if (hb && hb.state === 'below' && tone !== 'bad') note = `<p class="note">Your 7-day HRV is below your normal range (${fmt(hb.lo, 0)}–${fmt(hb.hi, 0)} ms). A sustained drop often reflects accumulated fatigue, poor sleep or illness, so it's worth watching over the next few days.</p>`;
-  if (tone === 'bad') note = `<p class="note">Red recovery. The rotation stays the same; a lighter day is reasonable, such as stopping sets 2–3 reps short and keeping the ${esc(S().cardio.name.toLowerCase())} easy. Treat the score as a guide, not a rule.</p>`;
-  // key rows beside the ring, then a tile per secondary number; every cell has label, value and one sub line
-  const val = (v, unit) => v == null ? '<b class="nil">–</b>' : `<b>${v}${unit ? `<small>${esc(unit)}</small>` : ''}</b>`;
-  const sub = (txt, tone) => txt ? `<em${tone ? ` class="tn-${tone}"` : ''}>${txt}</em>` : '<em>&nbsp;</em>'; // key rows keep the line, so they stay evenly spaced
-  const vs = (v, b, d, unit, lowerBetter, neutral) => { // change from the 30-day average, one line
-    if (v == null || b == null) return sub(''); const diff = v - b;
-    if (Math.abs(diff) < 10 ** -d / 2) return sub('Same as 30-day');
-    const better = lowerBetter ? diff < 0 : diff > 0;
-    return sub(`${diff > 0 ? '+' : '−'}${fmt(Math.abs(diff), d)}${unit} vs 30-day`, neutral ? '' : better ? 'good' : 'warn');
-  };
-  const key = (label, v, s) => `<div class="rk" data-live="${esc(label)}"><span>${esc(label)}</span>${v}${s}</div>`;
-  const tile = (label, v, s = '') => `<div class="rt" data-live="${esc(label)}"><span>${esc(label)}</span>${v}${s.includes('&nbsp;') ? '' : s}</div>`;
-  const hbTone = hb ? { below: 'warn', within: 'good', above: '' }[hb.state] : '';
-  const keys = [
-    key('HRV', val(x.hrv != null ? fmt(x.hrv, 0) : null, 'ms'), hb ? sub(`7-day ${HRV_STATE[hb.state][1].toLowerCase()}`, hbTone) : sub('')),
-    key('Resting HR', val(x.rhr != null ? fmt(x.rhr, 0) : null, 'bpm'), vs(x.rhr, base('rhr'), 0, '', true)),
-    key('Sleep', val(x.slp != null ? fmt(x.slp / 60, 1) : null, 'h'), sub(x.sp != null ? `${fmt(x.sp, 0)}% of need` : '')),
-  ];
-  const tiles = [tile(isT ? 'Strain today' : 'Strain', str != null ? `<b class="strain">${fmt(str, 1)}</b>` : val(null))];
-  if (x.sd) tiles.push(tile('Sleep debt', val(fmt(x.sd, 0), 'min')));
-  const stT = stepsOf(t); if (stT != null) tiles.push(tile(isT ? 'Steps today' : 'Steps', val(fmt(stT, 0))));
-  if (x.rr != null) tiles.push(tile('Respiratory', val(fmt(x.rr, 1), 'rpm'), vs(x.rr, base('rr'), 1, '', true)));
-  if (x.spo2 != null) tiles.push(tile('Blood oxygen', val(fmt(x.spo2, 0), '%')));
-  if (x.skt != null) tiles.push(tile('Skin temp', val(fmt(x.skt, 1), '°C'), vs(x.skt, base('skt'), 1, '°', false, true)));
-  return `<section class="card rcard"><div class="card-h"><h2>Recovery</h2>${x.rec != null ? pill(tone, recWord(x.rec)) : ''}</div>
-    <div class="rtop">${ring(x.rec, tone, str)}<div class="rkeys">${keys.join('')}</div></div>
-    <div class="rtiles">${tiles.join('')}</div>${note}
-    <span class="rsrc">WHOOP · ${isT ? 'today' : esc(fmtDate(t))}</span></section>`;
-}
+/* v1.81: the Recovery card (whoopCard) and Today's rings live in whoop.js */
 
 /* ---------- Injuries (v1.57) ---------- */
 function injBannerHTML(d) { // Today (v1.58: compact): each active injury, a daily pain check, and how much of today's session changes
@@ -275,7 +238,7 @@ function injFormHTML() {
 /* ---------- Log: one day's session. Today's renders inside Today; past days open from History ---------- */
 function vLog() {
   const d = ui.logDate || today(), t = today();
-  return `<button class="link" data-act="go" data-tab="history" style="align-self:flex-start">‹ History</button>
+  return `${ui.nav.length ? wBack() : '<button class="link" data-act="go" data-tab="history" style="align-self:flex-start">‹ History</button>'}
     <div class="dnav"><button class="iconbtn" data-act="logday" data-n="-1" aria-label="Previous day">‹</button><div class="dnav-c"><b>${esc(fmtDow(d) + ' ' + fmtDate(d))}</b><small>${esc(fmtDate(d, { weekday: 'long', year: 'numeric' }))}</small></div><button class="iconbtn" data-act="logday" data-n="1" aria-label="Next day">›</button></div>` + logBody(d);
 }
 function sessTopTxt(w) { // the session bar's line: done working sets of all working sets, and tonnage (v1.51: warm-ups out of both, rebuilt whole on every change)
@@ -777,14 +740,18 @@ function healthspanCard() {
     ${HS_GROUPS.map(([g, ms]) => `<div class="hsg"><div class="hsg-h"><h3>${g}</h3><span class="xs muted">▼ 6 Month avg. <span class="hsg-sep">|</span> ▲ 30 Day avg.</span></div>${ms.map(row).join('')}</div>`).join('')}
     ${infoHTML(`A copy of WHOOP's Healthspan, fitted to your WHOOP numbers (Pace within ±0.1 of the app in about 9 weeks of 10). Each bar: ▼ your 6-month average, ▲ your 30-day one; green segments make you younger, amber older, grey is about neutral. Years on the right are that metric's 6-month Age Impact. Pace adds up how the 30-day values are moving those impacts. VO2 comes from WHOOP's weekly estimate, so type it in each week (tap VO2 max). Orbit Age is your age plus the 6-month impacts, shown as under 18 below 18 like WHOOP.`)}${dob ? `<button class="link dim" data-act="hsdobclr">Change birth date</button>` : ''}</section>`;
 }
+function recAfterCard() { // v1.81: also its own screen, from Recovery detail
+  const raAll = recoveryAfter(), ra = raAll.filter(r => r.n >= 2).sort((a, b) => b.avg - a.avg), nAlc = sum(raAll.map(r => r.alc));
+  const alcAvg = nAlc ? sum(raAll.map(r => r.alc * (r.alcAvg || 0))) / nAlc : null; // any session, then a drink: for comparison
+  if (ra.length < 2) return '';
+  return `<section class="card"><div class="card-h"><h2>Recovery the morning after</h2><span class="eyebrow">all time</span></div><p class="xs muted">Average next-day WHOOP recovery after each session type. Small samples move a lot; read it as a hint.${nAlc ? ` Mornings after alcohol are left out and shown on their own.` : ''}</p>
+    <ul class="hbars">${ra.map(r => `<li><span class="lab">${esc(r.k)}</span><span class="trk"><span class="fill" style="width:${Math.max(2, r.avg)}%;background:var(--${recTone(r.avg)})"></span></span><span class="v">${fmt(r.avg, 0)}% <span class="muted">${r.n}×</span></span></li>`).join('')}${nAlc >= 2 ? `<li class="alcrow"><span class="lab">After alcohol</span><span class="trk"><span class="fill" style="width:${Math.max(2, alcAvg)}%;background:var(--${recTone(alcAvg)})"></span></span><span class="v">${fmt(alcAvg, 0)}% <span class="muted">${nAlc}×</span></span></li>` : ''}</ul></section>`;
+}
 function vBody() {
   let h = `<div class="page-h"><div><div class="eyebrow">Recovery · energy · trends</div><h1>Body</h1></div></div>`;
   h += freshHTML() + partialCard() + energyCard();
   const cards = [{ k: 'healthspan', t: 'Healthspan', h: healthspanCard() }, { k: 'trends', t: 'Trends', h: explorerHTML() }, { k: 'alcohol', t: 'Alcohol and recovery', h: alcoholCard() }];
-  const raAll = recoveryAfter(), ra = raAll.filter(r => r.n >= 2).sort((a, b) => b.avg - a.avg), nAlc = sum(raAll.map(r => r.alc));
-  const alcAvg = nAlc ? sum(raAll.map(r => r.alc * (r.alcAvg || 0))) / nAlc : null; // any session, then a drink: for comparison
-  if (ra.length >= 2) cards.push({ k: 'recafter', t: 'Recovery the morning after', h: `<section class="card"><div class="card-h"><h2>Recovery the morning after</h2><span class="eyebrow">all time</span></div><p class="xs muted">Average next-day WHOOP recovery after each session type. Small samples move a lot; read it as a hint.${nAlc ? ` Mornings after alcohol are left out and shown on their own.` : ''}</p>
-    <ul class="hbars">${ra.map(r => `<li><span class="lab">${esc(r.k)}</span><span class="trk"><span class="fill" style="width:${Math.max(2, r.avg)}%;background:var(--${recTone(r.avg)})"></span></span><span class="v">${fmt(r.avg, 0)}% <span class="muted">${r.n}×</span></span></li>`).join('')}${nAlc >= 2 ? `<li class="alcrow"><span class="lab">After alcohol</span><span class="trk"><span class="fill" style="width:${Math.max(2, alcAvg)}%;background:var(--${recTone(alcAvg)})"></span></span><span class="v">${fmt(alcAvg, 0)}% <span class="muted">${nAlc}×</span></span></li>` : ''}</ul></section>` });
+  { const ra = recAfterCard(); if (ra) cards.push({ k: 'recafter', t: 'Recovery the morning after', h: ra }); }
   const nW = ui.weeksAll ? 26 : 8, wrows = weekRows(nW).filter(r => r.sessions || r.rec != null || r.kcal != null || r.tw != null);
   if (wrows.length) {
     const c = (v, d = 0, u = '') => v == null ? '<span class="muted">–</span>' : fmt(v, d) + u;

@@ -246,7 +246,7 @@ function render(force) {
     if (Math.abs(scrollY0() - y) > 1) scrollToY(y); // a re-render keeps your place; changing tabs scrolls to the top in go()
   }
   v.classList.toggle('cols', ['strength', 'body', 'data'].includes(ui.tab) || (ui.tab === 'today' && !(STATE.w[today()] && (!STATE.w[today()].fin || ui.editToday)) && !ui.dayOff)); // two columns on wide screens (CSS decides when)
-  document.querySelectorAll('.tabs [data-tab]').forEach(b => b.setAttribute('aria-current', b.dataset.tab === ({ log: 'history', friends: 'history', injuries: 'today' }[ui.tab] || ui.tab) ? 'page' : 'false'));
+  document.querySelectorAll('.tabs [data-tab]').forEach(b => b.setAttribute('aria-current', b.dataset.tab === ({ log: 'history', friends: 'history', injuries: 'today', ...Object.fromEntries(NAV_SCREENS.map(k => [k, 'today'])) }[ui.tab] || ui.tab) ? 'page' : 'false'));
   const g = $('#gear'); g.setAttribute('aria-current', ui.tab === 'data' ? 'page' : 'false'); g.setAttribute('aria-label', ui.tab === 'data' ? 'Back' : 'Settings: sync, imports and backups');
   renderSync(); renderMark(); renderUpdate(); renderFab(); renderReorder();
   fadeCheck();
@@ -312,6 +312,13 @@ const logging = () => ui.tab === 'log' || (ui.tab === 'today' && !!STATE.w[today
 function go(tab) {
   if (tab === 'trends') tab = 'body';
   flushField(); // v1.61: a field mid-typing is saved before the screen changes (iOS doesn't always fire change when it goes)
+  /* v1.81: Settings returns to a ring screen (or Today off its log) exactly where you were: screen, day, back stack, scroll */
+  if (tab === 'data' && ui.tab === 'data' && ui.dataBack) { const b = ui.dataBack; ui.dataBack = null;
+    Object.assign(ui, { tab: b.tab, np: b.np, dayOff: b.dayOff, nav: b.nav, logDate: b.logDate }); ui.confirm = null; resetScroll(); render(true);
+    scrollToY(b.y); requestAnimationFrame(() => { if (Math.abs(scrollY0() - b.y) > 1) scrollToY(b.y); }); return; }
+  ui.dataBack = tab === 'data' && ui.tab !== 'data' && (NAV_SCREENS.includes(ui.tab) || ui.nav.length || (ui.tab === 'today' && !logOpen())) ? { tab: ui.tab, np: ui.np, dayOff: ui.dayOff || 0, nav: ui.nav, y: scrollY0(), logDate: ui.logDate } : null;
+  if (NAV_SCREENS.includes(ui.tab)) { ui.winfo = null; ui.alcEdit = null; ui.exEnd = null; }
+  ui.nav = []; ui.np = null; // any tab (or the gear) clears the back stack
   const leaving = ui.tab === 'today' && tab !== 'today' && logOpen() ? { y: scrollY0(), editToday: ui.editToday, exNote: ui.exNote, exHist: ui.exHist, exMore: ui.exMore, pick: ui.pick, date: today() } : null;
   if (leaving) ui.logPlace = leaving;
   // v1.62: the same for a past day's log being edited (from History): leave it for another tab and the History tab brings you back into it
@@ -507,7 +514,7 @@ const ACT = {
   addexid: el => { const id = el.dataset.id, w = logW(); if (!id || !w) return; w.ex.push({ id, sets: prefill(id, defSets(id), w.date) }); ui.pick = null; saveW(w.date); render(true); reveal('#ex' + (w.ex.length - 1)); },
   pickopen: () => { ui.pick = ui.pick ? null : { q: '' }; render(true); if (ui.pick) setTimeout(() => $('#pickq')?.focus(), 30); },
   per: el => { ui.per = el.dataset.v; ui.off = 0; render(true); },
-  poff: el => { ui.off = Math.max(0, (ui.off || 0) + +el.dataset.n); render(true); },
+  poff: el => { ui.off = Math.max(ui.tab === 'trend' ? -60 : 0, (ui.off || 0) + +el.dataset.n); render(true); }, // the Trend screen can start on a past week
   reorder: () => { if (ui.reo) return ACT.reodone(); ui.reo = { tab: ui.tab, cards: cardOrder(ui.tab, CARD_KEYS[ui.tab] || []), cols: wkCols() }; resetScroll(); render(true); },
   reodone: () => { const r = ui.reo; if (!r) return; S().layout = { ...(S().layout || {}), [r.tab]: r.cards, ...(r.tab === 'body' ? { wkcols: r.cols } : {}) }; ui.reo = null; saveSettings(); resetScroll(); render(true); toast('Order saved'); },
   reoreset: () => { if (!ui.reo) return; ui.reo.cards = (CARD_KEYS[ui.reo.tab] || []).slice(); ui.reo.cols = Object.keys(WKCOLS); render(true); },
@@ -590,6 +597,7 @@ const ACT = {
   restoredo: () => { const r = ui.restore; if (!r) return; ui.restore = null; try { const n = restoreBackup(r.o); toast(`Restored ${n} sessions`); go('today'); } catch (e) { toast(esc(e.message), 'bad'); render(true); } },
   restorecancel: () => { ui.restore = null; render(true); },
 };
+Object.assign(ACT, WACT); // v1.81: Today redesign actions (whoop.js)
 let navAt = 0;
 document.addEventListener('pointerdown', ev => {
   const b = ev.target.closest('.tabs [data-tab], #gear'); if (!b || ev.button > 0) return;

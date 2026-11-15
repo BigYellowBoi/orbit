@@ -100,6 +100,7 @@ ok(!kv.has('state:' + state), 'state used once');
 const y = addD(today, -1), yd = day(y);
 ok(yd.rec != null && yd.hrv === 61.27 && yd.rhr === 52 && yd.spo2 === 96.4 && yd.skt === 33.7, 'recovery fields for yesterday (HRV full precision)');
 ok(yd.slp === 450 && yd.deep === 90 && yd.rem === 120 && yd.lt === 240 && yd.aw === 30 && yd.bed === 480 && yd.sn === 510 && yd.sd === 20, 'sleep durations in minutes');
+ok(yd.snb === 480 && yd.sns === 10, 'v1.81: sleep need parts (baseline, strain + naps)');
 ok(yd.dst === 11 && yd.cyc === 5, 'sleep disturbances and cycles');
 ok(yd.sp === 90 && yd.se === 93.5 && yd.sc === 80 && yd.rr === 15.2 && yd.on === '22:30' && yd.off === '06:30', 'sleep scores and times');
 ok(yd.str === 12.3 && yd.kb === 2500 && typeof yd.stp === 'number', 'strain, energy and steps');

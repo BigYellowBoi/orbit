@@ -153,7 +153,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   await A.evaluate(() => GH.sync()); await wait(800);
   const c6 = await A.evaluate(t => STATE.w[t].cardio, td);
   check(c6.done && c6.min === 31 && c6.src === 'whoop', 'done session picks up WHOOP’s Stairmaster on the next sync, no Edit log needed: ' + JSON.stringify(c6));
-  check((await A.evaluate(() => document.querySelector('.hero .stats')?.textContent || '')).includes('31'), 'Today’s done card shows the minutes');
+  check(/Stairmaster/i.test(await A.evaluate(() => document.querySelector('.hero .acts')?.textContent || '')), 'Today’s done card shows the Stairmaster activity tile'); // v1.81: activity tiles replace the stats row
   await wait(2800); check(read('orbit/wk/' + td.slice(0, 7) + '.json')?.items[td]?.cardio?.min === 31, 'and the updated session is pushed back to the repo');
   await A.evaluate(t => { delete STATE.w[t]; saveW(t); }, td); await wait(2800);
 
