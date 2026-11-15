@@ -685,7 +685,7 @@ body:has(#updp) .fab { bottom: calc(var(--tabh) + max(8px, calc(env(safe-area-in
 .wr > b .nil { color: var(--ink-3); }
 .wring > .wlab { display: flex; align-items: center; gap: 6px; font-size: 11px; }
 .chev6 { width: 6px; height: 10px; flex: none; }
-.wbig { display: flex; justify-content: center; margin-top: -5px; padding: 0 0 12px; } /* v1.90, measured off his WHOOP screenshot: ring top 45pt under the header row's centre, 30pt above the card */
+.wbig { display: flex; justify-content: center; margin-top: 4px; padding: 0 0 12px; } /* v1.91: ring top 22px under the header, just clear of its 20px soft blur edge (v1.90 matched WHOOP at 13px and clipped into it); 30pt above the card */
 .wbr { position: relative; display: block; width: min(260px, 60.7vw); aspect-ratio: 1; flex: none; -webkit-user-select: none; user-select: none; }
 .wbr > svg { display: block; width: 100%; height: 100%; transform: rotate(-90deg); }
 .wbr > b { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: 400; color: #fff; text-align: center; }
@@ -941,7 +941,7 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.90'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.91'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
