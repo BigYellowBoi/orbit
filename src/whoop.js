@@ -295,7 +295,7 @@ function vSleep() {
     + wkCard(d, 'Sleep consistency', 'sc', { type: 'bar', v: dv2('sc'), color: WC.sleep, f: f0, yMin: 0, yMax: 100 })
     + wkCard(d, 'Time in bed', 'bed', { type: 'float', v: dd => { const a = clockMin(dayVal(dd, 'on')), b = clockMin(dayVal(dd, 'off')); return a != null && b != null && b > a ? [a, b] : null; }, color: WC.sleep })
     + wkCard(d, 'Sleep efficiency', 'se', { type: 'line', v: dv2('se'), color: WC.sleep, f: f0 })
-    + wkCard(d, 'Sleep debt', 'sd', { type: 'bar', v: dv2('sd'), color: WC.sleep, f: wHM });
+    + wkCard(d, 'Sleep debt', 'sd', { type: 'bar', v: debtAfter, color: WC.sleep, f: wHM });
   return h + wSrc(d);
 }
 /* Bed to wake bars for 5 nights (last one blue and labelled), with smooth dashed optimal bed and wake contours. */

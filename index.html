@@ -957,7 +957,7 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.95'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.96'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
@@ -1869,6 +1869,14 @@ function sleepCons(date) {
   for (let i = 0; i < 3; i++) for (let m = -720; m < 720; m++) { const x = p(L, m), y = p(P[i], m); s += x * y + (1 - x) * (1 - y); }
   return Math.round(200 * s / (3 * 1440) - 100);
 }
+/* Sleep debt as WHOOP's Sleep debt chart dates it: the debt left after that day's sleep, i.e. the debt part of the
+   next night's need (`sd` is stored on the morning it applied to). Until that next sleep lands, estimated from the
+   day's shortfall and its own debt part (fit on his 727 nights to Nov 2026: 9.8 min RMS; 16 Nov 1:22 vs WHOOP 1:19). */
+function debtAfter(d) {
+  const n = dayVal(addDays(d, 1), 'sd'); if (n != null) return n;
+  const sn = dayVal(d, 'sn'), slp = dayVal(d, 'slp'), sd = dayVal(d, 'sd');
+  return sn != null && slp != null && sd != null && addDays(d, 1) >= today() ? Math.max(0, 0.431 * (sn - slp) + 0.117 * sd + 7.3) : null;
+}
 /* Optimal bed and wake times (WHOOP's come from its Sleep Planner and aren't in the API or export). Wake: that night's
    and the 5 before, weighted with a 3-night half-life; bed = wake less that night's sleep need minus its debt part
    (sn − sd), falling back to the same weighting of time in bed. WHOOP's past values don't change between screenshots,
@@ -2220,7 +2228,7 @@ const METRICS = [
   { id: 'resth', g: 'Sleep', label: 'Restorative sleep (hours)', unit: '', src: 'WHOOP', v: d => { const a = dayVal(d, 'deep'), b = dayVal(d, 'rem'); return a != null && b != null ? a + b : null; }, chart: 'stack', better: 1, f: v => hm(v) },
   { id: 'restp', g: 'Sleep', label: 'Restorative sleep (%)', unit: '%', src: 'WHOOP', v: d => { const a = dayVal(d, 'deep'), b = dayVal(d, 'rem'), t = dayVal(d, 'slp'); return a != null && b != null && t ? (a + b) / t * 100 : null; }, chart: 'bar', better: 1, f: v => fmt(v, 0) },
   { id: 'se', g: 'Sleep', label: 'Sleep efficiency', unit: '%', src: 'WHOOP', v: dv('se'), chart: 'line', better: 1, f: v => fmt(v, 0) },
-  { id: 'sd', g: 'Sleep', label: 'Sleep debt', unit: '', src: 'WHOOP', v: dv('sd'), chart: 'bar', better: -1, hmY: true, f: v => hm(v) },
+  { id: 'sd', g: 'Sleep', label: 'Sleep debt', unit: '', src: 'WHOOP', v: debtAfter, chart: 'bar', better: -1, hmY: true, f: v => hm(v) },
   // Strain
   { id: 'str', g: 'Strain', label: 'Day strain', unit: '', src: 'WHOOP', v: dv('str'), chart: 'bar', better: 0, delta: 'abs', partial: true, f: v => fmt(v, 1), yMin: 0, yMax: 21,
     breakdown: sevBreak([['All out (18+)', v => v >= 18, 'var(--z5)'], ['Strenuous (14–18)', v => v >= 14 && v < 18, 'var(--z4)'], ['Moderate (10–14)', v => v >= 10 && v < 14, 'var(--z2)'], ['Light (under 10)', v => v < 10, 'var(--z1)']]) },
@@ -3795,7 +3803,7 @@ function vSleep() {
     + wkCard(d, 'Sleep consistency', 'sc', { type: 'bar', v: dv2('sc'), color: WC.sleep, f: f0, yMin: 0, yMax: 100 })
     + wkCard(d, 'Time in bed', 'bed', { type: 'float', v: dd => { const a = clockMin(dayVal(dd, 'on')), b = clockMin(dayVal(dd, 'off')); return a != null && b != null && b > a ? [a, b] : null; }, color: WC.sleep })
     + wkCard(d, 'Sleep efficiency', 'se', { type: 'line', v: dv2('se'), color: WC.sleep, f: f0 })
-    + wkCard(d, 'Sleep debt', 'sd', { type: 'bar', v: dv2('sd'), color: WC.sleep, f: wHM });
+    + wkCard(d, 'Sleep debt', 'sd', { type: 'bar', v: debtAfter, color: WC.sleep, f: wHM });
   return h + wSrc(d);
 }
 /* Bed to wake bars for 5 nights (last one blue and labelled), with smooth dashed optimal bed and wake contours. */

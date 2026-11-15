@@ -898,6 +898,14 @@ function sleepCons(date) {
   for (let i = 0; i < 3; i++) for (let m = -720; m < 720; m++) { const x = p(L, m), y = p(P[i], m); s += x * y + (1 - x) * (1 - y); }
   return Math.round(200 * s / (3 * 1440) - 100);
 }
+/* Sleep debt as WHOOP's Sleep debt chart dates it: the debt left after that day's sleep, i.e. the debt part of the
+   next night's need (`sd` is stored on the morning it applied to). Until that next sleep lands, estimated from the
+   day's shortfall and its own debt part (fit on his 727 nights to Nov 2026: 9.8 min RMS; 16 Nov 1:22 vs WHOOP 1:19). */
+function debtAfter(d) {
+  const n = dayVal(addDays(d, 1), 'sd'); if (n != null) return n;
+  const sn = dayVal(d, 'sn'), slp = dayVal(d, 'slp'), sd = dayVal(d, 'sd');
+  return sn != null && slp != null && sd != null && addDays(d, 1) >= today() ? Math.max(0, 0.431 * (sn - slp) + 0.117 * sd + 7.3) : null;
+}
 /* Optimal bed and wake times (WHOOP's come from its Sleep Planner and aren't in the API or export). Wake: that night's
    and the 5 before, weighted with a 3-night half-life; bed = wake less that night's sleep need minus its debt part
    (sn − sd), falling back to the same weighting of time in bed. WHOOP's past values don't change between screenshots,
