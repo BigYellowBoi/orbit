@@ -248,13 +248,50 @@ function render(force) {
   v.classList.toggle('cols', ['strength', 'body', 'data'].includes(ui.tab) || (ui.tab === 'today' && !(STATE.w[today()] && (!STATE.w[today()].fin || ui.editToday)) && !ui.dayOff)); // two columns on wide screens (CSS decides when)
   document.querySelectorAll('.tabs [data-tab]').forEach(b => b.setAttribute('aria-current', b.dataset.tab === ({ log: 'history', friends: 'history', injuries: 'today', ...Object.fromEntries(NAV_SCREENS.map(k => [k, 'today'])) }[ui.tab] || ui.tab) ? 'page' : 'false'));
   const g = $('#gear'); g.setAttribute('aria-current', ui.tab === 'data' ? 'page' : 'false'); g.setAttribute('aria-label', ui.tab === 'data' ? 'Back' : 'Settings: sync, imports and backups');
-  renderSync(); renderMark(); renderUpdate(); renderFab(); renderReorder(); renderDaybar();
+  renderSync(); renderMark(); renderUpdate(); renderFab(); renderReorder(); renderDaybar(); ringFx();
   fadeCheck();
   if (ui.tab === 'history' && (ui.histQ || ui.histS)) filterHist(); if (ui.pick && ui.pick.q) filterPick(); // in-place filters survive a re-render
   if (snap) flashChanged(snap);
   if (ui.justDone) { ui.justDone = false; setTimeout(() => $('.hero.just')?.classList.remove('just'), 1400); }
 }
 /* Values that change while you're looking (a sync brought new WHOOP or Health numbers) flash once, so an update is visible. */
+/* WHOOP's Today scroll (v1.83, read off his screen recording): the rings ride up at 62% of the page's speed while shrinking
+   from 88 to 24 px, their numbers fade, each label slides from under its ring to beside it, and the header row fades out;
+   at the end they sit as a bar on the logo's row and the page fades out under it. All of it is tied to the scroll position. */
+const RFX = { k: 0.62, d0: 88, d1: 24, sw0: 6, sw1: 2.5, gap: 8 };
+const smooth = (p, a, b) => Math.max(0, Math.min(1, (p - a) / (b - a)));
+function ringFx() {
+  const fx = $('#ringfx'); if (!fx) return; const ph = ui.tab === 'today' ? $('#view .wrings') : null;
+  if (!ph) { if (fx.innerHTML) fx.innerHTML = ''; ringFx.h = ''; ringFx.on = false; hdrFade(0); return; }
+  const h = ph.innerHTML;
+  if (ringFx.h !== h) { fx.innerHTML = h; ringFx.h = h; fx.querySelectorAll('.wring').forEach(b => { const c = b.querySelectorAll('circle')[1], d = c ? c.getAttribute('stroke-dasharray').split(' ').map(Number) : null; b._f = d ? d[0] / d[1] : 0; const l = b.querySelector('.wlab'), cv = l.querySelector('.chev6'); b._lw = l.offsetWidth; b._lh = l.offsetHeight; b._lwF = b._lw - (cv ? cv.getBoundingClientRect().width + 6 : 0); }); }
+  ph.style.visibility = 'hidden'; ringFx.on = true; applyRingFx();
+}
+function hdrFade(p) {
+  const o = 1 - smooth(p, .3, .6), off = p > .5, top = $('.top');
+  ['.brand', '#daybar', '#streak', '#gear', '#reorder'].forEach(q => { const el = $(q); if (!el) return; el.style.opacity = p ? o : ''; el.style.pointerEvents = off ? 'none' : ''; });
+  top.style.setProperty('--fxg', smooth(p, .7, 1));
+}
+function applyRingFx() {
+  if (!ringFx.on) return; const ph = $('#view .wrings'), fx = $('#ringfx'); if (!ph) return;
+  const top = $('.top'), pt = parseFloat(getComputedStyle(top).paddingTop) || 0, r = ph.getBoundingClientRect(), s = Math.max(0, scrollY0());
+  const yPin = pt + 19, y0 = r.top + s + 6 + RFX.d0 / 2, trav = Math.max(1, y0 - yPin), p = Math.min(1, s * RFX.k / trav);
+  const yc = y0 - p * trav, size = RFX.d0 + (RFX.d1 - RFX.d0) * p, sw = RFX.sw0 + (RFX.sw1 - RFX.sw0) * p;
+  fx.querySelectorAll('.wring').forEach((b, i) => {
+    const col = r.left + r.width * (i + .5) / 3, cxF = col - (RFX.d1 + RFX.gap + b._lwF) / 2 + RFX.d1 / 2, cx = col + (cxF - col) * p;
+    b.style.transform = `translate3d(${(cx - size / 2).toFixed(2)}px,${(yc - size / 2).toFixed(2)}px,0)`; b.style.width = b.style.height = size + 'px';
+    const wr = b.querySelector('.wr'), svg = wr.querySelector('svg'), rr = (size - sw) / 2, c = 2 * Math.PI * rr;
+    wr.style.width = wr.style.height = size + 'px'; svg.setAttribute('width', size); svg.setAttribute('height', size); svg.setAttribute('viewBox', `0 0 ${size} ${size}`);
+    svg.querySelectorAll('circle').forEach((ci, j) => { ci.setAttribute('cx', size / 2); ci.setAttribute('cy', size / 2); ci.setAttribute('r', rr); ci.setAttribute('stroke-width', sw); if (j) ci.setAttribute('stroke-dasharray', `${(c * b._f).toFixed(2)} ${c.toFixed(2)}`); });
+    const v = wr.querySelector('b'); v.style.transform = `scale(${size / RFX.d0})`; v.style.opacity = 1 - smooth(p, .35, .75);
+    const l = b.querySelector('.wlab'), lx = size / 2 + (-b._lw / 2) * (1 - p) + (size / 2 + RFX.gap) * p, ly = size / 2 + (size / 2 + 12 + b._lh / 2) * (1 - p) - b._lh / 2;
+    l.style.transform = `translate3d(${lx.toFixed(2)}px,${ly.toFixed(2)}px,0)`;
+    const cv = l.querySelector('.chev6'); if (cv) cv.style.opacity = 1 - smooth(p, .4, .7);
+  });
+  hdrFade(p);
+}
+document.addEventListener('scroll', () => applyRingFx(), { capture: true, passive: true });
+window.addEventListener('resize', () => { ringFx.h = ''; ringFx(); });
 function renderDaybar() { // v1.82: Today's day arrows and streak sit in the header
   const b = $('#daybar'), k = $('#streak'); if (!b) return; const on = ui.tab === 'today';
   b.hidden = !on; k.hidden = true; if (!on) { b.innerHTML = ''; return; }

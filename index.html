@@ -82,7 +82,7 @@ button { cursor: pointer; }
 .mono { font-family: var(--f-num); font-variant-numeric: tabular-nums; }
 
 /* header */
-.top { position: fixed; top: 0; left: 0; right: 0; z-index: 20; display: flex; align-items: center; gap: 10px; height: calc(env(safe-area-inset-top, 0px) + var(--toph) + var(--hdrdrop)); padding: calc(env(safe-area-inset-top, 0px) + 12px + var(--hdrdrop)) max(16px, calc((100% - var(--maxw, 720px)) / 2)) 12px; background: var(--bg); border-bottom: 1px solid var(--line); }
+.top { position: fixed; top: 0; left: 0; right: 0; z-index: 20; display: flex; align-items: center; gap: 10px; height: calc(env(safe-area-inset-top, 0px) + var(--toph) + var(--hdrdrop)); padding: calc(env(safe-area-inset-top, 0px) + 12px + var(--hdrdrop)) max(16px, calc((100% - var(--maxw, 720px)) / 2)) 12px; background: var(--bg); }
 .brand, #gear { font-family: var(--f-geist); }
 .brand { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 16px; letter-spacing: -.01em; white-space: nowrap; overflow: visible; } /* visible: the logo's glow mustn't be clipped square */
 .mark-wrap { display: inline-grid; flex: none; } .mark { width: 24px; height: 24px; flex: none; filter: drop-shadow(0 0 2.5px var(--glow)); }
@@ -99,6 +99,14 @@ button { cursor: pointer; }
 .dn-a svg { width: 16px; height: 16px; }
 .dn-m { min-width: 84px; height: 30px; padding: 0 12px; border-radius: 99px; border: 0; background: var(--surface-3); color: var(--ink); font: 700 12px/1 var(--f-body); letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; }
 #streak { flex: none; }
+/* v1.83: WHOOP's scroll mechanic on Today. The rings are drawn in the header layer (#ringfx) over an invisible copy that keeps
+   their place in the page; boot.js (applyRingFx) shrinks them into a bar on the logo's row as you scroll. */
+#ringfx { position: absolute; left: 0; top: 0; width: 0; height: 0; z-index: 2; pointer-events: none; }
+#ringfx .wring { position: absolute; left: 0; top: 0; display: block; padding: 0; pointer-events: auto; will-change: transform; }
+#ringfx .wr { position: absolute; left: 0; top: 0; }
+#ringfx .wr > b { transform-origin: 50% 50%; }
+#ringfx .wring > .wlab { position: absolute; left: 0; top: 0; display: flex; align-items: center; gap: 6px; font-size: 11px; white-space: nowrap; will-change: transform; }
+.top::after { content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 52px; background: linear-gradient(var(--bg), rgba(0, 0, 0, 0)); opacity: var(--fxg, 0); pointer-events: none; }
 .iconbtn.txt { width: auto; padding: 0 12px; font-size: 14px; font-weight: 600; color: var(--accent); border-color: var(--accent); }
 .reo { display: flex; flex-direction: column; gap: 8px; }
 .reo-item { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
@@ -782,6 +790,7 @@ body:has(#updp) .fab { bottom: calc(var(--tabh) + max(8px, calc(env(safe-area-in
     <span class="brand"><span id="mark" class="mark-wrap"></span>Orbit</span>
     <div id="daybar" class="daybar" hidden></div>
     <span id="streak" hidden></span>
+    <div id="ringfx" aria-label="Sleep, Recovery and Strain"></div>
     <button class="iconbtn" id="reorder" data-act="reorder" hidden></button>
     <button class="iconbtn" id="gear" data-act="go" data-tab="data" aria-label="Settings: sync, imports and backups"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
 </header>
@@ -900,7 +909,7 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.83'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.84'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
@@ -4059,13 +4068,50 @@ function render(force) {
   v.classList.toggle('cols', ['strength', 'body', 'data'].includes(ui.tab) || (ui.tab === 'today' && !(STATE.w[today()] && (!STATE.w[today()].fin || ui.editToday)) && !ui.dayOff)); // two columns on wide screens (CSS decides when)
   document.querySelectorAll('.tabs [data-tab]').forEach(b => b.setAttribute('aria-current', b.dataset.tab === ({ log: 'history', friends: 'history', injuries: 'today', ...Object.fromEntries(NAV_SCREENS.map(k => [k, 'today'])) }[ui.tab] || ui.tab) ? 'page' : 'false'));
   const g = $('#gear'); g.setAttribute('aria-current', ui.tab === 'data' ? 'page' : 'false'); g.setAttribute('aria-label', ui.tab === 'data' ? 'Back' : 'Settings: sync, imports and backups');
-  renderSync(); renderMark(); renderUpdate(); renderFab(); renderReorder(); renderDaybar();
+  renderSync(); renderMark(); renderUpdate(); renderFab(); renderReorder(); renderDaybar(); ringFx();
   fadeCheck();
   if (ui.tab === 'history' && (ui.histQ || ui.histS)) filterHist(); if (ui.pick && ui.pick.q) filterPick(); // in-place filters survive a re-render
   if (snap) flashChanged(snap);
   if (ui.justDone) { ui.justDone = false; setTimeout(() => $('.hero.just')?.classList.remove('just'), 1400); }
 }
 /* Values that change while you're looking (a sync brought new WHOOP or Health numbers) flash once, so an update is visible. */
+/* WHOOP's Today scroll (v1.83, read off his screen recording): the rings ride up at 62% of the page's speed while shrinking
+   from 88 to 24 px, their numbers fade, each label slides from under its ring to beside it, and the header row fades out;
+   at the end they sit as a bar on the logo's row and the page fades out under it. All of it is tied to the scroll position. */
+const RFX = { k: 0.62, d0: 88, d1: 24, sw0: 6, sw1: 2.5, gap: 8 };
+const smooth = (p, a, b) => Math.max(0, Math.min(1, (p - a) / (b - a)));
+function ringFx() {
+  const fx = $('#ringfx'); if (!fx) return; const ph = ui.tab === 'today' ? $('#view .wrings') : null;
+  if (!ph) { if (fx.innerHTML) fx.innerHTML = ''; ringFx.h = ''; ringFx.on = false; hdrFade(0); return; }
+  const h = ph.innerHTML;
+  if (ringFx.h !== h) { fx.innerHTML = h; ringFx.h = h; fx.querySelectorAll('.wring').forEach(b => { const c = b.querySelectorAll('circle')[1], d = c ? c.getAttribute('stroke-dasharray').split(' ').map(Number) : null; b._f = d ? d[0] / d[1] : 0; const l = b.querySelector('.wlab'), cv = l.querySelector('.chev6'); b._lw = l.offsetWidth; b._lh = l.offsetHeight; b._lwF = b._lw - (cv ? cv.getBoundingClientRect().width + 6 : 0); }); }
+  ph.style.visibility = 'hidden'; ringFx.on = true; applyRingFx();
+}
+function hdrFade(p) {
+  const o = 1 - smooth(p, .3, .6), off = p > .5, top = $('.top');
+  ['.brand', '#daybar', '#streak', '#gear', '#reorder'].forEach(q => { const el = $(q); if (!el) return; el.style.opacity = p ? o : ''; el.style.pointerEvents = off ? 'none' : ''; });
+  top.style.setProperty('--fxg', smooth(p, .7, 1));
+}
+function applyRingFx() {
+  if (!ringFx.on) return; const ph = $('#view .wrings'), fx = $('#ringfx'); if (!ph) return;
+  const top = $('.top'), pt = parseFloat(getComputedStyle(top).paddingTop) || 0, r = ph.getBoundingClientRect(), s = Math.max(0, scrollY0());
+  const yPin = pt + 19, y0 = r.top + s + 6 + RFX.d0 / 2, trav = Math.max(1, y0 - yPin), p = Math.min(1, s * RFX.k / trav);
+  const yc = y0 - p * trav, size = RFX.d0 + (RFX.d1 - RFX.d0) * p, sw = RFX.sw0 + (RFX.sw1 - RFX.sw0) * p;
+  fx.querySelectorAll('.wring').forEach((b, i) => {
+    const col = r.left + r.width * (i + .5) / 3, cxF = col - (RFX.d1 + RFX.gap + b._lwF) / 2 + RFX.d1 / 2, cx = col + (cxF - col) * p;
+    b.style.transform = `translate3d(${(cx - size / 2).toFixed(2)}px,${(yc - size / 2).toFixed(2)}px,0)`; b.style.width = b.style.height = size + 'px';
+    const wr = b.querySelector('.wr'), svg = wr.querySelector('svg'), rr = (size - sw) / 2, c = 2 * Math.PI * rr;
+    wr.style.width = wr.style.height = size + 'px'; svg.setAttribute('width', size); svg.setAttribute('height', size); svg.setAttribute('viewBox', `0 0 ${size} ${size}`);
+    svg.querySelectorAll('circle').forEach((ci, j) => { ci.setAttribute('cx', size / 2); ci.setAttribute('cy', size / 2); ci.setAttribute('r', rr); ci.setAttribute('stroke-width', sw); if (j) ci.setAttribute('stroke-dasharray', `${(c * b._f).toFixed(2)} ${c.toFixed(2)}`); });
+    const v = wr.querySelector('b'); v.style.transform = `scale(${size / RFX.d0})`; v.style.opacity = 1 - smooth(p, .35, .75);
+    const l = b.querySelector('.wlab'), lx = size / 2 + (-b._lw / 2) * (1 - p) + (size / 2 + RFX.gap) * p, ly = size / 2 + (size / 2 + 12 + b._lh / 2) * (1 - p) - b._lh / 2;
+    l.style.transform = `translate3d(${lx.toFixed(2)}px,${ly.toFixed(2)}px,0)`;
+    const cv = l.querySelector('.chev6'); if (cv) cv.style.opacity = 1 - smooth(p, .4, .7);
+  });
+  hdrFade(p);
+}
+document.addEventListener('scroll', () => applyRingFx(), { capture: true, passive: true });
+window.addEventListener('resize', () => { ringFx.h = ''; ringFx(); });
 function renderDaybar() { // v1.82: Today's day arrows and streak sit in the header
   const b = $('#daybar'), k = $('#streak'); if (!b) return; const on = ui.tab === 'today';
   b.hidden = !on; k.hidden = true; if (!on) { b.innerHTML = ''; return; }
