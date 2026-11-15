@@ -900,7 +900,7 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.82'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.83'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
@@ -1797,12 +1797,30 @@ function inRangeCount(date) { // metrics present that night with a range, and ho
   for (const k of HM_KEYS) { const r = healthRange(date, k); if (!r || r.state == null) continue; of++; if (r.state === 'within') n++; else out.push(k); }
   return { n, of, out };
 }
-/* Optimal bed and wake times (WHOOP's come from its Sleep Planner and aren't in the API or export). Midpoint: the previous
-   7 nights' sleep midpoints, weighted with a 2-night half-life; span: that night's sleep need less its debt part
-   (sn − sd), falling back to the same weighting of time in bed. Fitted 15 Nov 2026 on 5 nights read off WHOOP's
-   consistency card: about 20 min RMS (bed 3 to 26 min, wake −28 to +43). Minutes from midnight, evening negative. */
+/* Sleep consistency, WHOOP's definition (checked 15 Nov 2026 on 720 nights of his WHOOP sc): last night against each of
+   the 3 nights before, the share of clock minutes (noon to noon) in the same state, as 200 × share − 100 (the Sleep
+   Regularity Index form). Each night is asleep from on to off with its awake minutes (aw) spread evenly, since Orbit
+   has no epoch data. Against WHOOP: bias −1, MAE 4.6, r 0.82; the 4 nights before instead gave r 0.40. For Garmin nights. */
+function sleepCons(date) {
+  const P = [];
+  for (let i = 3; i >= 0; i--) {
+    const d = addDays(date, -i), a = clockMin(dayVal(d, 'on')), b = clockMin(dayVal(d, 'off'));
+    if (a == null || b == null || b <= a) return null;
+    P.push({ a, b, q: 1 - Math.min(1, (dayVal(d, 'aw') || 0) / (b - a)) });
+  }
+  const p = (n, m) => m >= n.a && m < n.b ? n.q : 0, L = P[3]; let s = 0;
+  for (let i = 0; i < 3; i++) for (let m = -720; m < 720; m++) { const x = p(L, m), y = p(P[i], m); s += x * y + (1 - x) * (1 - y); }
+  return Math.round(200 * s / (3 * 1440) - 100);
+}
+/* Optimal bed and wake times (WHOOP's come from its Sleep Planner and aren't in the API or export). Midpoint: the 4
+   nights before (WHOOP's consistency window, ending the night before, since the line is the plan for that night),
+   weighted with a 2-night half-life; span: that night's sleep need less its debt part (sn − sd), falling back to
+   the same weighting of time in bed. On the 5 nights read off his WHOOP card (15 Nov 2026): about 22 min RMS for bed
+   and wake (the old 7-night version 20, within the ±5 min read error); equal weights 25; that night plus the 3 before
+   27 to 54. Free weights reached 15 only by dropping one night entirely, so they overfit 5 points. Minutes from
+   midnight, evening negative. */
 const clockMin = s => { const m = /^(\d{1,2}):(\d{2})/.exec(s || ''); if (!m) return null; let v = +m[1] * 60 + +m[2]; if (v >= 15 * 60) v -= 1440; return v; };
-const SO = { hl: 2, n: 7 };
+const SO = { hl: 2, n: 4 };
 function sleepOptimal(date) {
   let wm = 0, ws = 0, wb = 0;
   for (let i = 1; i <= SO.n; i++) {

@@ -40,6 +40,8 @@ const ok = (c, msg) => { if (c) passes++; else { fails++; console.log('FAIL', ms
   const so = await p.evaluate(() => { const t = addDays(today(), 100); for (let i = 1; i <= 7; i++) STATE.d[addDays(t, -i)] = { on: '23:00', off: '07:00' }; STATE.d[t] = { sn: 600, sd: 80 }; const o = sleepOptimal(t); STATE.d[addDays(t, -1)] = { on: '00:00', off: '08:00' }; const o2 = sleepOptimal(t); for (let i = 0; i <= 7; i++) delete STATE.d[addDays(t, -i)]; return { o, o2 }; });
   ok(Math.abs(so.o.mid - 180) < 1e-6 && so.o.span === 520 && Math.abs(so.o.bed + 80) < 1e-6 && Math.abs(so.o.wake - 440) < 1e-6, 'sleepOptimal: 3 am midpoint, span sn − sd');
   ok(so.o2.mid > 180 && so.o2.mid < 240, 'the latest night weighs most (half-life 2): ' + so.o2.mid.toFixed(1));
+  const cs = await p.evaluate(() => { const t = addDays(today(), 200); for (let i = 0; i < 4; i++) STATE.d[addDays(t, -i)] = { on: '23:00', off: '07:00', aw: 0 }; const a = sleepCons(t); STATE.d[t] = { on: '01:00', off: '09:00', aw: 0 }; const b = sleepCons(t); STATE.d[addDays(t, -4)] = { on: '20:00', off: '04:00' }; const c = sleepCons(t); delete STATE.d[addDays(t, -2)].on; const d = sleepCons(t); for (let i = 0; i <= 4; i++) delete STATE.d[addDays(t, -i)]; return { a, b, c, d }; });
+  ok(cs.a === 100 && Math.abs(cs.b - (200 * (1 - 240 / 1440) - 100)) <= 1 && cs.c === cs.b && cs.d === null, 'sleepCons: identical nights 100, a 2 h shift lowers it, only the last 4 nights count, a gap gives none: ' + JSON.stringify(cs));
   // detail screens render
   for (const s of ['sleep', 'recovery', 'strain', 'health']) { await p.evaluate(s => navOpen(s, { d: today() }), s); ok((await p.$$('#view .wcard, #view .hmt')).length >= 3, s + ' screen renders'); }
   await p.evaluate(() => navOpen('sleep', { d: today() }));
