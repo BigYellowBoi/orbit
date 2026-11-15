@@ -31,7 +31,7 @@ const src = fs.readFileSync(path.join(__dirname, '../tools/orbit-widget.js'), 'u
     window.Request = class { async loadJSON() { return data; } }; window.FileManager = { local: () => ({ joinPath: (a, b) => b, documentsDirectory: () => '', writeString() {}, fileExists: () => false }) };
     window.config = { runsInApp: true, runsInWidget: false }; window.args = {}; window.Script = { setWidget() {}, complete() {} };
     await (new Function(`return (async () => { ${src} })()`))();
-  }, { src, data: { d: '2026-11-15', rec: 46, str: 15.4, hrv: 101, kb: 2371, streak: 730, rot: { k: 2, n: 4 }, bb: 50 } });
+  }, { src, data: { d: '2026-11-15', rec: 46, str: 15.4, hrv: 101, kb: 2371, streak: 730, rot: { k: 2, n: 4 }, bb: +(process.env.BB || 50) } });
   await p.screenshot({ path: process.argv[2] || 'widget.png', clip: { x: 20, y: 12, width: 380, height: 186 } });
   console.log(errs.length ? errs : 'rendered'); await b.close();
 })();

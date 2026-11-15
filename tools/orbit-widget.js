@@ -56,12 +56,18 @@ function draw(d) {
   // streak: flame + count, top left
   poly(dc, FLAME[0], 19 - 6.6 * 0.646, 21.5 - 2.3 * 0.646, 0.646, C.purple); poly(dc, FLAME[1], 19 - 6.6 * 0.646, 21.5 - 2.3 * 0.646, 0.646, C.purpleIn);
   txt(dc, d ? String(d.streak ?? 0) : '–', din(11), 11, C.white, 32.8, 22.7, 'left');
-  // Body Battery (Garmin), top right where WHOOP shows its strap battery: the number and a battery filled to it
-  if (d?.bb != null) { const bx = 335.5, by = 22.2, bw = 13.4, bh = 7.4, lv = Math.max(0, Math.min(100, d.bb)) / 100;
-    txt(dc, String(Math.round(d.bb)), din(11), 11, C.white, bx - 4.5, 22.7, 'right');
-    const o = new Path(); o.addRoundedRect(new Rect(bx, by, bw, bh), 1.8, 1.8); dc.addPath(o); dc.setStrokeColor(new Color(C.white, 0.9)); dc.setLineWidth(1.1); dc.strokePath();
-    dc.setFillColor(new Color(C.white, 0.9)); dc.fillRect(new Rect(bx + bw + 0.8, by + 2.2, 1.3, bh - 4.4));
-    if (lv > 0) { dc.setFillColor(new Color(C.white)); dc.fillRect(new Rect(bx + 1.6, by + 1.6, (bw - 3.2) * lv, bh - 3.2)); } }
+  // Body Battery (Garmin), top right where WHOOP shows its strap battery: the number and a figure filled up to it from the
+  // bottom (a body being charged, so it doesn't read as the watch's battery). No clipping in DrawContext, so each part is
+  // a polygon cut at the fill line by hand.
+  if (d?.bb != null) { const lv = Math.max(0, Math.min(100, d.bb)) / 100, fx = 342.3, top = 20.4, bot = 31.6;
+    txt(dc, String(Math.round(d.bb)), din(11), 11, C.white, 335.4, 22.7, 'right');
+    const ring = (cx0, cy0, rx, ry, a0, a1, n = 40) => Array.from({ length: n + 1 }, (_, i) => { const a = a0 + (a1 - a0) * i / n; return [cx0 + rx * Math.cos(a), cy0 + ry * Math.sin(a)]; });
+    const head = ring(fx, top + 2.45, 2.45, 2.45, 0, 2 * Math.PI), body = ring(fx, bot, 4.7, 5.4, Math.PI, 2 * Math.PI).concat([[fx + 4.7, bot], [fx - 4.7, bot]]);
+    const below = (pts, yl) => { const o = []; for (let i = 0; i < pts.length; i++) { const a = pts[i], b = pts[(i + 1) % pts.length], ia = a[1] >= yl, ib = b[1] >= yl; // keep the part under the fill line
+      if (ia) o.push(a); if (ia !== ib) { const t = (yl - a[1]) / (b[1] - a[1]); o.push([a[0] + (b[0] - a[0]) * t, yl]); } } return o; };
+    const fill = (pts, col, al) => { if (pts.length < 3) return; const p = new Path(); p.addLines(pts.map(([x, y]) => new Point(x, y))); p.closeSubpath(); dc.addPath(p); dc.setFillColor(new Color(col, al)); dc.fillPath(); };
+    const yl = bot - lv * (bot - top); for (const sh of [head, body]) { fill(sh, C.white, 0.12); fill(below(sh, yl), C.white, 1);
+      const o = new Path(); o.addLines(sh.map(([x, y]) => new Point(x, y))); o.closeSubpath(); dc.addPath(o); dc.setStrokeColor(new Color(C.white, 0.85)); dc.setLineWidth(1); dc.strokePath(); } }
   // rings: strain outside (of 21), recovery inside, both from 12 o'clock
   const cx = 181.7, cy = 81.9, rc = recCol(d?.rec);
   arc(dc, cx, cy, 51.6, 0, 1, C.track, 6.6); arc(dc, cx, cy, 51.6, 0, Math.min(1, (d?.str || 0) / 21), C.blue, 6.6);
