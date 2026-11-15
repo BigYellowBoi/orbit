@@ -12,6 +12,8 @@
      GET  /sync?key=…       run a sync now
      GET  /backfill?key=…&from=YYYY-MM   redo the history backfill from a month
      POST /health?key=…     Apple Health numbers from the Shortcut or Health Auto Export (see worker/README.md)
+     GET  /widget?key=…     today's numbers for the home screen widget (tools/orbit-widget.js in Scriptable): recovery,
+                            strain, HRV, calories, the Orbit streak and the rotation mark; read from orbit-data, cached 2 min
    WHOOP notification (webhook): sync the last 3 days straight away.
    Cron (every 5 min): sync the last 3 days at fixed local times (00:00, 03:00 … 21:00) or if a notification sync failed; otherwise refresh today's
    steps and strain (WHOOP has no webhook for those), and fill in history a month or two at a time.
@@ -51,6 +53,7 @@ export default {
         st.bf = { next: from, done: false }; await putJ(env, 'status', st); return text(`History backfill restarts from ${from}; it runs a month or two every 5 minutes.`);
       }
       if (url.pathname === '/health' && req.method === 'POST') { if (!authed) return text('Forbidden', 403); return health(env, req); }
+      if (url.pathname === '/widget' && req.method === 'GET') { if (!authed) return text('Forbidden', 403); return json(await widgetData(env)); }
       if (url.pathname === '/garmin' && req.method === 'GET') { if (!authed) return text('Forbidden', 403); return json(await garminRun(env, { force: true })); }
       return text('Not found', 404);
     } catch (e) { return text('Error: ' + (e.message || e), 500); }
@@ -60,6 +63,33 @@ export default {
     ctx.waitUntil(run(env, { at: ev.scheduledTime })); // stamped with the scheduled minute, not the start time, so times stay round
   },
 };
+
+/* ---------- home screen widget (Scriptable): today's numbers, read straight from orbit-data ----------
+   Recovery, strain, HRV and calories are today's WHOOP day (yesterday's until today's cycle has any); the streak is
+   Orbit's (days in a row with a log or a rest day; today only adds once logged, never breaks it), counted from the
+   wk month files the same way engine.js streak() does; the rotation mark comes from settings.wgt, which the app keeps
+   up to date. Reads only (no KV writes), and the result is kept 2 minutes in memory. */
+let widgetMemo = null;
+async function readFile(env, b, path) {
+  const g = await ghReq(env, b, 'GET', `/contents/${path}?ref=${env.GH_BRANCH || 'main'}`);
+  if (g.status === 404) return null; if (!g.ok) throw new Error('GitHub read ' + g.status);
+  return JSON.parse(b64dec((await g.json()).content));
+}
+const emptyW = w => !!w && !!w.nw && !w.rest && !(w.ex || []).some(e => (e.sets || []).some(s => s.done) || (e.note || '').trim()) && !w.cardio?.done && !(w.note || '').trim() && !w.durMin;
+async function widgetData(env) {
+  if (widgetMemo && Date.now() - widgetMemo.t < 120e3) return widgetMemo.v;
+  const b = budget(), t = todayLocal(env), y = addDays(t, -1), months = {}, wk = {};
+  const month = async (kind, ym) => { const k = kind + ym; if (!(k in months)) months[k] = (await readFile(env, b, `orbit/${kind}/${ym}.json`))?.items || {}; return months[k]; };
+  let d = (await month('dy', t.slice(0, 7)))[t];
+  if (!d || (d.rec == null && d.str == null)) d = (await month('dy', y.slice(0, 7)))[y] || d || {};
+  const used = async day => { const w = (await month('wk', day.slice(0, 7)))[day]; return !!w && !emptyW(w); };
+  let n = 0, day = await used(t) ? t : y;
+  while (b.left() > 2 && await used(day)) { n++; day = addDays(day, -1); }
+  const st = await readFile(env, b, 'orbit/settings.json').catch(() => null), wg = st?.wgt;
+  const v = { d: t, rec: d.rec ?? null, str: d.str ?? null, hrv: d.hrv != null ? Math.round(d.hrv) : null, kb: d.kb ?? null, streak: n,
+    rot: wg && wg.n > 0 ? { k: wg.k, n: wg.n } : null, at: Date.now() };
+  widgetMemo = { t: Date.now(), v }; return v;
+}
 
 /* ---------- small helpers ---------- */
 const text = (s, status = 200) => new Response(s, { status, headers: { 'content-type': 'text/plain; charset=utf-8' } });

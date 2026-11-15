@@ -1,0 +1,28 @@
+// Tests the worker's /widget route against a fake GitHub contents API. Synthetic data only. Run: node test/widget-worker.mjs
+import fs from 'fs'; import os from 'os'; import path from 'path';
+const here = path.dirname(new URL(import.meta.url).pathname), tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'orbit-wg-'));
+fs.copyFileSync(path.join(here, '../worker/orbit-sync.js'), path.join(tmp, 'w.mjs'));
+const W = (await import(path.join(tmp, 'w.mjs'))).default;
+let pass = 0, fail = 0; const ok = (c, m) => { if (c) { pass++; console.log('  ok  ' + m); } else { fail++; console.log('  FAIL ' + m); } };
+const kv = new Map(), KV = { async get(k) { return kv.get(k) ?? null; }, async put(k, v) { kv.set(k, v); } };
+const env = { ORBIT_KV: KV, GH_REPO: 'me/orbit-data', GH_TOKEN: 't', SYNC_KEY: 'k3y', TZ_OFFSET: '+10:00' };
+const dstr = d => d.toISOString().slice(0, 10), add = (s, n) => { const d = new Date(s + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return dstr(d); };
+const t = dstr(new Date(Date.now() + 600 * 60000)), files = {}, put = (p, items) => files[p] = { items };
+const wk = {}, dy = {};
+for (let i = 1; i <= 40; i++) wk[add(t, -i)] = i % 4 ? { s: 'push1', ex: [{ id: 'x', sets: [{ w: 1, r: 1, done: true }] }] } : { rest: true };
+wk[add(t, -41)] = { nw: 1, ex: [] }; // an empty started log breaks the run
+dy[t] = { rec: 46, str: 15.4, hrv: 101.4, kb: 2371 }; dy[add(t, -1)] = { rec: 80, str: 9 };
+for (const d in wk) (files[`orbit/wk/${d.slice(0, 7)}.json`] ||= { items: {} }).items[d] = wk[d];
+for (const d in dy) (files[`orbit/dy/${d.slice(0, 7)}.json`] ||= { items: {} }).items[d] = dy[d];
+files['orbit/settings.json'] = { wgt: { k: 2, n: 4 } };
+let reads = 0;
+globalThis.fetch = async (u) => { reads++; const m = /contents\/(.+?)\?ref/.exec(u); const f = m && files[decodeURIComponent(m[1])];
+  return f ? new Response(JSON.stringify({ content: Buffer.from(JSON.stringify(f)).toString('base64'), sha: 'x' }), { status: 200 }) : new Response('{}', { status: 404 }); };
+const get = async (q, h = {}) => W.fetch(new Request('https://w.example/widget' + q, { headers: h }), env, {});
+ok((await get('')).status === 403, 'no key: forbidden');
+const r = await (await get('', { 'x-sync-key': 'k3y' })).json();
+ok(r.rec === 46 && r.str === 15.4 && r.hrv === 101 && r.kb === 2371, 'today\'s numbers: ' + JSON.stringify(r));
+ok(r.streak === 40, 'streak counts logs and rest days until the empty log, today not logged yet: ' + r.streak);
+ok(r.rot && r.rot.k === 2 && r.rot.n === 4, 'rotation mark from settings.wgt');
+const before = reads; await get('?key=k3y'); ok(reads === before, 'second call within 2 min served from memory');
+console.log(`\n${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0);

@@ -133,3 +133,7 @@ WHOOP's journal (alcohol) isn't in the API. A WHOOP export imported on the Data 
 ## Testing
 
 `node test/worker.mjs` runs the helper against a fake WHOOP, a fake GitHub and an in-memory KV. `node test/garmin-worker.mjs` does the same for Garmin.
+
+
+## Home screen widget (Scriptable)
+`GET /widget` (key as `?key=` or an `x-sync-key` header) returns today's recovery, strain, HRV, calories, Orbit's streak and the rotation mark for `tools/orbit-widget.js`. Paste that file into a new Scriptable script, run it once in Scriptable to enter this helper's address and your SYNC_KEY, then add a medium Scriptable widget and choose the script.

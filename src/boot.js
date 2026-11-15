@@ -369,6 +369,7 @@ function renderMark() { // header ring: where today sits in the rotation, one se
     arcs += `<path d="${d}" fill="none" stroke="${i < k ? 'var(--logo)' : 'var(--line-2)'}" stroke-width="2.4" stroke-linecap="round"/>`;
   }
   if (n === 1) arcs = `<circle cx="12" cy="12" r="${r}" fill="none" stroke="var(--logo)" stroke-width="2.4"/>`;
+  const wg = S().wgt; if (!wg || wg.k !== k || wg.n !== n) setTimeout(() => { S().wgt = { k, n }; changed('settings'); }, 0); // the home screen widget draws the same mark (worker /widget)
   el.innerHTML = `<svg class="mark" viewBox="0 0 24 24" fill="none" role="img" aria-label="${esc(sessDef(sid)?.name || '')}, ${k} of ${n} in the rotation"><title>${esc(sessDef(sid)?.name || '')} · ${k} of ${n}</title>${arcs}<circle cx="12" cy="12" r="2.5" fill="var(--ink)"/></svg>`;
 }
 document.addEventListener('focusout', () => setTimeout(() => { if (pendingRender && !editingInView()) render(); }, 60));
