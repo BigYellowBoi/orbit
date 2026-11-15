@@ -390,7 +390,7 @@ function navOpen(screen, params) {
   const here = { screen: ui.tab, params: ui.np || null, dayOff: ui.dayOff || 0, y: scrollY0(), logDate: ui.logDate };
   navLeave(); ui.nav.push(here); if (ui.nav.length > 10) ui.nav.shift();
   ui.tab = screen; ui.np = params || null;
-  if (screen === 'trend') { ui.metric = params.m; ui.per = 'W'; ui.off = 0; ui.exEnd = addDays(weekStart(params.d || today()), 6); }
+  if (screen === 'trend') { ui.metric = params.m; ui.per = 'W'; ui.off = 0; ui.exEnd = params.d || today(); }
   if (screen === 'log') { ui.logDate = params.d; ui.logEdit = null; }
   if (screen === 'today') { ui.dayOff = 0; ui.editToday = true; ui.logDate = null; }
   resetScroll(); render(true);
@@ -398,7 +398,7 @@ function navOpen(screen, params) {
 function navBack() {
   const e = ui.nav.pop(); if (!e) { go('today'); return; }
   navLeave(); ui.tab = e.screen; ui.np = e.params; ui.dayOff = e.dayOff; ui.logDate = e.logDate ?? null;
-  if (e.screen === 'trend') ui.exEnd = addDays(weekStart(e.params?.d || today()), 6);
+  if (e.screen === 'trend') ui.exEnd = e.params?.d || today();
   resetScroll(); render(true);
   scrollToY(e.y); requestAnimationFrame(() => { if (Math.abs(scrollY0() - e.y) > 1) scrollToY(e.y); });
 }
