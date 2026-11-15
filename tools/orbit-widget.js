@@ -103,13 +103,11 @@ function draw(d) {
   arc(dc, cx, cy, 40.1, 0, 1, C.track, 7); band(dc, cx, cy, 40.1, 7, 0, Math.min(1, (d?.rec || 0) / 100), rc);
   // centre: Orbit's mark, as in the app's header (one segment per rotation slot, done ones purple, round ends)
   const n = d?.rot?.n || 4, k = d?.rot?.k ?? 0, r = 9.75, sw = 2.6, gap = n > 1 ? Math.min(25, 360 / n * 0.35) / 360 : 0;
-  // glow: the header's drop-shadow(0 0 2.5px rgba(179,136,255,.45)), scaled to this mark. DrawContext can't blur, so it is
-  // GL see-through purple outlines of the whole mark (segments, round ends and the dot, as the CSS shadow takes the mark's
-  // shape), each GLOW / GL wider: they stack to ~.4 at the mark's edge and fade to nothing GLOW points out.
-  const GLOW = 2.7, GL = 7, GA = 0.07;
-  for (let j = GL; j >= 1; j--) { const gw = sw + 2 * GLOW * j / GL, ext = gw / 2 / (2 * Math.PI * r), dr = 2.8 + GLOW * j / GL;
-    for (let i = 0; i < n; i++) band(dc, cx, cy, r, gw, i / n + gap / 2 - ext, (i + 1) / n - gap / 2 + ext, C.purple, gw / 2, GA);
-    dc.setFillColor(new Color(C.purple, GA)); dc.fillEllipse(RR(cx - dr, cy - dr, 2 * dr, 2 * dr)); }
+  // glow on the purple (done) segments only, a soft halo like the header logo's. DrawContext can't blur, so it is GL
+  // see-through purple outlines of each done segment, each GLOW / GL wider: they stack to ~.2 at its edge and fade out.
+  const GLOW = 1.8, GL = 6, GA = 0.04;
+  for (let j = GL; j >= 1; j--) { const gw = sw + 2 * GLOW * j / GL, ext = gw / 2 / (2 * Math.PI * r);
+    for (let i = 0; i < Math.min(k, n); i++) band(dc, cx, cy, r, gw, i / n + gap / 2 - ext, (i + 1) / n - gap / 2 + ext, C.purple, gw / 2, GA); }
   const end = (f, col, wd, al) => { const a = f * 2 * Math.PI, x = cx + r * Math.sin(a), y = cy - r * Math.cos(a); dc.setFillColor(new Color(col, al)); dc.fillEllipse(RR(x - wd / 2, y - wd / 2, wd, wd)); };
   const seg = (a0, a1, col, wd, al) => { arc(dc, cx, cy, r, a0, a1, col, wd, al); end(a0, col, wd, al); end(a1, col, wd, al); };
   for (let i = 0; i < n; i++) { const a0 = i / n + gap / 2, a1 = (i + 1) / n - gap / 2; seg(a0, a1, i < k ? C.purple : C.markOff, sw, 1); }
