@@ -6,7 +6,7 @@
 // To change the address or key later, run it in the app with the widget parameter "reset".
 const KC = 'orbit-widget', CACHE = 'orbit-widget.json', OPEN = 'https://bigyellowboi.github.io/orbit/';
 const W = 364, H = 170;
-const C = { bg0: '#383f45', bg1: '#1b1f22', track: '#43474a', blue: '#428fdb', grey: '#95999b', white: '#ffffff', purple: '#b388ff', purpleIn: '#e2d3ff', markOff: '#4a5057',
+const C = { bg0: '#383f45', bg1: '#1b1f22', track: '#43474a', blue: '#428fdb', grey: '#95999b', white: '#ffffff', purple: '#b388ff', purpleIn: '#e2d3ff', markOff: '#4b535d',
   green: '#16ec06', yellow: '#f5de54', red: '#ff0026' };
 const FLAME = [[[12.6,2.3],[12.66,3.15],[12.61,4],[12.44,4.83],[12.15,5.63],[11.75,6.38],[11.28,7.09],[10.75,7.75],[10.18,8.39],[9.6,9.01],[9.02,9.63],[8.46,10.28],[7.95,10.95],[7.49,11.67],[7.11,12.43],[6.83,13.24],[6.66,14.07],[6.6,14.92],[6.65,15.77],[6.84,16.59],[7.15,17.38],[7.59,18.11],[8.13,18.77],[8.77,19.33],[9.49,19.78],[10.27,20.12],[11.1,20.32],[11.95,20.4],[12.79,20.34],[13.62,20.15],[14.41,19.83],[15.14,19.39],[15.79,18.85],[16.35,18.2],[16.8,17.48],[17.13,16.7],[17.33,15.87],[17.4,15.03],[17.35,14.18],[17.2,13.34],[16.96,12.53],[16.62,11.75],[16.2,11],[15.72,10.3],[15.34,10.23],[15.09,11.04],[14.68,11.78],[14.09,12.39],[13.63,12.43],[13.68,11.58],[13.7,10.73],[13.68,9.88],[13.63,9.03],[13.55,8.18],[13.45,7.33],[13.34,6.49],[13.21,5.65],[13.07,4.81],[12.91,3.97],[12.76,3.14]],[[12,21],[11.61,20.98],[11.23,20.9],[10.87,20.78],[10.52,20.61],[10.2,20.4],[9.9,20.14],[9.64,19.86],[9.42,19.54],[9.25,19.19],[9.12,18.83],[9.03,18.45],[9,18.07],[9.02,17.68],[9.07,17.3],[9.18,16.92],[9.32,16.57],[9.51,16.22],[9.71,15.9],[9.95,15.59],[10.19,15.29],[10.45,15],[10.71,14.72],[10.97,14.43],[11.11,14.73],[11.27,15.08],[11.47,15.41],[11.71,15.72],[11.99,15.99],[12.3,16.21],[12.65,16.38],[12.78,16.07],[12.83,15.69],[12.85,15.3],[12.83,14.92],[12.77,14.53],[12.74,14.23],[13.05,14.46],[13.35,14.7],[13.63,14.97],[13.89,15.25],[14.14,15.55],[14.36,15.87],[14.55,16.2],[14.71,16.56],[14.84,16.92],[14.93,17.3],[14.99,17.68],[15,18.07],[14.97,18.45],[14.88,18.83],[14.75,19.19],[14.58,19.54],[14.36,19.86],[14.1,20.14],[13.8,20.4],[13.48,20.61],[13.13,20.78],[12.77,20.9],[12.39,20.98]]]; // Orbit's flame icon (24-unit box): outer shape, inner tongue
 
@@ -60,25 +60,32 @@ function draw(d) {
   const cx = 181.7, cy = 81.9, rc = recCol(d?.rec);
   arc(dc, cx, cy, 51.6, 0, 1, C.track, 6.6); arc(dc, cx, cy, 51.6, 0, Math.min(1, (d?.str || 0) / 21), C.blue, 6.6);
   arc(dc, cx, cy, 40.1, 0, 1, C.track, 7); arc(dc, cx, cy, 40.1, 0, Math.min(1, (d?.rec || 0) / 100), rc, 7);
-  // centre: Orbit's mark (one segment per rotation slot, done ones purple, with its soft glow)
-  const n = d?.rot?.n || 4, k = d?.rot?.k ?? 0, r = 8.6, gap = n > 1 ? Math.min(25, 360 / n * 0.35) / 360 : 0;
-  for (let i = 0; i < n; i++) { const a0 = i / n + gap / 2, a1 = (i + 1) / n - gap / 2;
-    if (i < k) arc(dc, cx, cy, r, a0, a1, C.purple, 5.5, 0.22); arc(dc, cx, cy, r, a0, a1, i < k ? C.purple : C.markOff, 2.4); }
-  dc.setFillColor(new Color(C.white)); dc.fillEllipse(new Rect(cx - 2.5, cy - 2.5, 5, 5));
-  // left: recovery and HRV, right-aligned to the ring
-  const L = 109.8, R = 252.9;
-  txt(dc, '%', din(13), 13, rc, L, 55.4, 'right'); txt(dc, num(d?.rec), din(17.3), 17.3, rc, L - 9.3, 52.7, 'right');
-  txt(dc, track('RECOVERY'), lab(10.3), 10.3, rc, L, 72.5, 'right');
-  txt(dc, track('HRV'), lab(10.3), 10.3, C.grey, L, 94, 'right'); txt(dc, num(d?.hrv), din(14.6), 14.6, C.grey, L, 110, 'right');
-  // right: strain and calories
-  txt(dc, num(d?.str, 1), din(17.3), 17.3, C.blue, R + 1, 52.7, 'left'); txt(dc, track('STRAIN'), lab(10.3), 10.3, C.blue, R, 72.5, 'left');
-  txt(dc, track('CALORIES'), lab(10.3), 10.3, C.grey, R, 94, 'left'); txt(dc, num(d?.kb), din(14.6), 14.6, C.grey, R + 0.3, 110, 'left');
+  // centre: Orbit's mark, as in the app's header (one segment per rotation slot, done ones purple, round ends; no glow, since DrawContext can't blur)
+  const n = d?.rot?.n || 4, k = d?.rot?.k ?? 0, r = 9.75, sw = 2.6, gap = n > 1 ? Math.min(25, 360 / n * 0.35) / 360 : 0;
+  const end = (f, col, wd, al) => { const a = f * 2 * Math.PI, x = cx + r * Math.sin(a), y = cy - r * Math.cos(a); dc.setFillColor(new Color(col, al)); dc.fillEllipse(new Rect(x - wd / 2, y - wd / 2, wd, wd)); };
+  const seg = (a0, a1, col, wd, al) => { arc(dc, cx, cy, r, a0, a1, col, wd, al); end(a0, col, wd, al); end(a1, col, wd, al); };
+  for (let i = 0; i < n; i++) { const a0 = i / n + gap / 2, a1 = (i + 1) / n - gap / 2; seg(a0, a1, i < k ? C.purple : C.markOff, sw, 1); }
+  dc.setFillColor(new Color('#e8ebef')); dc.fillEllipse(new Rect(cx - 2.8, cy - 2.8, 5.6, 5.6));
   if (!d) txt(dc, 'Run in Scriptable to set up', lab(10), 10, C.grey, cx, 152, 'center');
   return dc.getImage();
 }
 
 const c = await settings(), data = c ? await load(c) : null;
 const w = new ListWidget(); w.setPadding(0, 0, 0, 0); w.backgroundColor = new Color(C.bg1);
-w.backgroundImage = draw(data); w.url = OPEN; w.refreshAfterDate = new Date(Date.now() + 10 * 60e3);
+w.backgroundImage = draw(data);
+// the side columns are real text (Scriptable lays it out, so the number and its % can't collide), placed over the rings
+const din = s => new Font('DINAlternate-Bold', s), lab = s => Font.boldSystemFont(s), rc = recCol(data?.rec);
+const line = (col, right, parts) => { const l = col.addStack(); l.bottomAlignContent(); if (right) l.addSpacer();
+  for (const [s, f, c] of parts) { const t = l.addText(s); t.font = f; t.textColor = new Color(c); t.lineLimit = 1; } if (!right) l.addSpacer(); };
+w.addSpacer(48.5);
+const row = w.addStack(); row.size = new Size(W, 0); row.topAlignContent();
+const col = (x, wd, right, rows) => { const c = row.addStack(); c.layoutVertically(); c.size = new Size(wd, 0);
+  rows.forEach(([gap, parts]) => { if (gap) c.addSpacer(gap); line(c, right, parts); }); return c; };
+col(0, 109.8, true, [[0, [[num(data?.rec), din(17.3), rc], ['%', din(13), rc]]], [0.7, [[track('RECOVERY'), lab(10.3), rc]]],
+  [9.2, [[track('HRV'), lab(10.3), C.grey]]], [2.7, [[num(data?.hrv), din(14.6), C.grey]]]]);
+row.addSpacer(252.9 - 109.8);
+col(252.9, W - 252.9, false, [[0, [[num(data?.str, 1), din(17.3), C.blue]]], [0.7, [[track('STRAIN'), lab(10.3), C.blue]]],
+  [9.2, [[track('CALORIES'), lab(10.3), C.grey]]], [2.7, [[num(data?.kb), din(14.6), C.grey]]]]);
+w.addSpacer(); w.url = OPEN; w.refreshAfterDate = new Date(Date.now() + 10 * 60e3);
 if (config.runsInWidget) Script.setWidget(w); else await w.presentMedium();
 Script.complete();

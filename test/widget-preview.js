@@ -19,7 +19,14 @@ const src = fs.readFileSync(path.join(__dirname, '../tools/orbit-widget.js'), 'u
       setFont(f) { this.f = f; } setTextColor(c) { this.tc = c.css; } setTextAlignedLeft() { this.al = 'left'; } setTextAlignedRight() { this.al = 'right'; } setTextAlignedCenter() { this.al = 'center'; }
       drawTextInRect(s, r) { g.font = this.f.css; g.fillStyle = this.tc; g.textAlign = this.al; g.textBaseline = 'alphabetic'; g.fillText(s, this.al === 'left' ? r.x : this.al === 'right' ? r.x + r.width : r.x + r.width / 2, r.y + 0.95 * this.f.size); }
       getImage() { return 'img'; } };
-    window.ListWidget = class { setPadding() {} async presentMedium() {} };
+    const font = f => f.css; // a DOM version of Scriptable's stacks, laid over the canvas
+    class Stack { constructor(el) { this.el = el; el.style.cssText += ';display:flex;flex-direction:row;align-items:center;min-width:0'; }
+      addStack() { const e = document.createElement('div'); this.el.appendChild(e); return new Stack(e); } layoutVertically() { this.el.style.flexDirection = 'column'; this.el.style.alignItems = 'stretch'; }
+      addSpacer(n) { const e = document.createElement('div'); e.style.flex = n == null ? '1 1 auto' : `0 0 ${n}px`; this.el.appendChild(e); }
+      addText(s) { const e = document.createElement('span'); e.textContent = s; e.style.whiteSpace = 'pre'; this.el.appendChild(e); const t = {}; return new Proxy(t, { set(o, k, v) { if (k === 'font') e.style.font = font(v); if (k === 'textColor') e.style.color = v.css; o[k] = v; return true; } }); }
+      set size(z) { if (z.width) this.el.style.width = z.width + 'px'; if (z.height) this.el.style.height = z.height + 'px'; this.el.style.flex = '0 0 auto'; }
+      bottomAlignContent() { this.el.style.alignItems = 'flex-end'; } topAlignContent() { this.el.style.alignItems = 'flex-start'; } centerAlignContent() { this.el.style.alignItems = 'center'; } setPadding() {} }
+    window.ListWidget = class extends Stack { constructor() { const e = document.createElement('div'); e.style.cssText = 'position:absolute;left:28px;top:20px;width:364px;height:170px'; document.body.appendChild(e); super(e); this.layoutVertically(); } async presentMedium() {} };
     window.Keychain = { contains: () => true, get: () => '{"url":"x","key":"k"}', remove() {}, set() {} };
     window.Request = class { async loadJSON() { return data; } }; window.FileManager = { local: () => ({ joinPath: (a, b) => b, documentsDirectory: () => '', writeString() {}, fileExists: () => false }) };
     window.config = { runsInApp: true, runsInWidget: false }; window.args = {}; window.Script = { setWidget() {}, complete() {} };
