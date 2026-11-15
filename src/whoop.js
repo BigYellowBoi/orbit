@@ -26,10 +26,19 @@ const recCol = r => r == null ? WC.track : r >= 67 ? 'var(--good)' : r >= 34 ? W
 const sleepBand = v => v == null ? -1 : v >= 85 ? 2 : v >= 70 ? 1 : 0; // WHOOP's sleep thresholds, as an approximation
 function wSeg3(v, row) { const b = sleepBand(v), c = ['#ffb35c', '#8e9293', WC.up]; return `<span class="wseg3${row ? ' row' : ''}" aria-hidden="true">${[0, 1, 2].map(i => `<i${i === b ? ` style="background:${c[i]}"` : ''}></i>`).join('')}</span>`; }
 
-/* A ring: full-circle track, butt caps, from 12 o'clock clockwise. */
+/* A ring's value arc as a filled band with slightly rounded corners, as WHOOP's and the widget's band() (corner = 18% of the stroke).
+   SVG coordinates before the ring's rotate(-90deg): angle 0 is +x, clockwise. */
+function wBand(k, r, sw, f, col) {
+  f = Math.max(0, Math.min(1, f || 0)); if (f < 1e-4) return '';
+  const ro = r + sw / 2, ri = r - sw / 2, a1 = Math.min(f, 0.99999) * 2 * Math.PI, rc = Math.min(sw * 0.18, sw / 2, f * Math.PI * ri), dO = rc / ro, dI = rc / ri;
+  const Q = (rr, a) => (k + rr * Math.cos(a)).toFixed(2) + ' ' + (k + rr * Math.sin(a)).toFixed(2), big = a1 - 2 * dO > Math.PI ? 1 : 0, bigI = a1 - 2 * dI > Math.PI ? 1 : 0;
+  const d = `M${Q(ro, dO)}A${ro} ${ro} 0 ${big} 1 ${Q(ro, a1 - dO)}Q${Q(ro, a1)} ${Q(ro - rc, a1)}L${Q(ri + rc, a1)}Q${Q(ri, a1)} ${Q(ri, a1 - dI)}A${ri} ${ri} 0 ${bigI} 0 ${Q(ri, dI)}Q${Q(ri, 0)} ${Q(ri + rc, 0)}L${Q(ro - rc, 0)}Q${Q(ro, 0)} ${Q(ro, dO)}Z`;
+  return `<path class="wv" data-f="${f.toFixed(4)}" d="${d}" fill="${col}"/>`;
+}
+/* A ring: full-circle track, value from 12 o'clock clockwise with WHOOP's rounded corners. */
 function wRing(f, col, size, sw, inner, label) {
-  const r = (size - sw) / 2, c = 2 * Math.PI * r, k = size / 2, fr = Math.max(0, Math.min(1, f || 0));
-  return `<span class="wr${size > 100 ? ' big' : ''}" style="width:${size}px;height:${size}px"><svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" role="img" aria-label="${esc(label)}"><circle cx="${k}" cy="${k}" r="${r}" fill="none" stroke="${WC.track}" stroke-width="${sw}"/>${fr > 0 ? `<circle cx="${k}" cy="${k}" r="${r}" fill="none" stroke="${col}" stroke-width="${sw}" stroke-linecap="butt" stroke-dasharray="${(c * fr).toFixed(2)} ${c.toFixed(2)}"/>` : ''}</svg><b>${inner}</b></span>`;
+  const r = (size - sw) / 2, k = size / 2;
+  return `<span class="wr${size > 100 ? ' big' : ''}" style="width:${size}px;height:${size}px"><svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" role="img" aria-label="${esc(label)}"><circle cx="${k}" cy="${k}" r="${r}" fill="none" stroke="${WC.track}" stroke-width="${sw}"/>${wBand(k, r, sw, f, col)}</svg><b>${inner}</b></span>`;
 }
 const pctIn = v => v == null ? '<span class="nil">–</span>' : `<span>${fmt(v, 0)}<small>%</small></span>`;
 const strIn = v => v == null ? '<span class="nil">–</span>' : `<span>${fmt(v, 1)}</span>`;
@@ -117,8 +126,8 @@ function renderHback() { // while the back stack has a screen: chevron in place 
 }
 const wTitle = (eye, title) => `<div class="wtitle"><span class="wlab">${esc(eye)}</span><h1>${esc(title)}</h1></div>`;
 /* v1.89 big ring, sized off WHOOP's (241pt on a 393pt screen, 15pt stroke): Orbit wordmark, number, label; the card under it points up at it. */
-const wBigRing = (f, col, inner, lab, aria, extra = '') => { const S = 240, sw = 15, r = (S - sw) / 2, c = 2 * Math.PI * r, k = S / 2, fr = Math.max(0, Math.min(1, f || 0));
-  return `<div class="wbig"><span class="wbr"><svg viewBox="0 0 ${S} ${S}" role="img" aria-label="${esc(aria)}"><circle cx="${k}" cy="${k}" r="${r}" fill="none" stroke="${WC.track}" stroke-width="${sw}"/>${fr > 0 ? `<circle cx="${k}" cy="${k}" r="${r}" fill="none" stroke="${col}" stroke-width="${sw}" stroke-dasharray="${(c * fr).toFixed(2)} ${c.toFixed(2)}"/>` : ''}</svg><b><i class="wbr-m">Orbit</i><span class="wbr-v">${inner}</span><span class="wlab">${esc(lab)}</span>${extra}</b></span></div>`; };
+const wBigRing = (f, col, inner, lab, aria, extra = '') => { const S = 240, sw = 15, r = (S - sw) / 2, k = S / 2;
+  return `<div class="wbig"><span class="wbr"><svg viewBox="0 0 ${S} ${S}" role="img" aria-label="${esc(aria)}"><circle cx="${k}" cy="${k}" r="${r}" fill="none" stroke="${WC.track}" stroke-width="${sw}"/>${wBand(k, r, sw, f, col)}</svg><b><i class="wbr-m">Orbit</i><span class="wbr-v">${inner}</span><span class="wlab">${esc(lab)}</span>${extra}</b></span></div>`; };
 const avg30 = (d, f) => { const v = []; for (let i = 1; i <= 30; i++) { const x = f(addDays(d, -i)); if (x != null) v.push(x); } return v.length ? mean(v) : null; };
 /* A "Today vs. last 30 days" row: icon, label, value with a small arrow (green when the change is good), the average under it. */
 function cmpRow({ ico, label, v, avg, f, unit = '', better = 1, act = '' }) {

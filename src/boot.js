@@ -278,8 +278,8 @@ function layoutRfx() {
   // band: solid from above the screen to under the pinned rings, then a 52px fade (in the row's own coordinates when pinned)
   ph.style.setProperty('--bt', (-rtop - 60).toFixed(1) + 'px'); ph.style.setProperty('--bh', (60 + yPin + 12 + 10 + 52).toFixed(1) + 'px');
   btns.forEach(b => { const svg = b.querySelector('.wr svg'); if (b.querySelectorAll('.wr svg').length < 2 && svg) { // a thin-stroke copy to crossfade into, so the small ring keeps a 2.5px line
-    const t = svg.cloneNode(true), sw = RFX.sw1 / sc, rr = (88 - sw) / 2, c = 2 * Math.PI * rr, cs = t.querySelectorAll('circle'), d = cs[1]?.getAttribute('stroke-dasharray').split(' ').map(Number);
-    cs.forEach((ci, j) => { ci.setAttribute('r', rr); ci.setAttribute('stroke-width', sw); if (j && d) ci.setAttribute('stroke-dasharray', `${(c * d[0] / d[1]).toFixed(2)} ${c.toFixed(2)}`); }); svg.after(t); } });
+    const t = svg.cloneNode(true), sw = RFX.sw1 / sc, rr = (88 - sw) / 2, ci = t.querySelector('circle'), v = t.querySelector('.wv');
+    ci.setAttribute('r', rr); ci.setAttribute('stroke-width', sw); if (v) v.setAttribute('d', wBand(44, rr, sw, +v.dataset.f, '').match(/ d="([^"]+)"/)[1]); svg.after(t); } });
   const P = [0, .25, .5, .75, 1], pct = p => (p * 100).toFixed(0) + '%', sel = i => `.wrings.rfx > .wring:nth-of-type(${i + 1})`;
   const tl = RFX_TL ? `animation-timeline: scroll(nearest block); animation-range: 0px ${C.toFixed(1)}px;` : 'animation-play-state: paused; animation-delay: calc(var(--rp, 0) * -1s);';
   const run = n => `animation: ${n} 1s linear both; ${tl}`;
