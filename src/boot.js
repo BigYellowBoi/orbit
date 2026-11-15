@@ -248,50 +248,64 @@ function render(force) {
   v.classList.toggle('cols', ['strength', 'body', 'data'].includes(ui.tab) || (ui.tab === 'today' && !(STATE.w[today()] && (!STATE.w[today()].fin || ui.editToday)) && !ui.dayOff)); // two columns on wide screens (CSS decides when)
   document.querySelectorAll('.tabs [data-tab]').forEach(b => b.setAttribute('aria-current', b.dataset.tab === ({ log: 'history', friends: 'history', injuries: 'today', ...Object.fromEntries(NAV_SCREENS.map(k => [k, 'today'])) }[ui.tab] || ui.tab) ? 'page' : 'false'));
   const g = $('#gear'); g.setAttribute('aria-current', ui.tab === 'data' ? 'page' : 'false'); g.setAttribute('aria-label', ui.tab === 'data' ? 'Back' : 'Settings: sync, imports and backups');
-  renderSync(); renderMark(); renderUpdate(); renderFab(); renderReorder(); renderDaybar(); ringFx();
+  renderSync(); renderMark(); renderUpdate(); renderFab(); renderReorder(); renderDaybar(); layoutRfx();
   fadeCheck();
   if (ui.tab === 'history' && (ui.histQ || ui.histS)) filterHist(); if (ui.pick && ui.pick.q) filterPick(); // in-place filters survive a re-render
   if (snap) flashChanged(snap);
   if (ui.justDone) { ui.justDone = false; setTimeout(() => $('.hero.just')?.classList.remove('just'), 1400); }
 }
 /* Values that change while you're looking (a sync brought new WHOOP or Health numbers) flash once, so an update is visible. */
-/* WHOOP's Today scroll (v1.83, read off his screen recording): the rings ride up at 62% of the page's speed while shrinking
-   from 88 to 24 px, their numbers fade, each label slides from under its ring to beside it, and the header row fades out;
-   at the end they sit as a bar on the logo's row and the page fades out under it. All of it is tied to the scroll position. */
-const RFX = { k: 0.62, d0: 88, d1: 24, sw0: 6, sw1: 2.5, gap: 8 };
+/* WHOOP's Today scroll (read off his screen recording): the rings ride up at 62% of the page's speed while shrinking from
+   88 to 24 px, their numbers fade, each label slides from under its ring to beside it, the header row fades out, and they
+   pin as a bar on the logo's row with the page fading out under it. v1.85: v1.84 drew them in the header and moved them
+   from scroll events, which on iOS arrive a frame or more behind the native scroll (worse in the top bounce), so they
+   lagged and jumped. Now the row is in the page and sticky (pinning is native), and the motion is CSS keyframes on a
+   scroll timeline (no JS per frame); where scroll timelines aren't supported the keyframes are scrubbed from scroll. */
+const RFX = { k: 0.62, d1: 24, sw1: 2.5, gap: 8 }, RFX_TL = typeof CSS !== 'undefined' && CSS.supports && CSS.supports('animation-timeline: scroll()');
 const smooth = (p, a, b) => Math.max(0, Math.min(1, (p - a) / (b - a)));
-function ringFx() {
-  const fx = $('#ringfx'); if (!fx) return; const ph = ui.tab === 'today' ? $('#view .wrings') : null;
-  if (!ph) { if (fx.innerHTML) fx.innerHTML = ''; ringFx.h = ''; ringFx.on = false; hdrFade(0); return; }
-  const h = ph.innerHTML;
-  if (ringFx.h !== h) { fx.innerHTML = h; ringFx.h = h; fx.querySelectorAll('.wring').forEach(b => { const c = b.querySelectorAll('circle')[1], d = c ? c.getAttribute('stroke-dasharray').split(' ').map(Number) : null; b._f = d ? d[0] / d[1] : 0; const l = b.querySelector('.wlab'), cv = l.querySelector('.chev6'); b._lw = l.offsetWidth; b._lh = l.offsetHeight; b._lwF = b._lw - (cv ? cv.getBoundingClientRect().width + 6 : 0); }); }
-  ph.style.visibility = 'hidden'; ringFx.on = true; applyRingFx();
-}
-function hdrFade(p) {
-  const o = 1 - smooth(p, .3, .6), off = p > .5, top = $('.top');
-  ['.brand', '#daybar', '#streak', '#gear', '#reorder'].forEach(q => { const el = $(q); if (!el) return; el.style.opacity = p ? o : ''; el.style.pointerEvents = off ? 'none' : ''; });
-  top.style.setProperty('--fxg', smooth(p, .7, 1));
-}
-function applyRingFx() {
-  if (!ringFx.on) return; const ph = $('#view .wrings'), fx = $('#ringfx'); if (!ph) return;
-  const top = $('.top'), pt = parseFloat(getComputedStyle(top).paddingTop) || 0, r = ph.getBoundingClientRect(), s = Math.max(0, scrollY0());
-  const yPin = pt + 19, y0 = r.top + s + 6 + RFX.d0 / 2, trav = Math.max(1, y0 - yPin), p = Math.min(1, s * RFX.k / trav);
-  const yc = y0 - p * trav, size = RFX.d0 + (RFX.d1 - RFX.d0) * p, sw = RFX.sw0 + (RFX.sw1 - RFX.sw0) * p;
-  fx.querySelectorAll('.wring').forEach((b, i) => {
-    const col = r.left + r.width * (i + .5) / 3, cxF = col - (RFX.d1 + RFX.gap + b._lwF) / 2 + RFX.d1 / 2, cx = col + (cxF - col) * p;
-    b.style.transform = `translate3d(${(cx - size / 2).toFixed(2)}px,${(yc - size / 2).toFixed(2)}px,0)`; b.style.width = b.style.height = size + 'px';
-    const wr = b.querySelector('.wr'), svg = wr.querySelector('svg'), rr = (size - sw) / 2, c = 2 * Math.PI * rr;
-    wr.style.width = wr.style.height = size + 'px'; svg.setAttribute('width', size); svg.setAttribute('height', size); svg.setAttribute('viewBox', `0 0 ${size} ${size}`);
-    svg.querySelectorAll('circle').forEach((ci, j) => { ci.setAttribute('cx', size / 2); ci.setAttribute('cy', size / 2); ci.setAttribute('r', rr); ci.setAttribute('stroke-width', sw); if (j) ci.setAttribute('stroke-dasharray', `${(c * b._f).toFixed(2)} ${c.toFixed(2)}`); });
-    const v = wr.querySelector('b'); v.style.transform = `scale(${size / RFX.d0})`; v.style.opacity = 1 - smooth(p, .35, .75);
-    const l = b.querySelector('.wlab'), lx = size / 2 + (-b._lw / 2) * (1 - p) + (size / 2 + RFX.gap) * p, ly = size / 2 + (size / 2 + 12 + b._lh / 2) * (1 - p) - b._lh / 2;
-    l.style.transform = `translate3d(${lx.toFixed(2)}px,${ly.toFixed(2)}px,0)`;
-    const cv = l.querySelector('.chev6'); if (cv) cv.style.opacity = 1 - smooth(p, .4, .7);
+const rfx = { on: false, C: 0 };
+function layoutRfx() {
+  const ph = ui.tab === 'today' ? $('#view .wrings') : null, css = $('#rfxcss') || document.head.appendChild(Object.assign(document.createElement('style'), { id: 'rfxcss' }));
+  const off = () => { rfx.on = false; css.textContent = ''; hdrFade(0); if (ph) { ph.classList.remove('rfx'); ph.style.top = ph.style.height = ''; } };
+  if (!ph || matchMedia('(min-width: 1100px)').matches) return off();
+  ph.classList.remove('rfx'); ph.style.top = '';
+  const top = $('.top'), pt = parseFloat(getComputedStyle(top).paddingTop) || 0, s0 = Math.max(0, scrollY0()), r = ph.getBoundingClientRect();
+  const btns = [...ph.querySelectorAll(':scope > .wring')]; if (btns.length !== 3) return off();
+  const lab = btns.map(b => { const l = b.querySelector('.wlab'), cv = l.querySelector('.chev6'), w = l.getBoundingClientRect().width; return { w, h: l.getBoundingClientRect().height, wF: w - (cv ? cv.getBoundingClientRect().width + 6 : 0) }; });
+  const H = r.height, top0 = r.top + s0, yPin = pt + 19, trav = top0 + 6 + 44 - yPin; if (trav < 20) return off();
+  const C = trav / RFX.k, rtop = top0 - C, sc = RFX.d1 / 88; rfx.on = true; rfx.C = C;
+  ph.classList.add('rfx'); ph.style.height = H + 'px'; ph.style.top = rtop.toFixed(1) + 'px';
+  // band: solid from above the screen to under the pinned rings, then a 52px fade (in the row's own coordinates when pinned)
+  ph.style.setProperty('--bt', (-rtop - 60).toFixed(1) + 'px'); ph.style.setProperty('--bh', (60 + yPin + 12 + 10 + 52).toFixed(1) + 'px');
+  btns.forEach(b => { const svg = b.querySelector('.wr svg'); if (b.querySelectorAll('.wr svg').length < 2 && svg) { // a thin-stroke copy to crossfade into, so the small ring keeps a 2.5px line
+    const t = svg.cloneNode(true), sw = RFX.sw1 / sc, rr = (88 - sw) / 2, c = 2 * Math.PI * rr, cs = t.querySelectorAll('circle'), d = cs[1]?.getAttribute('stroke-dasharray').split(' ').map(Number);
+    cs.forEach((ci, j) => { ci.setAttribute('r', rr); ci.setAttribute('stroke-width', sw); if (j && d) ci.setAttribute('stroke-dasharray', `${(c * d[0] / d[1]).toFixed(2)} ${c.toFixed(2)}`); }); svg.after(t); } });
+  const P = [0, .25, .5, .75, 1], pct = p => (p * 100).toFixed(0) + '%', sel = i => `.wrings.rfx > .wring:nth-of-type(${i + 1})`;
+  const tl = RFX_TL ? `animation-timeline: scroll(nearest block); animation-range: 0px ${C.toFixed(1)}px;` : 'animation-play-state: paused; animation-delay: calc(var(--rp, 0) * -1s);';
+  const run = n => `animation: ${n} 1s linear both; ${tl}`;
+  let k = `@keyframes rfxV { 0%, 35% { opacity: 1 } 75%, 100% { opacity: 0 } } @keyframes rfxA { 0%, 20% { opacity: 1 } 100% { opacity: 0 } } @keyframes rfxT { 0%, 20% { opacity: 0 } 100% { opacity: 1 } }
+    @keyframes rfxC { 0%, 40% { opacity: 1 } 70%, 100% { opacity: 0 } } @keyframes rfxBand { 0%, 60% { opacity: 0 } 85%, 100% { opacity: 1 } } @keyframes rfxS { from { transform: scale(1) } to { transform: scale(${sc}) } }
+    .wrings.rfx .wr { ${run('rfxS')} } .wrings.rfx .wr > svg:first-child { ${run('rfxA')} } .wrings.rfx .wr > svg + svg { ${run('rfxT')} } .wrings.rfx .wr > b { ${run('rfxV')} }
+    .wrings.rfx .chev6 { ${run('rfxC')} } .wrings.rfx::before { ${run('rfxBand')} }`;
+  btns.forEach((b, i) => {
+    const col = r.width * (i + .5) / 3, L = lab[i], cxF = col - (RFX.d1 + RFX.gap + L.wF) / 2 + RFX.d1 / 2;
+    k += ` ${sel(i)} { left: ${(col - 44).toFixed(1)}px; ${run('rfxB' + i)} } @keyframes rfxB${i} { from { transform: translate(0, 0) } to { transform: translate(${(cxF - col).toFixed(1)}px, ${(C - trav).toFixed(1)}px) } }`;
+    k += ` ${sel(i)} > .wlab { ${run('rfxL' + i)} } @keyframes rfxL${i} { ${P.map(p => { const size = 88 + (RFX.d1 - 88) * p, lx = 44 - L.w / 2 * (1 - p) + (size / 2 + RFX.gap) * p, ly = 44 + (size / 2 + 12 + L.h / 2) * (1 - p) - L.h / 2; return `${pct(p)} { transform: translate(${lx.toFixed(1)}px, ${ly.toFixed(1)}px) }`; }).join(' ')} }`;
   });
-  hdrFade(p);
+  if (css.textContent !== k) css.textContent = k;
+  scrollRfx();
 }
-document.addEventListener('scroll', () => applyRingFx(), { capture: true, passive: true });
-window.addEventListener('resize', () => { ringFx.h = ''; ringFx(); });
+function hdrFade(p) { // the header row and its background fade as the rings arrive; past halfway it lets taps through to them
+  const o = 1 - smooth(p, .3, .6), top = $('.top'); if (!top) return;
+  ['.brand', '#daybar', '#streak', '#gear', '#reorder'].forEach(q => { const el = $(q); if (el) el.style.opacity = p ? o : ''; });
+  top.style.pointerEvents = p > .5 ? 'none' : ''; top.style.background = p ? `color-mix(in srgb, var(--bg) ${(o * 100).toFixed(1)}%, transparent)` : '';
+}
+function scrollRfx() {
+  if (!rfx.on) return; const p = Math.min(1, Math.max(0, scrollY0()) / rfx.C);
+  if (!RFX_TL) $('#view .wrings')?.style.setProperty('--rp', Math.min(.999, p)); hdrFade(p);
+}
+document.addEventListener('scroll', scrollRfx, { capture: true, passive: true });
+window.addEventListener('resize', () => layoutRfx());
 function renderDaybar() { // v1.82: Today's day arrows and streak sit in the header
   const b = $('#daybar'), k = $('#streak'); if (!b) return; const on = ui.tab === 'today';
   b.hidden = !on; k.hidden = true; if (!on) { b.innerHTML = ''; return; }
