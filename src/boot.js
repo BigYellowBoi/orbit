@@ -306,10 +306,17 @@ function scrollRfx() {
 }
 document.addEventListener('scroll', scrollRfx, { capture: true, passive: true });
 window.addEventListener('resize', () => layoutRfx());
+document.fonts?.ready.then(() => { renderDaybar.w = 0; renderDaybar(); });
 function renderDaybar() { // v1.82: Today's day arrows and streak sit in the header
   const b = $('#daybar'), k = $('#streak'); if (!b) return; const on = ui.tab === 'today';
   b.hidden = !on; k.hidden = true; if (!on) { b.innerHTML = ''; return; }
   const h = dayNav(ui.dayOff || 0); if (b.innerHTML !== h) b.innerHTML = h;
+  if (!renderDaybar.w) { // widest label over the whole range (-365..+28 days), measured once (again when fonts arrive)
+    const t = today(), labs = ['Today', 'Yesterday', 'Tomorrow']; for (let i = -365; i <= 28; i++) if (Math.abs(i) > 1) labs.push(`${fmtDow(addDays(t, i))} ${fmtDate(addDays(t, i))}`);
+    const box = document.createElement('div'); box.style.cssText = 'position:absolute;visibility:hidden;left:-9999px;top:0'; box.innerHTML = labs.map(l => `<button class="dn-m">${esc(l)}</button>`).join(''); b.appendChild(box);
+    renderDaybar.w = Math.ceil(Math.max(...[...box.children].map(e => e.getBoundingClientRect().width))); box.remove();
+    if (renderDaybar.w) b.style.setProperty('--dnw', renderDaybar.w + 'px');
+  }
   const n = streak(); k.hidden = !n; k.className = 'pill plain streak';
   k.title = `${n} day${n === 1 ? '' : 's'} in a row with a session or rest day logged`; k.setAttribute('aria-label', `Streak: ${n} day${n === 1 ? '' : 's'}`);
   const sh = `${ICON.flame}<b>${n}</b>`; if (n && k.innerHTML !== sh) k.innerHTML = sh;

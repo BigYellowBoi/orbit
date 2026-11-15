@@ -56,6 +56,7 @@ button { cursor: pointer; }
 .daybar { background: var(--surface); border-radius: 99px; padding: 3px; gap: 0; -webkit-user-select: none; user-select: none; }
 .dn-a { width: 30px; height: 30px; display: grid; place-items: center; background: none; border: 0; color: var(--ink-2); padding: 0; }
 .dn-a svg { width: 16px; height: 16px; }
+.dn-slot { display: flex; justify-content: center; min-width: var(--dnw, 0px); } /* v1.86: as wide as the longest label, so the arrows never move */
 .dn-m { min-width: 84px; height: 30px; padding: 0 12px; border-radius: 99px; border: 0; background: var(--surface-3); color: var(--ink); font: 700 12px/1 var(--f-body); letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; }
 #streak { flex: none; }
 /* v1.85: WHOOP's scroll mechanic on Today. The rings stay in the page and the browser moves them: the row is sticky (it
@@ -677,8 +678,8 @@ body:has(#updp) .fab { bottom: calc(var(--tabh) + max(8px, calc(env(safe-area-in
 .acts { display: flex; flex-direction: column; gap: 8px; }
 .act { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 7px; min-height: 56px; display: flex; align-items: center; gap: 14px; color: var(--ink); width: 100%; font: inherit; text-align: left; cursor: pointer; }
 .card .act, .hero .act { background: var(--bg); } .sec .act, .acts.lone .act { background: var(--surface); }
-.act-chip { background: var(--w-strain); border-radius: 8px; height: 40px; min-width: 96px; display: flex; align-items: center; justify-content: center; gap: 8px; color: #fff; flex: none; }
-.act-chip svg { width: 19px; height: 19px; } .act-chip b { font-family: var(--f-num); font-weight: 700; font-size: 17px; font-variant-numeric: tabular-nums; } .act-chip b small { font-size: 13px; }
+.act-chip { background: var(--w-strain); border-radius: 8px; height: 36px; min-width: 86px; display: flex; align-items: center; justify-content: center; gap: 8px; color: #fff; flex: none; }
+.act-chip svg { width: 18px; height: 18px; } .act-chip b { font-family: var(--f-num); font-weight: 700; font-size: 16px; font-variant-numeric: tabular-nums; } .act-chip b small { font-size: 13px; }
 .act-chip.grey { background: var(--line-2); }
 .act > .wlab { flex: 1; font-size: 12px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .act-t { display: flex; flex-direction: column; align-items: flex-end; font-family: var(--f-num); font-weight: 700; font-size: 12px; color: var(--ink-2); line-height: 1.6; padding-right: 8px; border-right: 2px solid var(--w-strain); white-space: nowrap; }

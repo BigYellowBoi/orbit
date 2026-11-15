@@ -51,7 +51,7 @@ function lastLine(exId, before) {
 const CHEV = d => `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg>`;
 function dayNav(off) { // v1.82: in the header, centred on the logo's row (WHOOP style); the middle button comes back to today
   const d = addDays(today(), off), lab = off === 0 ? 'Today' : off === -1 ? 'Yesterday' : off === 1 ? 'Tomorrow' : `${fmtDow(d)} ${fmtDate(d)}`;
-  return `<button class="dn-a" data-act="dayoff" data-n="-1" aria-label="Previous day">${CHEV('M15 5l-7 7 7 7')}</button><button class="dn-m" data-act="dayoff" data-n="0" aria-label="${esc(off ? `${fmtDow(d)} ${fmtDate(d, { year: 'numeric' })}. Back to today` : 'Today')}">${esc(lab)}</button><button class="dn-a" data-act="dayoff" data-n="1" aria-label="Next day">${CHEV('M9 5l7 7-7 7')}</button>`;
+  return `<button class="dn-a" data-act="dayoff" data-n="-1" aria-label="Previous day">${CHEV('M15 5l-7 7 7 7')}</button><span class="dn-slot"><button class="dn-m" data-act="dayoff" data-n="0" aria-label="${esc(off ? `${fmtDow(d)} ${fmtDate(d, { year: 'numeric' })}. Back to today` : 'Today')}">${esc(lab)}</button></span><button class="dn-a" data-act="dayoff" data-n="1" aria-label="Next day">${CHEV('M9 5l7 7-7 7')}</button>`;
 }
 function vDay(off) {
   const d = addDays(today(), off), h = ''; // the day and its arrows are in the header (v1.82)
