@@ -286,7 +286,7 @@ function layoutRfx() {
   let k = `@keyframes rfxV { 0%, 35% { opacity: 1 } 75%, 100% { opacity: 0 } } @keyframes rfxA { 0%, 20% { opacity: 1 } 100% { opacity: 0 } } @keyframes rfxT { 0%, 20% { opacity: 0 } 100% { opacity: 1 } }
     @keyframes rfxC { 0%, 40% { opacity: 1 } 70%, 100% { opacity: 0 } } @keyframes rfxBand { 0%, 60% { opacity: 0 } 85%, 100% { opacity: 1 } } @keyframes rfxS { from { transform: scale(1) } to { transform: scale(${sc}) } }
     .wrings.rfx .wr { ${run('rfxS')} } .wrings.rfx .wr > svg:first-child { ${run('rfxA')} } .wrings.rfx .wr > svg + svg { ${run('rfxT')} } .wrings.rfx .wr > b { ${run('rfxV')} }
-    .wrings.rfx .chev6 { ${run('rfxC')} } .wrings.rfx::before { ${run('rfxBand')} }`;
+    .wrings.rfx .chev6 { ${run('rfxC')} } .wrings.rfx::before, .wrings.rfx::after { ${run('rfxBand')} }`;
   btns.forEach((b, i) => {
     const col = r.width * (i + .5) / 3, L = lab[i], cxF = col - (RFX.d1 + RFX.gap + L.wF) / 2 + RFX.d1 / 2;
     k += ` ${sel(i)} { left: ${(col - 44).toFixed(1)}px; ${run('rfxB' + i)} } @keyframes rfxB${i} { from { transform: translate(0, 0) } to { transform: translate(${(cxF - col).toFixed(1)}px, ${(C - trav).toFixed(1)}px) } }`;
@@ -298,7 +298,7 @@ function layoutRfx() {
 function hdrFade(p) { // the header row and its background fade as the rings arrive; past halfway it lets taps through to them
   const o = 1 - smooth(p, .3, .6), top = $('.top'); if (!top) return;
   ['.brand', '#daybar', '#streak', '#gear', '#reorder'].forEach(q => { const el = $(q); if (el) el.style.opacity = p ? o : ''; });
-  top.style.pointerEvents = p > .5 ? 'none' : ''; top.style.background = p ? `color-mix(in srgb, var(--bg) ${(o * 100).toFixed(1)}%, transparent)` : '';
+  top.style.pointerEvents = p > .5 ? 'none' : ''; top.style.setProperty('--hdo', p ? o : 1); top.style.background = p ? `color-mix(in srgb, var(--bg) ${(o * 100).toFixed(1)}%, transparent)` : '';
 }
 function scrollRfx() {
   if (!rfx.on) return; const p = Math.min(1, Math.max(0, scrollY0()) / rfx.C);

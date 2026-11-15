@@ -50,6 +50,8 @@ button { cursor: pointer; }
 .sync.ok::before { background: var(--good); } .sync.bad::before { background: var(--bad); } .sync.busy::before { background: var(--warn); }
 .iconbtn { width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); display: grid; place-items: center; color: var(--ink-2); }
 .iconbtn svg { width: 18px; height: 18px; }
+.top::after { content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 20px; pointer-events: none; opacity: var(--hdo, 1); /* v1.87: WHOOP's soft edge in place of the divider line: what scrolls under is blurred and faded, not cut */
+  background: linear-gradient(var(--bg), rgba(0, 0, 0, 0)); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); -webkit-mask-image: linear-gradient(#000, rgba(0, 0, 0, 0)); mask-image: linear-gradient(#000, rgba(0, 0, 0, 0)); }
 #reorder[hidden], #daybar[hidden], #streak[hidden] { display: none; }
 /* v1.82: Today's day switcher, centred on the logo's row (WHOOP style) */
 .daybar { position: absolute; left: 50%; transform: translateX(-50%); top: calc(env(safe-area-inset-top, 0px) + 12px + var(--hdrdrop)); height: 38px; display: flex; align-items: center; }
@@ -63,7 +65,9 @@ button { cursor: pointer; }
    pins on the logo's row by itself) and each piece runs a scroll-linked animation built by layoutRfx() in boot.js, so
    nothing waits on a scroll event. Without scroll timelines the same keyframes are scrubbed from JS. */
 .wrings.rfx { position: sticky; z-index: 6; display: block; padding: 0; }
-.wrings.rfx::before { content: ''; position: absolute; left: calc(50% - 50vw); width: 100vw; top: var(--bt, 0); height: var(--bh, 0); background: linear-gradient(var(--bg) calc(100% - 52px), rgba(0, 0, 0, 0)); opacity: 0; pointer-events: none; z-index: -1; }
+.wrings.rfx::before { content: ''; position: absolute; left: calc(50% - 50vw); width: 100vw; top: var(--bt, 0); height: var(--bh, 0); background: linear-gradient(var(--bg) calc(100% - 44px), rgba(0, 0, 0, 0)); opacity: 0; pointer-events: none; z-index: -1; }
+.wrings.rfx::after { content: ''; position: absolute; left: calc(50% - 50vw); width: 100vw; top: calc(var(--bt, 0) + var(--bh, 0) - 52px); height: 52px; opacity: 0; pointer-events: none; z-index: -1;
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); -webkit-mask-image: linear-gradient(#000 30%, rgba(0, 0, 0, 0)); mask-image: linear-gradient(#000 30%, rgba(0, 0, 0, 0)); }
 .wrings.rfx .wring { position: absolute; top: 6px; width: 88px; height: 88px; display: block; padding: 0; transform-origin: 0 0; }
 .wrings.rfx .wr { position: absolute; left: 0; top: 0; transform-origin: 50% 50%; }
 .wrings.rfx .wr svg + svg { position: absolute; left: 0; top: 0; opacity: 0; }
