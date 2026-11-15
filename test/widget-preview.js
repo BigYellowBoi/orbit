@@ -12,10 +12,10 @@ const src = fs.readFileSync(path.join(__dirname, '../tools/orbit-widget.js'), 'u
     window.Rect = class { constructor(x, y, w, h) { Object.assign(this, { x, y, width: w, height: h }); } };
     window.Color = class { constructor(h, a = 1) { this.css = h + Math.round(a * 255).toString(16).padStart(2, '0'); } };
     window.Font = class { constructor(n, s) { this.css = `700 ${s}px ${/DIN/.test(n) ? '"DejaVu Sans Condensed", "Arial Narrow", sans-serif' : 'system-ui, sans-serif'}`; this.size = s; } static boldSystemFont(s) { return new Font('sys', s); } };
-    window.Path = class { constructor() { this.ops = []; } addLines(ps) { ps.forEach((q, i) => this.ops.push([i ? 'l' : 'm', q])); } closeSubpath() { this.ops.push(['z']); } };
-    window.DrawContext = class { constructor() { this.al = 'left'; } addPath(p) { g.beginPath(); for (const [o, q] of p.ops) o === 'm' ? g.moveTo(q.x, q.y) : o === 'l' ? g.lineTo(q.x, q.y) : g.closePath(); }
+    window.Path = class { constructor() { this.ops = []; } addLines(ps) { ps.forEach((q, i) => this.ops.push([i ? 'l' : 'm', q])); } closeSubpath() { this.ops.push(['z']); } addRoundedRect(r, a) { this.ops.push(['rr', r, a]); } };
+    window.DrawContext = class { constructor() { this.al = 'left'; } addPath(p) { g.beginPath(); for (const [o, q] of p.ops) o === 'm' ? g.moveTo(q.x, q.y) : o === 'l' ? g.lineTo(q.x, q.y) : o === 'rr' ? g.roundRect(q.x, q.y, q.width, q.height, 1.8) : g.closePath(); }
       setStrokeColor(c) { g.strokeStyle = c.css; } setFillColor(c) { g.fillStyle = c.css; } setLineWidth(w) { g.lineWidth = w; } strokePath() { g.lineCap = 'butt'; g.stroke(); } fillPath() { g.fill(); }
-      fillEllipse(r) { g.beginPath(); g.ellipse(r.x + r.width / 2, r.y + r.height / 2, r.width / 2, r.height / 2, 0, 0, 7); g.fill(); }
+      fillRect(r) { g.fillRect(r.x, r.y, r.width, r.height); } fillEllipse(r) { g.beginPath(); g.ellipse(r.x + r.width / 2, r.y + r.height / 2, r.width / 2, r.height / 2, 0, 0, 7); g.fill(); }
       setFont(f) { this.f = f; } setTextColor(c) { this.tc = c.css; } setTextAlignedLeft() { this.al = 'left'; } setTextAlignedRight() { this.al = 'right'; } setTextAlignedCenter() { this.al = 'center'; }
       drawTextInRect(s, r) { g.font = this.f.css; g.fillStyle = this.tc; g.textAlign = this.al; g.textBaseline = 'alphabetic'; g.fillText(s, this.al === 'left' ? r.x : this.al === 'right' ? r.x + r.width : r.x + r.width / 2, r.y + 0.95 * this.f.size); }
       getImage() { return 'img'; } };
@@ -31,7 +31,7 @@ const src = fs.readFileSync(path.join(__dirname, '../tools/orbit-widget.js'), 'u
     window.Request = class { async loadJSON() { return data; } }; window.FileManager = { local: () => ({ joinPath: (a, b) => b, documentsDirectory: () => '', writeString() {}, fileExists: () => false }) };
     window.config = { runsInApp: true, runsInWidget: false }; window.args = {}; window.Script = { setWidget() {}, complete() {} };
     await (new Function(`return (async () => { ${src} })()`))();
-  }, { src, data: { d: '2026-11-15', rec: 46, str: 15.4, hrv: 101, kb: 2371, streak: 730, rot: { k: 2, n: 4 } } });
+  }, { src, data: { d: '2026-11-15', rec: 46, str: 15.4, hrv: 101, kb: 2371, streak: 730, rot: { k: 2, n: 4 }, bb: 50 } });
   await p.screenshot({ path: process.argv[2] || 'widget.png', clip: { x: 20, y: 12, width: 380, height: 186 } });
   console.log(errs.length ? errs : 'rendered'); await b.close();
 })();

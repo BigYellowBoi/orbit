@@ -13,7 +13,7 @@
      GET  /backfill?key=…&from=YYYY-MM   redo the history backfill from a month
      POST /health?key=…     Apple Health numbers from the Shortcut or Health Auto Export (see worker/README.md)
      GET  /widget?key=…     today's numbers for the home screen widget (tools/orbit-widget.js in Scriptable): recovery,
-                            strain, HRV, calories, the Orbit streak and the rotation mark; read from orbit-data, cached 2 min
+                            strain, HRV, calories, the Orbit streak, the rotation mark and Garmin Body Battery; read from orbit-data, cached 2 min
    WHOOP notification (webhook): sync the last 3 days straight away.
    Cron (every 5 min): sync the last 3 days at fixed local times (00:00, 03:00 … 21:00) or if a notification sync failed; otherwise refresh today's
    steps and strain (WHOOP has no webhook for those), and fill in history a month or two at a time.
@@ -86,8 +86,12 @@ async function widgetData(env) {
   let n = 0, day = await used(t) ? t : y;
   while (b.left() > 2 && await used(day)) { n++; day = addDays(day, -1); }
   const st = await readFile(env, b, 'orbit/settings.json').catch(() => null), wg = st?.wgt;
+  let bb = null; // Garmin Body Battery: the latest reading in today's raw file (yesterday's before today's has any)
+  for (const day of [t, y]) { if (bb) break; const g = await readFile(env, b, `orbit/garmin/raw/${day}.json`).catch(() => null);
+    const vals = (Array.isArray(g?.body_battery) ? g.body_battery : []).flatMap(x => x?.bodyBatteryValuesArray || []).filter(v => Array.isArray(v) && v[1] != null).sort((p, q) => p[0] - q[0]);
+    if (vals.length) { const v = vals[vals.length - 1]; bb = { v: v[1], at: v[0] }; } }
   const v = { d: t, rec: d.rec ?? null, str: d.str ?? null, hrv: d.hrv != null ? Math.round(d.hrv) : null, kb: d.kb ?? null, streak: n,
-    rot: wg && wg.n > 0 ? { k: wg.k, n: wg.n } : null, at: Date.now() };
+    rot: wg && wg.n > 0 ? { k: wg.k, n: wg.n } : null, bb: bb?.v ?? null, bbAt: bb?.at ?? null, at: Date.now() };
   widgetMemo = { t: Date.now(), v }; return v;
 }
 

@@ -1,5 +1,5 @@
-// Orbit home screen widget for Scriptable (medium, 4 x 2): recovery, strain, HRV, calories, the Orbit streak and
-// the rotation mark, from the Orbit sync helper's /widget route (worker/orbit-sync.js). Laid out from his WHOOP widget
+// Orbit home screen widget for Scriptable (medium, 4 x 2): recovery, strain, HRV, calories, the Orbit streak, the
+// rotation mark and Garmin Body Battery, from the Orbit sync helper's /widget route (worker/orbit-sync.js). Laid out from his WHOOP widget
 // screenshot (15 Nov 2026), measured in points on a 364 x 170 medium widget.
 // Setup: paste into a new Scriptable script, run it once in the app and enter the helper address and SYNC_KEY
 // (kept in the iOS Keychain, never in this file), then add a medium Scriptable widget and pick this script.
@@ -56,6 +56,12 @@ function draw(d) {
   // streak: flame + count, top left
   poly(dc, FLAME[0], 19 - 6.6 * 0.646, 21.5 - 2.3 * 0.646, 0.646, C.purple); poly(dc, FLAME[1], 19 - 6.6 * 0.646, 21.5 - 2.3 * 0.646, 0.646, C.purpleIn);
   txt(dc, d ? String(d.streak ?? 0) : '–', din(11), 11, C.white, 32.8, 22.7, 'left');
+  // Body Battery (Garmin), top right where WHOOP shows its strap battery: the number and a battery filled to it
+  if (d?.bb != null) { const bx = 335.5, by = 22.2, bw = 13.4, bh = 7.4, lv = Math.max(0, Math.min(100, d.bb)) / 100;
+    txt(dc, String(Math.round(d.bb)), din(11), 11, C.white, bx - 4.5, 22.7, 'right');
+    const o = new Path(); o.addRoundedRect(new Rect(bx, by, bw, bh), 1.8, 1.8); dc.addPath(o); dc.setStrokeColor(new Color(C.white, 0.9)); dc.setLineWidth(1.1); dc.strokePath();
+    dc.setFillColor(new Color(C.white, 0.9)); dc.fillRect(new Rect(bx + bw + 0.8, by + 2.2, 1.3, bh - 4.4));
+    if (lv > 0) { dc.setFillColor(new Color(C.white)); dc.fillRect(new Rect(bx + 1.6, by + 1.6, (bw - 3.2) * lv, bh - 3.2)); } }
   // rings: strain outside (of 21), recovery inside, both from 12 o'clock
   const cx = 181.7, cy = 81.9, rc = recCol(d?.rec);
   arc(dc, cx, cy, 51.6, 0, 1, C.track, 6.6); arc(dc, cx, cy, 51.6, 0, Math.min(1, (d?.str || 0) / 21), C.blue, 6.6);

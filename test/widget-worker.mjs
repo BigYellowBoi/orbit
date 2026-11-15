@@ -15,6 +15,7 @@ dy[t] = { rec: 46, str: 15.4, hrv: 101.4, kb: 2371 }; dy[add(t, -1)] = { rec: 80
 for (const d in wk) (files[`orbit/wk/${d.slice(0, 7)}.json`] ||= { items: {} }).items[d] = wk[d];
 for (const d in dy) (files[`orbit/dy/${d.slice(0, 7)}.json`] ||= { items: {} }).items[d] = dy[d];
 files['orbit/settings.json'] = { wgt: { k: 2, n: 4 } };
+files[`orbit/garmin/raw/${t}.json`] = { body_battery: [{ bodyBatteryValuesArray: [[1000, 18], [3000, 50], [2000, 88], [4000, null]] }] };
 let reads = 0;
 globalThis.fetch = async (u) => { reads++; const m = /contents\/(.+?)\?ref/.exec(u); const f = m && files[decodeURIComponent(m[1])];
   return f ? new Response(JSON.stringify({ content: Buffer.from(JSON.stringify(f)).toString('base64'), sha: 'x' }), { status: 200 }) : new Response('{}', { status: 404 }); };
@@ -23,6 +24,7 @@ ok((await get('')).status === 403, 'no key: forbidden');
 const r = await (await get('', { 'x-sync-key': 'k3y' })).json();
 ok(r.rec === 46 && r.str === 15.4 && r.hrv === 101 && r.kb === 2371, 'today\'s numbers: ' + JSON.stringify(r));
 ok(r.streak === 40, 'streak counts logs and rest days until the empty log, today not logged yet: ' + r.streak);
+ok(r.bb === 50 && r.bbAt === 3000, 'Body Battery: latest non-empty reading by time');
 ok(r.rot && r.rot.k === 2 && r.rot.n === 4, 'rotation mark from settings.wgt');
 const before = reads; await get('?key=k3y'); ok(reads === before, 'second call within 2 min served from memory');
 console.log(`\n${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0);
