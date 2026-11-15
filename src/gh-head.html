@@ -4,7 +4,12 @@
 <meta charset="utf-8">
 <!-- v1.79: this page holds the GitHub token, so it may only load scripts from itself and only talk to GitHub, the sync helper
      (*.workers.dev) and friends' raw files. A helper on a custom domain needs adding to connect-src. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://api.github.com https://*.workers.dev https://raw.githubusercontent.com https://gist.githubusercontent.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://api.github.com https://*.workers.dev https://raw.githubusercontent.com https://gist.githubusercontent.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<style>/* v1.92: WHOOP sets numbers in DINPro Bold. D-DIN PRO (Datto, SIL OFL, vendor/fonts) is the free match, self-hosted,
+   Pages only (the artifact keeps Barlow). Weight 600 numbers use the Bold cut too, since WHOOP's numbers are Bold. */
+@font-face { font-family: 'Orbit DIN'; src: url(vendor/fonts/D-DIN-PRO-500-Medium.otf) format('opentype'); font-weight: 400 500; font-display: swap; }
+@font-face { font-family: 'Orbit DIN'; src: url(vendor/fonts/D-DIN-PRO-700-Bold.otf) format('opentype'); font-weight: 600 800; font-display: swap; }
+</style>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">

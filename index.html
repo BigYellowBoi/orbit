@@ -4,7 +4,12 @@
 <meta charset="utf-8">
 <!-- v1.79: this page holds the GitHub token, so it may only load scripts from itself and only talk to GitHub, the sync helper
      (*.workers.dev) and friends' raw files. A helper on a custom domain needs adding to connect-src. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://api.github.com https://*.workers.dev https://raw.githubusercontent.com https://gist.githubusercontent.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://api.github.com https://*.workers.dev https://raw.githubusercontent.com https://gist.githubusercontent.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<style>/* v1.92: WHOOP sets numbers in DINPro Bold. D-DIN PRO (Datto, SIL OFL, vendor/fonts) is the free match, self-hosted,
+   Pages only (the artifact keeps Barlow). Weight 600 numbers use the Bold cut too, since WHOOP's numbers are Bold. */
+@font-face { font-family: 'Orbit DIN'; src: url(vendor/fonts/D-DIN-PRO-500-Medium.otf) format('opentype'); font-weight: 400 500; font-display: swap; }
+@font-face { font-family: 'Orbit DIN'; src: url(vendor/fonts/D-DIN-PRO-700-Bold.otf) format('opentype'); font-weight: 600 800; font-display: swap; }
+</style>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -63,7 +68,7 @@ html.sbox #scroll { position: fixed; top: 0; right: 0; bottom: 0; left: 0; overf
   /* v1.81 fonts (WHOOP's type: Proxima Nova body, Proxima Bold uppercase 0.1em labels, DIN Pro Bold numbers; both paid, so free
      Google fallbacks). The logo and the settings button stay on Geist. */
   --f-body: 'Proxima Nova', 'Figtree', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --f-num: 'DIN Pro', 'D-DIN', 'Barlow', ui-sans-serif, system-ui, sans-serif;
+  --f-num: 'Orbit DIN', 'DIN Pro', 'D-DIN', 'Barlow', ui-sans-serif, system-ui, sans-serif;
   --f-geist: 'Geist', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --f-code: ui-monospace, 'SFMono-Regular', Menlo, monospace;
   --r: 12px; --tabh: 62px; --toph: 63px; --hdrdrop: 0px;
@@ -941,7 +946,7 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.91'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.92'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
