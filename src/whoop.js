@@ -4,7 +4,7 @@
    Design reference: the "Orbit Today" Claude Design canvas. Numbers are real day fields (STATE.d).
    ============================================================ */
 const WC = { rec: '#77ace1', green: '#6ee846', red: '#ea3334', sleep: '#83a0b8', strain: '#408fdf', yellow: '#f9df4a', track: '#373d42', up: '#6eeda5', dn: '#ffb35c', lt: '#a3a6f5', deep: '#f19cf0', rem: '#a35be6', aw: '#c8c8c8',
-  z: ['#b8c4cc', '#4f8fc0', '#6abf8e', '#f5b06b', '#f2683c'], hm: '#5a6168', debt: '#d9dcde', grid: '#222830', dim: '#80889a', ink: '#e8ebef', card: '#111418' };
+  z: ['#b1c1cc', '#5d98be', '#72b798', '#f0af6a', '#ed6e39'], hm: '#5a6168', debt: '#d9dcde', grid: '#222830', dim: '#80889a', ink: '#e8ebef', card: '#111418' };
 const WP = { // line icons (24px grid)
   moon: 'M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z', cons: 'M14 3.5a8.5 8.5 0 1 0 6.5 13.5M17 3.5a8.5 8.5 0 0 1 4 7', eff: 'M4 20v-6M8 20V9M12 20V5M16 20v-8M20 20v-4',
   hrv: 'M3 12h4l2-4 3 8 2-4h7', heart: 'M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.5-7 10-7 10z', lungs: 'M12 4v7M12 11c-1.5 0-2.5-2-4.5-2S4 12 4 15.5 5 20 7 20s4-2 5-4.5M12 11c1.5 0 2.5-2 4.5-2s3.5 3 3.5 6.5S19 20 17 20s-4-2-5-4.5',

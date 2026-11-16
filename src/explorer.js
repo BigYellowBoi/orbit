@@ -34,7 +34,8 @@ const METRICS = [
   { id: 'bed', g: 'Sleep', label: 'Time in bed', unit: '', src: 'WHOOP', v: d => { const a = tMin(dayVal(d, 'on')), b = tMin(dayVal(d, 'off')); return a != null && b != null && b > a ? b - a : null; }, chart: 'range', better: 0, f: v => hm(v) },
   { id: 'sc', g: 'Sleep', label: 'Sleep consistency', unit: '%', src: 'WHOOP', v: dv('sc'), chart: 'bar', better: 1, f: v => fmt(v, 0), yMin: 0, yMax: 100 },
   { id: 'resth', g: 'Sleep', label: 'Restorative sleep (hours)', unit: '', src: 'WHOOP', v: d => { const a = dayVal(d, 'deep'), b = dayVal(d, 'rem'); return a != null && b != null ? a + b : null; }, chart: 'stack', better: 1, f: v => hm(v) },
-  { id: 'restp', g: 'Sleep', label: 'Restorative sleep (%)', unit: '%', src: 'WHOOP', v: d => { const a = dayVal(d, 'deep'), b = dayVal(d, 'rem'), t = dayVal(d, 'slp'); return a != null && b != null && t ? (a + b) / t * 100 : null; }, chart: 'bar', better: 1, f: v => fmt(v, 0) },
+  { id: 'restp', g: 'Sleep', label: 'Restorative sleep (%)', unit: '%', src: 'WHOOP', v: d => { const a = dayVal(d, 'deep'), b = dayVal(d, 'rem'), t = dayVal(d, 'slp'); return a != null && b != null && t ? (a + b) / t * 100 : null; }, chart: 'bar', better: 1, f: v => fmt(v, 0),
+    breakdown: sevBreak([['High (over 45%)', v => v > 45, '#83a0b8'], ['Sufficient (30–45%)', v => v >= 30 && v <= 45, '#607587'], ['Low (under 30%)', v => v < 30, '#495a67']]) },
   { id: 'se', g: 'Sleep', label: 'Sleep efficiency', unit: '%', src: 'WHOOP', v: dv('se'), chart: 'line', better: 1, f: v => fmt(v, 0) },
   { id: 'sd', g: 'Sleep', label: 'Sleep debt', unit: '', src: 'WHOOP', v: debtAfter, chart: 'bar', better: -1, hmY: true, f: v => hm(v) },
   // Strain
