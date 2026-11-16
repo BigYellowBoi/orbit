@@ -232,7 +232,7 @@ html.hs-scr .top { --bg: #000; background: #000; } html.hsmini-on .top { backgro
 .hsx-ach { display: flex; gap: 22px; align-items: center; border: 1.5px solid #2e3235; border-radius: 14px; padding: 20px 22px; margin-top: 40px; } .hsx-ach > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; } .hsx-ach b { font: 600 18px var(--f-body); color: #fff; } .hsx-ach span { color: #a7a9ab; font-size: 14.5px; } .hsx-ach .hsx-mil { font-size: 12.5px; color: #888a8c; margin-top: 4px; }
 .hsx-tc { padding: 22px 16px 8px; margin-bottom: 14px; } .hsx-th { margin-bottom: 14px; }
 .hst-leg { display: flex; gap: 18px; flex-wrap: wrap; font: 700 11.5px var(--f-body); letter-spacing: .12em; text-transform: uppercase; color: #fff; } .hst-leg .sw { width: 13px; height: 13px; border-radius: 3px; background: #fff; display: inline-block; margin-right: 9px; vertical-align: -2px; } .hst-leg .sw.grad { background: linear-gradient(135deg, #f2ab45, #77ace1 55%, #6eeda5); }
-.hst { width: 100%; display: block; margin-top: 10px; overflow: visible; } .hst-g { stroke: #3a3d40; stroke-width: 1; } .hst-y { fill: #888a8c; font: 700 11px var(--f-num); } .hst-y.on { fill: #fff; } .hst-x { fill: #888a8c; font: 500 12px var(--f-body); } .hst-t { font: 700 13px var(--f-num); }
+.hst { width: 100%; display: block; margin-top: 10px; overflow: visible; } .hst-g { stroke: #3a3d40; stroke-width: 1; } .hst-y { fill: #888a8c; font: 700 11px var(--f-num); } .hst-y.on { fill: #fff; } .hst-x { fill: #888a8c; font: 500 12px var(--f-body); } .hst-t { font: 700 13px var(--f-num); } .hst-d { fill: #fff; font: 700 11px var(--f-body); letter-spacing: .1em; text-transform: uppercase; } .hst { touch-action: pan-y; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; } .hst.hov .hst-end { display: none; }
 .hsx-dobc { align-self: center; margin-top: 18px; }
 .hsdob { width: 150px !important; }
 .hsvo2 { display: flex; gap: 8px; align-items: center; } .hsvo2 > span { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; } .hsvo2 .in { width: 76px; flex: none; text-align: center; }
@@ -983,7 +983,7 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.107'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.108'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
@@ -3963,10 +3963,10 @@ function hsoCol(el) { // the tone colour as [r, g, b] 0..1 plus whether it's Dis
   let m = /color\(display-p3\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)/.exec(c); if (m) return { v: [+m[1], +m[2], +m[3]], p3: true };
   m = /rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/.exec(c); return { v: m ? [m[1] / 255, m[2] / 255, m[3] / 255] : [.5, .53, .6], p3: false };
 }
-function hsoR(th, t, k) { // edge radius as a share of the base radius
-  return 1 + .034 * Math.sin(2 * th + t * .31) + .024 * Math.sin(3 * th - t * .23 + 1) + .014 * Math.sin(5 * th + t * .47 + 2) + .012 * Math.sin(t * 1.25) + k * .05 * Math.sin(6 * th - t * 9);
+function hsoR(th, t, k, w = 1) { // edge radius as a share of the base radius; w scales the wobble (pace of aging)
+  return 1 + w * (.034 * Math.sin(2 * th + t * .31) + .024 * Math.sin(3 * th - t * .23 + 1) + .014 * Math.sin(5 * th + t * .47 + 2)) + .012 * Math.sin(t * 1.25) + k * .05 * Math.sin(6 * th - t * 9);
 }
-function hsoPath(x, cx, cy, R, t, k, sc) { x.beginPath(); for (let i = 0; i <= 72; i++) { const th = i / 72 * 6.2832, r = R * sc * hsoR(th, t, k); i ? x.lineTo(cx + Math.cos(th) * r, cy + Math.sin(th) * r) : x.moveTo(cx + Math.cos(th) * r, cy + Math.sin(th) * r); } x.closePath(); }
+function hsoPath(x, cx, cy, R, t, k, sc, w) { x.beginPath(); for (let i = 0; i <= 72; i++) { const th = i / 72 * 6.2832, r = R * sc * hsoR(th, t, k, w); i ? x.lineTo(cx + Math.cos(th) * r, cy + Math.sin(th) * r) : x.moveTo(cx + Math.cos(th) * r, cy + Math.sin(th) * r); } x.closePath(); }
 function hsoNow(now) { const p = Math.min(1, (now - HSO.colAt) / 700), q = p * p * (3 - 2 * p); return HSO.col.map((v, i) => HSO.from[i] + (v - HSO.from[i]) * q); }
 function hsoDraw(cv, now, dt) {
   const box = cv.parentNode, css = box.clientWidth, pad = 1.4; if (!css) return;
@@ -3982,18 +3982,21 @@ function hsoDraw(cv, now, dt) {
   const e = still ? 1 : Math.min(1, (now - cv._born) / 1400), bloom = 1 - Math.pow(1 - e, 3), ov = e < 1 ? Math.sin(e * Math.PI) * .05 : 0;
   const kick = still ? 0 : Math.max(0, 1 - (t - HSO.kickAt) / 1.6), k = kick * kick, u = dpr * css / 300;
   const cx = W / 2, cy = W / 2, R = W / pad / 2 * (.62 + .38 * bloom + ov);
+  // v1.108: the slower the pace of aging the rounder the blob (0x near round, 1x the full wobble, up to 1.8x at 3x); eased so a week change morphs
+  const pace = parseFloat(box.dataset.pace), goal = Number.isFinite(pace) ? Math.max(.12, Math.min(1.8, .2 + .8 * pace)) : 1;
+  cv._w = cv._w == null ? goal : cv._w + (goal - cv._w) * Math.min(1, dt * 2.5); const wob = cv._w;
   x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, W, W); x.globalAlpha = Math.min(1, e * 1.6);
   // soft dark drop shadow, as WHOOP's sits on the page
-  x.save(); hsoPath(x, cx, cy, R, t, k, 1); x.shadowColor = 'rgba(0,0,0,.8)'; x.shadowBlur = R * .14; x.shadowOffsetY = R * .05; x.fillStyle = '#000'; x.fill(); x.restore();
-  x.save(); hsoPath(x, cx, cy, R, t, k, 1); x.clip();
+  x.save(); hsoPath(x, cx, cy, R, t, k, 1, wob); x.shadowColor = 'rgba(0,0,0,.8)'; x.shadowBlur = R * .14; x.shadowOffsetY = R * .05; x.fillStyle = '#000'; x.fill(); x.restore();
+  x.save(); hsoPath(x, cx, cy, R, t, k, 1, wob); x.clip();
   const g = x.createRadialGradient(cx, cy, 0, cx, cy, R * 1.03);
-  g.addColorStop(0, '#000'); g.addColorStop(.44, '#000'); g.addColorStop(.6, col(body, .22)); g.addColorStop(.78, col(body, .55)); g.addColorStop(.95, col(body, 1)); g.addColorStop(1, col(body, 1));
+  g.addColorStop(0, '#000'); for (let i = 0; i <= 24; i++) { const q = i / 24; g.addColorStop(.4 + .58 * q, col(body, q * q * (1.6 - .6 * q))); } g.addColorStop(1, col(body, 1)); // one smooth ramp (v1.108: the old piecewise stops showed as a ring)
   x.fillStyle = g; x.fillRect(0, 0, W, W);
   if (!HSO.rim) hsoMotes();
   // motes born near the centre, drifting outward
   for (const m of HSO.out) {
     const q = HSO.rt / m.D + m.ph, cyc = Math.floor(q), p = q - cyc;
-    const th = hsoH(m.k + cyc * 1.618) * 6.2832 + p * m.w, f = (m.f0 + (m.fe - m.f0) * (p * .6 + p * p * .4)) * (.3 + .7 * bloom), r = R * f * hsoR(th, t, k);
+    const th = hsoH(m.k + cyc * 1.618) * 6.2832 + p * m.w, f = (m.f0 + (m.fe - m.f0) * (p * .6 + p * p * .4)) * (.3 + .7 * bloom), r = R * f * hsoR(th, t, k, wob);
     const fade = Math.min(1, p / .15, (1 - p) / .12), a = Math.max(0, fade) * (.2 + .8 * p) * (still ? .8 : 1), s = m.s * u * (.35 + .9 * p) * (m.big ? 2 : 1);
     const px = cx + Math.cos(th) * r, py = cy + Math.sin(th) * r;
     if (m.big) { x.fillStyle = col(rim, a * .45, .35); x.beginPath(); x.arc(px, py, s, 0, 6.2832); x.fill(); }
@@ -4001,14 +4004,14 @@ function hsoDraw(cv, now, dt) {
   }
   // residents of the rim band
   for (const m of HSO.rim) {
-    const th = m.a + HSO.spin * m.w, f = (m.f + .015 * Math.sin(t * .6 + m.wob)) * (.3 + .7 * bloom), r = R * f * hsoR(th, t, k);
+    const th = m.a + HSO.spin * m.w, f = (m.f + .015 * Math.sin(t * .6 + m.wob)) * (.3 + .7 * bloom), r = R * f * hsoR(th, t, k, wob);
     const px = cx + Math.cos(th) * r, py = cy + Math.sin(th) * r, tw = .5 + .5 * Math.sin(t * m.tw + m.ph), s = m.s * u * (1 + .4 * k);
     if (m.big) { x.fillStyle = col(rim, (.3 + .25 * tw), .3); x.beginPath(); x.arc(px, py, s, 0, 6.2832); x.fill(); }
     else { x.fillStyle = col(rim, .55 + .45 * tw, .65); x.beginPath(); x.arc(px, py, s, 0, 6.2832); x.fill(); }
   }
   x.restore();
   // thin bright rim line
-  x.save(); hsoPath(x, cx, cy, R, t, k, 1); x.lineWidth = Math.max(1, 1.5 * u); x.strokeStyle = col(rim, .95, .08); x.shadowColor = col(rim, .6 + .4 * k); x.shadowBlur = (3 + 8 * k) * u; x.stroke(); x.restore();
+  x.save(); hsoPath(x, cx, cy, R, t, k, 1, wob); x.lineWidth = Math.max(1, 1.5 * u); x.strokeStyle = col(rim, .95, .08); x.shadowColor = col(rim, .6 + .4 * k); x.shadowBlur = (3 + 8 * k) * u; x.stroke(); x.restore();
   x.globalAlpha = 1;
 }
 function hsoLoop() {
@@ -4026,7 +4029,7 @@ function hsoLoop() {
   requestAnimationFrame(hsoLoop);
 }
 if (typeof window !== 'undefined' && !HSO.on) { HSO.on = true; setTimeout(hsoLoop, 0); }
-const hsOrb = (cls, tone, inner, aria = '') => `<div class="hsorb ${cls} hs-o-${tone}"${aria ? ` aria-label="${esc(aria)}"` : ''}><canvas class="hsorb-cv" data-keep aria-hidden="true"></canvas><i class="hsorb-p"></i><div class="hsorb-c">${inner}</div></div>`;
+const hsOrb = (cls, tone, inner, aria = '', pace) => `<div class="hsorb ${cls} hs-o-${tone}"${pace != null ? ` data-pace="${pace}"` : ''}${aria ? ` aria-label="${esc(aria)}"` : ''}><canvas class="hsorb-cv" data-keep aria-hidden="true"></canvas><i class="hsorb-p"></i><div class="hsorb-c">${inner}</div></div>`;
 
 /* One week's numbers, shared by the card, the screen and the mini bar */
 function hsWeek(off) {
@@ -4047,42 +4050,74 @@ function healthspanCard() {
   if (!k) return `<section class="card"><div class="card-h"><h2>Healthspan</h2><span class="eyebrow">calibrating</span></div><p class="small dim">Needs 21 WHOOP recoveries in the last 31 days.</p>${hsVo2In()}</section>`;
   return `<section class="card hscard" data-act="nav" data-s="healthspan" role="button" aria-label="Open Healthspan"><div class="card-h"><h2>Healthspan</h2><span class="hs-chev">${ICON.down}</span></div>
     <div class="hshero"><div class="hsst"><b style="color:${k.yCol}">${k.yrsTxt}</b><span>${k.yrsLab}</span></div>
-      ${hsOrb('sm', k.tone, k.age != null ? `<b>${k.age}</b><span>Orbit Age</span>` : `<b>${k.yrsTxt}</b><span>${k.yrsLab}</span>`)}
+      ${hsOrb('sm', k.tone, k.age != null ? `<b>${k.age}</b><span>Orbit Age</span>` : `<b>${k.yrsTxt}</b><span>${k.yrsLab}</span>`, '', k.w.pace)}
       <div class="hsst"><b>${k.pace}</b><span>Pace of Aging</span></div></div></section>`;
 }
 
 /* The screen */
-function hsTrendSVG(series, yt, yf, ref, months) { // WHOOP line chart: grid, y labels left, months under, hollow end marker with a tag
-  const Wd = 360, H = 210, L = 44, Rr = 14, T = 16, B = 34, xs = series[0].pts.length - 1 || 1, lo = yt[0], hi = yt[yt.length - 1];
-  const X = i => L + 10 + (Wd - L - Rr - 20) * i / xs, Y = v => T + (H - T - B) * (1 - (v - lo) / (hi - lo));
-  let s = yt.map(v => `<line x1="${L}" x2="${Wd - Rr}" y1="${Y(v)}" y2="${Y(v)}" class="hst-g"/><text x="${L - 8}" y="${Y(v) + 4}" text-anchor="end" class="hst-y${v === ref ? ' on' : ''}">${yf(v)}</text>`).join('');
-  if (ref != null) s += `<line x1="${X(0) - 6}" x2="${X(xs)}" y1="${Y(ref)}" y2="${Y(ref)}" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>`;
+/* WHOOP line chart: grid, y labels left, months under, hollow end marker with a tag. Interactive (v1.108): press or drag
+   (hover with a mouse) to read any week; the end tags give way to a line, markers and tags at that week, with its dates on
+   top. Tags are kept inside the plot so they never sit on the month labels, and two tags never overlap. */
+const HST = { Wd: 360, H: 214, L: 44, R: 10, T: 26, B: 34 };
+function hstGeo(n, lo, hi) { const { Wd, H, L, R, T, B } = HST, xs = Math.max(1, n - 1);
+  return { X: i => L + 10 + (Wd - L - R - 20) * i / xs, Y: v => T + (H - T - B) * (1 - (Math.max(lo, Math.min(hi, v)) - lo) / (hi - lo)) }; }
+function hstTags(items) { // items: [{x, y, txt, col}] → markers and tags, placed above the point unless there's no room, inside the plot, apart
+  const { Wd, H, L, T, B } = HST, lo = T - 22, hi = H - B - 26;
+  const tags = items.map(o => { const tw = String(o.txt).replace(/&lt;/g, '<').length * 8 + 12; let ty = o.y - 34; if (ty < lo) ty = o.y + 12; ty = Math.max(lo, Math.min(hi, ty));
+    return { ...o, tw, tx: Math.max(L, Math.min(Wd - tw - 1, o.x - tw / 2)), ty }; }).sort((a, b) => a.ty - b.ty);
+  for (let i = 1; i < tags.length; i++) { const p = tags[i - 1], q = tags[i]; if (q.ty < p.ty + 25 && q.tx < p.tx + p.tw && p.tx < q.tx + q.tw) { q.ty = p.ty + 25; if (q.ty > hi) { q.ty = hi; p.ty = Math.max(lo, q.ty - 25); } } }
+  return tags.map(t => `<circle cx="${t.x.toFixed(1)}" cy="${t.y.toFixed(1)}" r="5.5" fill="var(--hs-card)" stroke="${t.col}" stroke-width="2.5"/>`).join('')
+    + tags.map(t => `<rect x="${t.tx.toFixed(1)}" y="${t.ty.toFixed(1)}" width="${t.tw}" height="22" rx="4" fill="#111417"/><text x="${(t.tx + t.tw / 2).toFixed(1)}" y="${(t.ty + 16).toFixed(1)}" text-anchor="middle" class="hst-t" fill="${t.col}">${t.txt}</text>`).join('');
+}
+function hsTrendSVG(series, yt, yf, ref, months, dates) {
+  const { Wd, H, L, R, B } = HST, n = series[0].pts.length, lo = yt[0], hi = yt[yt.length - 1], { X, Y } = hstGeo(n, lo, hi);
+  let s = yt.map(v => `<line x1="${L}" x2="${Wd - R}" y1="${Y(v)}" y2="${Y(v)}" class="hst-g"/><text x="${L - 8}" y="${Y(v) + 4}" text-anchor="end" class="hst-y${v === ref ? ' on' : ''}">${yf(v)}</text>`).join('');
+  if (ref != null) s += `<line x1="${X(0) - 6}" x2="${X(n - 1)}" y1="${Y(ref)}" y2="${Y(ref)}" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>`;
   s += months.map(([i, m]) => `<text x="${X(i)}" y="${H - 8}" text-anchor="middle" class="hst-x">${m}</text>`).join('');
+  const ends = [];
   for (const se of series) {
-    const p = se.pts.map((v, i) => v == null ? null : [X(i), Y(Math.max(lo, Math.min(hi, v)))]).filter(Boolean); if (!p.length) continue;
+    const p = se.pts.map((v, i) => v == null ? null : [X(i), Y(v)]).filter(Boolean); if (!p.length) continue;
     s += `<path d="M${p.map(q => q.map(z => z.toFixed(1)).join(' ')).join('L')}" fill="none" stroke="${se.col}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`;
-    const [ex, ey] = p[p.length - 1], tw = se.tag.length * 8 + 12, ty = se.tagUp ? ey - 34 : ey + 12;
-    s += `<circle cx="${ex}" cy="${ey}" r="5.5" fill="var(--hs-card)" stroke="${se.col}" stroke-width="2.5"/><rect x="${ex - tw / 2}" y="${ty}" width="${tw}" height="22" rx="4" fill="#111417"/><text x="${ex}" y="${ty + 16}" text-anchor="middle" class="hst-t" fill="${se.col}">${se.tag}</text>`;
+    const li = se.pts.length - 1; ends.push({ x: X(li), y: Y(se.pts[li]), txt: se.labs[li], col: se.col });
   }
-  return `<svg class="hst" viewBox="0 0 ${Wd} ${H}" role="img">${s}</svg>`;
+  const data = { lo, hi, s: series.map(se => ({ p: se.pts, l: se.labs, c: se.col })), d: dates };
+  return `<svg class="hst" viewBox="0 0 ${Wd} ${H}" role="img" data-h="${esc(JSON.stringify(data))}">${s}<g class="hst-end">${hstTags(ends)}</g><g class="hst-hov"></g><rect class="hst-hit" x="${L}" y="0" width="${Wd - L}" height="${H - B}" fill="transparent"/></svg>`;
+}
+function hstShow(svg, cx) { // cx: pointer x in client px
+  let d; try { d = svg._d || (svg._d = JSON.parse(svg.dataset.h)); } catch (e) { return; }
+  const r = svg.getBoundingClientRect(), vx = (cx - r.left) * HST.Wd / r.width, n = d.s[0].p.length, { X, Y } = hstGeo(n, d.lo, d.hi);
+  const i = Math.max(0, Math.min(n - 1, Math.round((vx - X(0)) / ((X(n - 1) - X(0)) / Math.max(1, n - 1)))));
+  if (svg._i === i) return; svg._i = i;
+  const x = X(i), items = d.s.filter(se => se.p[i] != null).map(se => ({ x, y: Y(se.p[i]), txt: se.l[i], col: se.c }));
+  const lab = d.d[i] || '', lw = lab.length * 7 + 14, lx = Math.max(HST.L, Math.min(HST.Wd - lw - 1, x - lw / 2));
+  svg.querySelector('.hst-hov').innerHTML = `<line x1="${x}" x2="${x}" y1="${HST.T - 4}" y2="${HST.H - HST.B}" stroke="#fff" stroke-opacity=".55" stroke-width="1.2"/><text x="${(lx + lw / 2).toFixed(1)}" y="12" text-anchor="middle" class="hst-d">${esc(lab)}</text>` + hstTags(items);
+  svg.classList.add('hov');
+}
+function hstHide(svg) { if (!svg || !svg.classList.contains('hov')) return; svg.classList.remove('hov'); svg.querySelector('.hst-hov').innerHTML = ''; svg._i = null; }
+if (typeof document !== 'undefined') {
+  const on = ev => { const svg = ev.target.closest?.('.hst'); if (svg) hstShow(svg, ev.clientX); };
+  document.addEventListener('pointerdown', ev => { document.querySelectorAll('.hst.hov').forEach(s => { if (!s.contains(ev.target)) hstHide(s); }); on(ev); });
+  document.addEventListener('pointermove', ev => { if (ev.pointerType === 'mouse' || ev.buttons) on(ev); else if (ev.target.closest?.('.hst')) on(ev); });
+  document.addEventListener('pointerout', ev => { if (ev.pointerType === 'mouse') { const svg = ev.target.closest?.('.hst'); if (svg && !svg.contains(ev.relatedTarget)) hstHide(svg); } });
+  for (const t of ['pointerup', 'pointercancel']) document.addEventListener(t, ev => { if (ev.pointerType !== 'mouse') document.querySelectorAll('.hst.hov').forEach(hstHide); });
+  document.addEventListener('scroll', () => document.querySelectorAll('.hst.hov').forEach(hstHide), { capture: true, passive: true });
 }
 function hsTrends(k) {
   const ws = k.h.weeks.slice(Math.max(0, k.n - k.o - 26), k.n - k.o), dob = S().dob;
   if (ws.length < 2) return '';
   const months = []; ws.forEach((w, i) => { const m = fmtDate(w.W).split(' ')[1]; if (!months.length || months[months.length - 1][1] !== m) months.push([i, m]); });
-  const mo = months.filter(([i]) => i > 0 || months.length < 7);
+  const mo = months.filter(([i]) => i > 0 || months.length < 7), dl = ws.map(w => `${hsWk(w.W)} - ${hsWk(addDays(w.W, 6))}`);
   let h = '<h2 class="hsx-gh">Trend View</h2>';
   if (dob) {
     const chron = ws.map(w => diffDays(dob, w.W) / 365.2425), age = ws.map((w, i) => Math.max(18, chron[i] + w.total));
     const all = [...chron, ...age], lo = Math.floor(Math.min(...all)) - 1, step = Math.max(1, Math.ceil((Math.ceil(Math.max(...all)) + 2 - lo) / 4)), yt = [0, 1, 2, 3, 4].map(i => lo + i * step);
-    const last = age[age.length - 1], tag = (chron[chron.length - 1] + ws[ws.length - 1].total) < 18 ? '&lt;18.0' : fmt(last, 1);
     h += `<section class="hsx-card hsx-tc"><div class="hsx-th"><span class="hsx-lab">Orbit Age trend</span></div>
       <div class="hst-leg"><span><i class="sw grad"></i>Your Orbit Age</span><span><i class="sw"></i>Chronological age</span></div>
-      ${hsTrendSVG([{ pts: chron, col: '#fff', tag: fmt(chron[chron.length - 1], 1), tagUp: true }, { pts: age, col: p3(HSP.gb), tag }], yt, v => v.toFixed(1), null, mo)}</section>`;
+      ${hsTrendSVG([{ pts: chron, col: '#fff', labs: chron.map(v => fmt(v, 1).replace(/^(\d+)$/, '$1.0')) }, { pts: age, col: p3(HSP.gb), labs: ws.map((w, i) => chron[i] + w.total < 18 ? '&lt;18.0' : fmt(age[i], 1).replace(/^(\d+)$/, '$1.0')) }], yt, v => v.toFixed(1), null, mo, dl)}</section>`;
   }
   const pace = ws.map(w => w.pace);
   h += `<section class="hsx-card hsx-tc"><div class="hsx-th"><span class="hsx-lab">Pace of Aging trend</span></div>
-    ${hsTrendSVG([{ pts: pace, col: 'var(--wc-rec)', tag: fmt(pace[pace.length - 1], 1).replace(/^(-?\d+)$/, '$1.0') + 'x', tagUp: true }], [-1, 0, 1, 2, 3], v => v.toFixed(1) + 'x', 1, mo)}</section>`;
+    ${hsTrendSVG([{ pts: pace, col: 'var(--wc-rec)', labs: pace.map(v => fmt(v, 1).replace(/^(-?\d+)$/, '$1.0') + 'x') }], [-1, 0, 1, 2, 3], v => v.toFixed(1) + 'x', 1, mo, dl)}</section>`;
   return h;
 }
 function vHealthspan() {
@@ -4105,7 +4140,7 @@ function vHealthspan() {
   const miles = k.h.miles;
   return `<div class="hsx">
     <div class="hsnav"><button class="iconbtn" data-act="hsweek" data-d="1" aria-label="Previous week" ${o >= n - 1 ? 'disabled' : ''}>${HS_CHEV(1)}</button><b>${esc(hsWk(w.W))} - ${esc(hsWk(addDays(w.W, 6)))}</b><button class="iconbtn" data-act="hsweek" data-d="-1" aria-label="Next week" ${o ? '' : 'disabled'}>${HS_CHEV(0)}</button><button class="hs-i" data-act="winfo" data-k="hs" aria-label="About Healthspan">i</button></div>
-    <div class="hsx-orbw">${hsOrb('big', k.tone, k.age != null ? `<b>${k.age}</b><span>Orbit Age</span><em style="color:${k.yCol}">${k.yrsTxt} ${k.yrsLab}</em>` : `<b>${k.yrsTxt}</b><span>${k.yrsLab}</span>`, k.age != null ? 'Orbit Age ' + k.age.replace('&lt;', 'under ') : '')}</div>
+    <div class="hsx-orbw">${hsOrb('big', k.tone, k.age != null ? `<b>${k.age}</b><span>Orbit Age</span><em style="color:${k.yCol}">${k.yrsTxt} ${k.yrsLab}</em>` : `<b>${k.yrsTxt}</b><span>${k.yrsLab}</span>`, k.age != null ? 'Orbit Age ' + k.age.replace('&lt;', 'under ') : '', k.w.pace)}</div>
     ${dob ? '' : `<div class="hsvo2 hsx-dob"><span class="small">Birth date<span class="xs muted">Shows your Orbit Age</span></span><input class="in hsdob" type="date" id="dobin" aria-label="Birth date"><button class="btn sm" data-act="hsdob">Save</button></div>`}
     <section class="hspace"><span class="hsx-lab">Pace of Aging</span>
       <div class="hspace-v"><span><i class="hs-slow"></i>Slow</span><b style="left:${pp}%">${k.pace}</b><span>Fast<svg class="hs-fast" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2c4 0 7 2 7.6 5.5.6 3.6-1.4 7.6-4.6 9.4-2.6 1.4-5.8.6-7.6-1.6C3.4 13 2 10 3 7 4 4 6.6 2 10 2z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M13 3.4c-1.5 3-1.6 6-.4 9.4" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></span></div>
@@ -4138,7 +4173,7 @@ function renderHsMini() {
   el.hidden = !k; if (!k) return;
   const [l, r] = el.querySelectorAll('.hsm-s'), orb = el.querySelector('.hsorb');
   l.querySelector('b').textContent = k.yrsTxt; l.querySelector('b').style.color = k.yCol; l.querySelector('span').textContent = k.yrsLab;
-  r.querySelector('b').textContent = k.pace; orb.className = `hsorb mini hs-o-${k.tone}`;
+  r.querySelector('b').textContent = k.pace; orb.className = `hsorb mini hs-o-${k.tone}`; orb.dataset.pace = k.w.pace;
   orb.querySelector('.hsorb-c').innerHTML = k.age != null ? `<b>${k.age}</b><span>Orbit Age</span>` : `<b>${k.yrsTxt}</b><span>Years</span>`;
   hsMiniCheck();
 }
