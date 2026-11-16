@@ -3,7 +3,7 @@
    Activity detail screens, the Trend screen, the alcohol check, and one back stack with scroll restore (ui.nav).
    Design reference: the "Orbit Today" Claude Design canvas. Numbers are real day fields (STATE.d).
    ============================================================ */
-const WC = { rec: '#77ace1', green: '#6ee846', red: '#ea3334', sleep: '#83a0b8', strain: '#408fdf', yellow: '#f9df4a', track: '#373d42', up: '#6eeda5', dn: '#ffb35c', lt: '#a4a3eb', deep: '#ec9af4', rem: '#a15ee5', aw: '#c8c8c8',
+const WC = { rec: '#77ace1', green: '#6ee846', red: '#ea3334', sleep: '#83a0b8', strain: '#4090e0', yellow: '#f9df4a', track: '#373d42', up: '#6eeda5', dn: '#ffb35c', lt: '#a4a3eb', deep: '#ec9af4', rem: '#a15ee5', aw: '#c8c8c8',
   z: ['#b1c1cc', '#5d98be', '#72b798', '#f0af6a', '#ed6e39'], hm: '#5a6168', debt: '#d9dcde', grid: '#222830', dim: '#80889a', ink: '#e8ebef', card: '#111418' };
 const WP = { // line icons (24px grid)
   moon: 'M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z', cons: 'M14 3.5a8.5 8.5 0 1 0 6.5 13.5M17 3.5a8.5 8.5 0 0 1 4 7', eff: 'M4 20v-6M8 20V9M12 20V5M16 20v-8M20 20v-4',
@@ -197,7 +197,7 @@ function wkChart(d, spec) {
   const Y = v => PB - (v - lo) / ((hiV - lo) || 1) * (PB - PT);
   const f = spec.f, col = spec.color, t = (x, y, txt, c) => `<text x="${x}" y="${y}" text-anchor="middle" font-size="11" fill="${c}">${esc(txt)}</text>`;
   let body = '';
-  if (spec.type === 'bar') vals.forEach((v, i) => { if (v == null) return; const c = typeof col === 'function' ? col(v) : col, y = Math.min(PB - 1, Y(v)); body += `<rect x="${CX(i) - 6}" y="${y.toFixed(1)}" width="12" height="${(PB - y).toFixed(1)}" rx="2" fill="${c}"/>` + t(CX(i), (y - 6).toFixed(1), f(v), c); });
+  if (spec.type === 'bar') vals.forEach((v, i) => { if (v == null) return; const c = typeof col === 'function' ? col(v) : col, y = Math.min(PB - 1, Y(v)); body += `<rect x="${CX(i) - 6}" y="${y.toFixed(1)}" width="12" height="${(PB - y).toFixed(1)}" rx="2" fill="${c}"/>` + t(CX(i), (y - 6).toFixed(1), f(v), spec.lab || c); });
   if (spec.type === 'stack') vals.forEach((v, i) => { if (!v || !v.some(x => x)) return; let base = PB; v.forEach((x, k) => { if (!x) return; const h = (x / ((hiV - lo) || 1)) * (PB - PT); body += `<rect x="${CX(i) - 6}" y="${(base - h).toFixed(1)}" width="12" height="${h.toFixed(1)}" fill="${spec.colors[k]}"/>`; base -= h; }); body += t(CX(i), (base - 6).toFixed(1), f(tot(v)), WC.ink); });
   if (spec.type === 'line') { const pts = vals.map((v, i) => v == null ? null : [CX(i), Y(v)]).filter(Boolean), pl = pts.map(p => p.map(n => n.toFixed(1)).join(',')).join(' ');
     if (pts.length > 1) { if (spec.fill) { const gid = 'wf' + (wkChart.n = (wkChart.n || 0) + 1); body += `<defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${col}" stop-opacity=".16"/><stop offset="1" stop-color="${col}" stop-opacity="0"/></linearGradient></defs><polygon points="${pts[0][0].toFixed(1)},${PB} ${pl} ${pts[pts.length - 1][0].toFixed(1)},${PB}" fill="url(#${gid})"/>`; }
@@ -353,9 +353,9 @@ function vStrain() {
     + wkCard(d, 'Strain', 'str', { type: 'bar', v: dd => dayVal(dd, 'str'), color: WC.strain, f: v => v.toFixed(1), yMin: 0, yMax: 21 })
     + wkCard(d, 'HR zones 1-3', 'z13', { type: 'stack', v: dd => zz(dd, [0, 1, 2]), colors: WC.z.slice(0, 3), f: wHM, legend: [[WC.z[0], 'Zone 1'], [WC.z[1], 'Zone 2'], [WC.z[2], 'Zone 3']] })
     + wkCard(d, 'HR zones 4-5', 'z45', { type: 'stack', v: dd => zz(dd, [3, 4]), colors: WC.z.slice(3), f: wHM, legend: [[WC.z[3], 'Zone 4'], [WC.z[4], 'Zone 5']] })
-    + wkCard(d, 'Steps', 'stp', { type: 'bar', v: stepsOf, color: WC.strain, f: v => v >= 1000 ? fmt(v / 1000, 1) + 'k' : fmt(v, 0) })
+    + wkCard(d, 'Steps', 'stp', { type: 'bar', v: stepsOf, color: WC.strain, f: v => fmt(v, 0) })
     + wkCard(d, 'Calories', 'kb', { type: 'bar', v: dd => dayVal(dd, 'kb'), color: WC.strain, f: v => fmt(v, 0) })
-    + wkCard(d, 'Strength activity time', 'lift', { type: 'bar', v: liftMin, color: WC.strain, f: wHM });
+    + wkCard(d, 'Strength activity time', 'lift', { type: 'bar', v: liftMin, color: WC.strain, lab: '#fff', f: wHM });
   return h + wSrc(d);
 }
 

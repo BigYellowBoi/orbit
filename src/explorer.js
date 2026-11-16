@@ -83,9 +83,11 @@ function explorerHTML() {
   // headline
   let delta = '';
   if (cur != null && prev != null && prev !== 0) {
-    const absD = cur - prev, rel = absD / Math.abs(prev) * 100, useAbs = m.delta === 'abs';
-    const tone = Math.abs(rel) < 1 || !m.better ? '' : (absD > 0) === (m.better > 0) ? 'good' : 'warn';
-    const shown = m.unit === '%' ? `${fmt(Math.abs(absD), Math.abs(absD) < 10 ? 1 : 0)} pts` : useAbs ? (m.unit === 'kg' ? `${fmt(Math.abs(absD), 1)} kg` : fmt(Math.abs(absD), 1)) : `${fmt(Math.abs(rel), 0)}%`; // a change in a percentage is points (v1.36)
+    const shownNum = v => { const t = String(m.f(v)).replace(/,/g, ''), hm = /^(-?)(\d+):(\d\d)/.exec(t); return hm ? (hm[1] ? -1 : 1) * (+hm[2] * 60 + +hm[3]) : parseFloat(t.replace(/[^\d.\-]/g, '')); };
+    const dc = shownNum(cur), dp = shownNum(prev), byShown = Number.isFinite(dc) && Number.isFinite(dp) && dp !== 0; // v1.104: WHOOP works the change out from the numbers it shows (65% vs 71% → 8%)
+    const absD = cur - prev, rel = byShown ? (dc - dp) / Math.abs(dp) * 100 : absD / Math.abs(prev) * 100, useAbs = m.delta === 'abs';
+    const tone = Math.abs(rel) < 1 || !m.better || m.id === 'rec' ? '' : (absD > 0) === (m.better > 0) ? 'good' : 'warn';
+    const shown = useAbs ? (m.unit === 'kg' ? `${fmt(Math.abs(absD), 1)} kg` : fmt(Math.abs(absD), 1)) : `${fmt(Math.abs(rel), 0)}%`; // relative, WHOOP style, also for % metrics (v1.104; were points since v1.36)
     delta = `<span class="pill plain ${tone}">${Math.abs(rel) < 1 ? '•' : absD > 0 ? '▲' : '▼'} ${shown} vs prior ${word}</span>`;
   }
   const fmtH = v => v == null ? '–' : m.f(v);
@@ -146,7 +148,8 @@ function explorerChart(m, days, start, n) {
     });
     const wl = i => { const ws = weeks[i], we = addDays(ws, 6); return weeks.length > 17 ? monYr(we) : weeks.length > 6 ? fmtDate(we) : `${+ws.slice(8)}–${+we.slice(8)}`; };
     const step = Math.ceil(weeks.length / 4);
-    return chartHTML({ ...base, x0: -0.5, x1: weeks.length - 0.5, xTicks: weeks.map((_, i) => i).filter(i => (weeks.length - 1 - i) % step === 0), xFmt: wl, barMax: 48, yMin: 0,
+    const wv = bars.filter(b => b.tot).map(b => m.unit === 'hr' || m.chart === 'zones' ? b.tot / 60 : b.tot);
+    return chartHTML({ ...base, avgY: m.src === 'WHOOP' && wv.length ? mean(wv) : null, x0: -0.5, x1: weeks.length - 0.5, xTicks: weeks.map((_, i) => i).filter(i => (weeks.length - 1 - i) % step === 0), xFmt: wl, barMax: 48, yMin: 0,
       yFmt: v => m.unit === 'hr' ? hm(v * 60) : fmt(v, 1), bars: bars.filter(b => b.tot), hoverXs: bars.filter(b => b.tot).map(b => b.x),
       tip: i => { const b = bars[i]; return b && b.tot ? `<b>Week of ${esc(fmtDMY(weeks[i]))}</b><br>${m.unit === 'hr' ? hm(b.tot) : fmt(b.tot, 1) + ' ' + esc(m.unit)}` : ''; },
       barLabel: weeks.length <= 6 ? b => m.unit === 'hr' ? hm(b.tot) : fmt(b.tot, 1) : null });
@@ -155,7 +158,8 @@ function explorerChart(m, days, start, n) {
     case 'bar': case 'zones': {
       if (m.chart === 'zones') return chartHTML({ ...base, yMin: 0, yFmt: v => hm(v * 60), bars: has.map(d => { const z = zoneMin(d); return { x: xi(d), segs: m.zones.map(k => ({ v: z[k] / 60, color: ZCOL[k] })), tot: m.v(d) }; }), barLabel: lab ? b => hm(b.tot) : null });
       const sc = m.unit === 'hr' || m.hmY ? 1 / 60 : 1; // minutes drawn in hours so the axis lands on whole hours
-      return chartHTML({ ...base, yMin: m.yMin ?? 0, yMax: m.yMax, yFmt: v => m.unit === 'hr' || m.hmY ? hm(v / sc) : fmt(v, 0), refY: m.id === 'p' && S().proteinT ? { v: S().proteinT } : null,
+      const rec = m.id === 'rec', av = m.src === 'WHOOP' && has.length ? mean(has.map(d => m.v(d) * sc)) : null; // WHOOP: AVG. line; Recovery's axis is its bands, labelled in their colours
+      return chartHTML({ ...base, avgY: av, ...(rec ? { yTickVals: [0, 33, 67, 100], yTickCol: t => recCol(t === 0 ? 1 : t), ml: 42 } : {}), yMin: m.yMin ?? 0, yMax: m.yMax, yFmt: v => rec ? fmt(v, 0) + '%' : m.unit === 'hr' || m.hmY ? hm(v / sc) : fmt(v, 0), refY: m.id === 'p' && S().proteinT ? { v: S().proteinT } : null,
         bars: has.map(d => ({ x: xi(d), v: m.v(d) * sc, raw: m.v(d), color: m.color ? m.color(m.v(d)) : 'var(--s1)' })), barLabel: lab ? b => m.f(b.raw) : null });
     }
     case 'line': {

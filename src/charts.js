@@ -32,7 +32,7 @@ function drawChart(el, cfg) {
   let s = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">`;
   let yf = cfg.yFmt || (v => fmt(v, 1));
   if (new Set(nt.t.map(yf)).size < nt.t.length) { const st = nt.t.length > 1 ? Math.abs(nt.t[1] - nt.t[0]) : 1, d = Math.max(0, Math.min(3, -Math.floor(Math.log10(st) + 1e-9))); yf = v => fmt(v, d); } // close ticks would round to the same label: show the decimals
-  for (const t of nt.t) if (t >= y0 - 1e-9 && t <= y1 + 1e-9) s += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(t)}" y2="${Y(t)}" class="grid"/><text x="${m.l - 6}" y="${Y(t) + 3.5}" class="ax" text-anchor="end">${esc(yf(t))}</text>`;
+  for (const t of nt.t) if (t >= y0 - 1e-9 && t <= y1 + 1e-9) s += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(t)}" y2="${Y(t)}" class="grid"/><text x="${m.l - 6}" y="${Y(t) + 3.5}" class="ax" text-anchor="end"${cfg.yTickCol ? ` style="fill:${cfg.yTickCol(t)}"` : ''}>${esc(yf(t))}</text>`;
   for (const x of cfg.xTicks || []) s += `<text x="${X(x)}" y="${H - 5}" class="ax" text-anchor="middle">${esc(cfg.xFmt(x))}</text>`;
   if (cfg.area?.length) {
     let seg = [], prev = null; const segsA = [];
@@ -53,6 +53,8 @@ function drawChart(el, cfg) {
       if (cfg.barLabel) s += `<text x="${X(b.x)}" y="${top - 6}" class="${cfg.lblCls || 'lbl'}" text-anchor="middle">${esc(cfg.barLabel(b))}</text>`;
     }
   }
+  if (cfg.avgY != null && Number.isFinite(cfg.avgY)) { const ya = Y(cfg.avgY).toFixed(1); // WHOOP's AVG. line: white dashes across, a white tag over the axis (v1.104)
+    s += `<line x1="${m.l}" x2="${W - m.r}" y1="${ya}" y2="${ya}" stroke="#fff" stroke-dasharray="5 3.5" stroke-width="1.3"/><rect x="0" y="${(+ya - 9).toFixed(1)}" width="${m.l + 4}" height="18" rx="4" fill="#fff"/><text x="${((m.l + 4) / 2).toFixed(1)}" y="${(+ya + 3.6).toFixed(1)}" text-anchor="middle" style="font: 700 9.5px var(--f-body); letter-spacing: .08em; fill: #000">AVG.</text>`; }
   if (cfg.refY) s += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(cfg.refY.v)}" y2="${Y(cfg.refY.v)}" stroke="var(--ink-2)" stroke-dasharray="4 4" stroke-width="1"/>`;
   for (const se of cfg.series || []) {
     const pts = se.pts.filter(p => p.y != null);

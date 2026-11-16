@@ -170,7 +170,8 @@ function applyImport(p) {
   const fillOnly = p.src === 'ah' ? new Set(['kcal', 'p', 'c', 'f', 'wt']) : new Set(); // MacroFactor's own export wins for these
   for (const date in p.days) {
     const cur = STATE.d[date] || {}; const nx = { ...cur };
-    for (const k of keysBySrc) if (p.days[date][k] != null && !(fillOnly.has(k) && cur[k] != null) && !(k === 'alc' && cur.alcSrc === 'me')) nx[k] = p.days[date][k]; // v1.81: an answer given in Orbit wins over the journal
+    const api = p.src === 'whoop' && (cur.cyc != null || cur.snb != null); // v1.104: a day the helper wrote from WHOOP's API (full-precision HRV, zones to 0.1%) only takes what the export adds (the journal), never its rounded values
+    for (const k of keysBySrc) if (p.days[date][k] != null && !((fillOnly.has(k) || (api && k !== 'alc')) && cur[k] != null) && !(k === 'alc' && cur.alcSrc === 'me')) nx[k] = p.days[date][k]; // v1.81: an answer given in Orbit wins over the journal
     STATE.d[date] = nx; months.add(date.slice(0, 7));
   }
   S().imports = { ...(S().imports || {}), [p.src]: { at: Date.now(), range: previewRange(p.days), n: Object.keys(p.days).length } };

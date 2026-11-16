@@ -674,7 +674,7 @@ body:has(#updp) .fab { bottom: calc(var(--tabh) + max(8px, calc(env(safe-area-in
 .rmd { display: block; font-size: 11.5px; color: var(--ink-3); font-weight: 400; }
 
 /* ---------- v1.81 Today redesign: rings, tiles, Health monitor, ring detail screens (WHOOP-style) ---------- */
-#view { --w-sleep: #83a0b8; --w-strain: #408fdf; --w-yellow: #f9df4a; --w-track: #373d42; --w-in: #6eeda5; --w-up: #6eeda5; --w-dn: #ffb35c; --w-hatch: repeating-linear-gradient(135deg, #2c323a 0 2px, #171b21 2px 6px); --w-lt: #a3a6f5; --w-deep: #f19cf0; --w-rem: #a35be6; --w-lab: #c8ccd0; }
+#view { --w-sleep: #83a0b8; --w-strain: #4090e0; --w-yellow: #f9df4a; --w-track: #373d42; --w-in: #6eeda5; --w-up: #6eeda5; --w-dn: #ffb35c; --w-hatch: repeating-linear-gradient(135deg, #2c323a 0 2px, #171b21 2px 6px); --w-lt: #a3a6f5; --w-deep: #f19cf0; --w-rem: #a35be6; --w-lab: #c8ccd0; }
 .wlab { font-family: var(--f-body); font-weight: 700; font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; color: #fff; }
 .wlab.sm { font-size: 10.5px; color: var(--w-lab); } .wlab.dim { color: var(--ink-3); }
 .wnum { font-family: var(--f-num); font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: 0; }
@@ -958,7 +958,7 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.103'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.104'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
@@ -2088,7 +2088,8 @@ function applyImport(p) {
   const fillOnly = p.src === 'ah' ? new Set(['kcal', 'p', 'c', 'f', 'wt']) : new Set(); // MacroFactor's own export wins for these
   for (const date in p.days) {
     const cur = STATE.d[date] || {}; const nx = { ...cur };
-    for (const k of keysBySrc) if (p.days[date][k] != null && !(fillOnly.has(k) && cur[k] != null) && !(k === 'alc' && cur.alcSrc === 'me')) nx[k] = p.days[date][k]; // v1.81: an answer given in Orbit wins over the journal
+    const api = p.src === 'whoop' && (cur.cyc != null || cur.snb != null); // v1.104: a day the helper wrote from WHOOP's API (full-precision HRV, zones to 0.1%) only takes what the export adds (the journal), never its rounded values
+    for (const k of keysBySrc) if (p.days[date][k] != null && !((fillOnly.has(k) || (api && k !== 'alc')) && cur[k] != null) && !(k === 'alc' && cur.alcSrc === 'me')) nx[k] = p.days[date][k]; // v1.81: an answer given in Orbit wins over the journal
     STATE.d[date] = nx; months.add(date.slice(0, 7));
   }
   S().imports = { ...(S().imports || {}), [p.src]: { at: Date.now(), range: previewRange(p.days), n: Object.keys(p.days).length } };
@@ -2128,7 +2129,7 @@ function drawChart(el, cfg) {
   let s = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">`;
   let yf = cfg.yFmt || (v => fmt(v, 1));
   if (new Set(nt.t.map(yf)).size < nt.t.length) { const st = nt.t.length > 1 ? Math.abs(nt.t[1] - nt.t[0]) : 1, d = Math.max(0, Math.min(3, -Math.floor(Math.log10(st) + 1e-9))); yf = v => fmt(v, d); } // close ticks would round to the same label: show the decimals
-  for (const t of nt.t) if (t >= y0 - 1e-9 && t <= y1 + 1e-9) s += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(t)}" y2="${Y(t)}" class="grid"/><text x="${m.l - 6}" y="${Y(t) + 3.5}" class="ax" text-anchor="end">${esc(yf(t))}</text>`;
+  for (const t of nt.t) if (t >= y0 - 1e-9 && t <= y1 + 1e-9) s += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(t)}" y2="${Y(t)}" class="grid"/><text x="${m.l - 6}" y="${Y(t) + 3.5}" class="ax" text-anchor="end"${cfg.yTickCol ? ` style="fill:${cfg.yTickCol(t)}"` : ''}>${esc(yf(t))}</text>`;
   for (const x of cfg.xTicks || []) s += `<text x="${X(x)}" y="${H - 5}" class="ax" text-anchor="middle">${esc(cfg.xFmt(x))}</text>`;
   if (cfg.area?.length) {
     let seg = [], prev = null; const segsA = [];
@@ -2149,6 +2150,8 @@ function drawChart(el, cfg) {
       if (cfg.barLabel) s += `<text x="${X(b.x)}" y="${top - 6}" class="${cfg.lblCls || 'lbl'}" text-anchor="middle">${esc(cfg.barLabel(b))}</text>`;
     }
   }
+  if (cfg.avgY != null && Number.isFinite(cfg.avgY)) { const ya = Y(cfg.avgY).toFixed(1); // WHOOP's AVG. line: white dashes across, a white tag over the axis (v1.104)
+    s += `<line x1="${m.l}" x2="${W - m.r}" y1="${ya}" y2="${ya}" stroke="#fff" stroke-dasharray="5 3.5" stroke-width="1.3"/><rect x="0" y="${(+ya - 9).toFixed(1)}" width="${m.l + 4}" height="18" rx="4" fill="#fff"/><text x="${((m.l + 4) / 2).toFixed(1)}" y="${(+ya + 3.6).toFixed(1)}" text-anchor="middle" style="font: 700 9.5px var(--f-body); letter-spacing: .08em; fill: #000">AVG.</text>`; }
   if (cfg.refY) s += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(cfg.refY.v)}" y2="${Y(cfg.refY.v)}" stroke="var(--ink-2)" stroke-dasharray="4 4" stroke-width="1"/>`;
   for (const se of cfg.series || []) {
     const pts = se.pts.filter(p => p.y != null);
@@ -2276,9 +2279,11 @@ function explorerHTML() {
   // headline
   let delta = '';
   if (cur != null && prev != null && prev !== 0) {
-    const absD = cur - prev, rel = absD / Math.abs(prev) * 100, useAbs = m.delta === 'abs';
-    const tone = Math.abs(rel) < 1 || !m.better ? '' : (absD > 0) === (m.better > 0) ? 'good' : 'warn';
-    const shown = m.unit === '%' ? `${fmt(Math.abs(absD), Math.abs(absD) < 10 ? 1 : 0)} pts` : useAbs ? (m.unit === 'kg' ? `${fmt(Math.abs(absD), 1)} kg` : fmt(Math.abs(absD), 1)) : `${fmt(Math.abs(rel), 0)}%`; // a change in a percentage is points (v1.36)
+    const shownNum = v => { const t = String(m.f(v)).replace(/,/g, ''), hm = /^(-?)(\d+):(\d\d)/.exec(t); return hm ? (hm[1] ? -1 : 1) * (+hm[2] * 60 + +hm[3]) : parseFloat(t.replace(/[^\d.\-]/g, '')); };
+    const dc = shownNum(cur), dp = shownNum(prev), byShown = Number.isFinite(dc) && Number.isFinite(dp) && dp !== 0; // v1.104: WHOOP works the change out from the numbers it shows (65% vs 71% → 8%)
+    const absD = cur - prev, rel = byShown ? (dc - dp) / Math.abs(dp) * 100 : absD / Math.abs(prev) * 100, useAbs = m.delta === 'abs';
+    const tone = Math.abs(rel) < 1 || !m.better || m.id === 'rec' ? '' : (absD > 0) === (m.better > 0) ? 'good' : 'warn';
+    const shown = useAbs ? (m.unit === 'kg' ? `${fmt(Math.abs(absD), 1)} kg` : fmt(Math.abs(absD), 1)) : `${fmt(Math.abs(rel), 0)}%`; // relative, WHOOP style, also for % metrics (v1.104; were points since v1.36)
     delta = `<span class="pill plain ${tone}">${Math.abs(rel) < 1 ? '•' : absD > 0 ? '▲' : '▼'} ${shown} vs prior ${word}</span>`;
   }
   const fmtH = v => v == null ? '–' : m.f(v);
@@ -2339,7 +2344,8 @@ function explorerChart(m, days, start, n) {
     });
     const wl = i => { const ws = weeks[i], we = addDays(ws, 6); return weeks.length > 17 ? monYr(we) : weeks.length > 6 ? fmtDate(we) : `${+ws.slice(8)}–${+we.slice(8)}`; };
     const step = Math.ceil(weeks.length / 4);
-    return chartHTML({ ...base, x0: -0.5, x1: weeks.length - 0.5, xTicks: weeks.map((_, i) => i).filter(i => (weeks.length - 1 - i) % step === 0), xFmt: wl, barMax: 48, yMin: 0,
+    const wv = bars.filter(b => b.tot).map(b => m.unit === 'hr' || m.chart === 'zones' ? b.tot / 60 : b.tot);
+    return chartHTML({ ...base, avgY: m.src === 'WHOOP' && wv.length ? mean(wv) : null, x0: -0.5, x1: weeks.length - 0.5, xTicks: weeks.map((_, i) => i).filter(i => (weeks.length - 1 - i) % step === 0), xFmt: wl, barMax: 48, yMin: 0,
       yFmt: v => m.unit === 'hr' ? hm(v * 60) : fmt(v, 1), bars: bars.filter(b => b.tot), hoverXs: bars.filter(b => b.tot).map(b => b.x),
       tip: i => { const b = bars[i]; return b && b.tot ? `<b>Week of ${esc(fmtDMY(weeks[i]))}</b><br>${m.unit === 'hr' ? hm(b.tot) : fmt(b.tot, 1) + ' ' + esc(m.unit)}` : ''; },
       barLabel: weeks.length <= 6 ? b => m.unit === 'hr' ? hm(b.tot) : fmt(b.tot, 1) : null });
@@ -2348,7 +2354,8 @@ function explorerChart(m, days, start, n) {
     case 'bar': case 'zones': {
       if (m.chart === 'zones') return chartHTML({ ...base, yMin: 0, yFmt: v => hm(v * 60), bars: has.map(d => { const z = zoneMin(d); return { x: xi(d), segs: m.zones.map(k => ({ v: z[k] / 60, color: ZCOL[k] })), tot: m.v(d) }; }), barLabel: lab ? b => hm(b.tot) : null });
       const sc = m.unit === 'hr' || m.hmY ? 1 / 60 : 1; // minutes drawn in hours so the axis lands on whole hours
-      return chartHTML({ ...base, yMin: m.yMin ?? 0, yMax: m.yMax, yFmt: v => m.unit === 'hr' || m.hmY ? hm(v / sc) : fmt(v, 0), refY: m.id === 'p' && S().proteinT ? { v: S().proteinT } : null,
+      const rec = m.id === 'rec', av = m.src === 'WHOOP' && has.length ? mean(has.map(d => m.v(d) * sc)) : null; // WHOOP: AVG. line; Recovery's axis is its bands, labelled in their colours
+      return chartHTML({ ...base, avgY: av, ...(rec ? { yTickVals: [0, 33, 67, 100], yTickCol: t => recCol(t === 0 ? 1 : t), ml: 42 } : {}), yMin: m.yMin ?? 0, yMax: m.yMax, yFmt: v => rec ? fmt(v, 0) + '%' : m.unit === 'hr' || m.hmY ? hm(v / sc) : fmt(v, 0), refY: m.id === 'p' && S().proteinT ? { v: S().proteinT } : null,
         bars: has.map(d => ({ x: xi(d), v: m.v(d) * sc, raw: m.v(d), color: m.color ? m.color(m.v(d)) : 'var(--s1)' })), barLabel: lab ? b => m.f(b.raw) : null });
     }
     case 'line': {
@@ -3524,7 +3531,7 @@ const VIEWS = { today: vToday, log: vLog, history: vHistory, strength: vStrength
    Activity detail screens, the Trend screen, the alcohol check, and one back stack with scroll restore (ui.nav).
    Design reference: the "Orbit Today" Claude Design canvas. Numbers are real day fields (STATE.d).
    ============================================================ */
-const WC = { rec: '#77ace1', green: '#6ee846', red: '#ea3334', sleep: '#83a0b8', strain: '#408fdf', yellow: '#f9df4a', track: '#373d42', up: '#6eeda5', dn: '#ffb35c', lt: '#a4a3eb', deep: '#ec9af4', rem: '#a15ee5', aw: '#c8c8c8',
+const WC = { rec: '#77ace1', green: '#6ee846', red: '#ea3334', sleep: '#83a0b8', strain: '#4090e0', yellow: '#f9df4a', track: '#373d42', up: '#6eeda5', dn: '#ffb35c', lt: '#a4a3eb', deep: '#ec9af4', rem: '#a15ee5', aw: '#c8c8c8',
   z: ['#b1c1cc', '#5d98be', '#72b798', '#f0af6a', '#ed6e39'], hm: '#5a6168', debt: '#d9dcde', grid: '#222830', dim: '#80889a', ink: '#e8ebef', card: '#111418' };
 const WP = { // line icons (24px grid)
   moon: 'M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z', cons: 'M14 3.5a8.5 8.5 0 1 0 6.5 13.5M17 3.5a8.5 8.5 0 0 1 4 7', eff: 'M4 20v-6M8 20V9M12 20V5M16 20v-8M20 20v-4',
@@ -3718,7 +3725,7 @@ function wkChart(d, spec) {
   const Y = v => PB - (v - lo) / ((hiV - lo) || 1) * (PB - PT);
   const f = spec.f, col = spec.color, t = (x, y, txt, c) => `<text x="${x}" y="${y}" text-anchor="middle" font-size="11" fill="${c}">${esc(txt)}</text>`;
   let body = '';
-  if (spec.type === 'bar') vals.forEach((v, i) => { if (v == null) return; const c = typeof col === 'function' ? col(v) : col, y = Math.min(PB - 1, Y(v)); body += `<rect x="${CX(i) - 6}" y="${y.toFixed(1)}" width="12" height="${(PB - y).toFixed(1)}" rx="2" fill="${c}"/>` + t(CX(i), (y - 6).toFixed(1), f(v), c); });
+  if (spec.type === 'bar') vals.forEach((v, i) => { if (v == null) return; const c = typeof col === 'function' ? col(v) : col, y = Math.min(PB - 1, Y(v)); body += `<rect x="${CX(i) - 6}" y="${y.toFixed(1)}" width="12" height="${(PB - y).toFixed(1)}" rx="2" fill="${c}"/>` + t(CX(i), (y - 6).toFixed(1), f(v), spec.lab || c); });
   if (spec.type === 'stack') vals.forEach((v, i) => { if (!v || !v.some(x => x)) return; let base = PB; v.forEach((x, k) => { if (!x) return; const h = (x / ((hiV - lo) || 1)) * (PB - PT); body += `<rect x="${CX(i) - 6}" y="${(base - h).toFixed(1)}" width="12" height="${h.toFixed(1)}" fill="${spec.colors[k]}"/>`; base -= h; }); body += t(CX(i), (base - 6).toFixed(1), f(tot(v)), WC.ink); });
   if (spec.type === 'line') { const pts = vals.map((v, i) => v == null ? null : [CX(i), Y(v)]).filter(Boolean), pl = pts.map(p => p.map(n => n.toFixed(1)).join(',')).join(' ');
     if (pts.length > 1) { if (spec.fill) { const gid = 'wf' + (wkChart.n = (wkChart.n || 0) + 1); body += `<defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${col}" stop-opacity=".16"/><stop offset="1" stop-color="${col}" stop-opacity="0"/></linearGradient></defs><polygon points="${pts[0][0].toFixed(1)},${PB} ${pl} ${pts[pts.length - 1][0].toFixed(1)},${PB}" fill="url(#${gid})"/>`; }
@@ -3874,9 +3881,9 @@ function vStrain() {
     + wkCard(d, 'Strain', 'str', { type: 'bar', v: dd => dayVal(dd, 'str'), color: WC.strain, f: v => v.toFixed(1), yMin: 0, yMax: 21 })
     + wkCard(d, 'HR zones 1-3', 'z13', { type: 'stack', v: dd => zz(dd, [0, 1, 2]), colors: WC.z.slice(0, 3), f: wHM, legend: [[WC.z[0], 'Zone 1'], [WC.z[1], 'Zone 2'], [WC.z[2], 'Zone 3']] })
     + wkCard(d, 'HR zones 4-5', 'z45', { type: 'stack', v: dd => zz(dd, [3, 4]), colors: WC.z.slice(3), f: wHM, legend: [[WC.z[3], 'Zone 4'], [WC.z[4], 'Zone 5']] })
-    + wkCard(d, 'Steps', 'stp', { type: 'bar', v: stepsOf, color: WC.strain, f: v => v >= 1000 ? fmt(v / 1000, 1) + 'k' : fmt(v, 0) })
+    + wkCard(d, 'Steps', 'stp', { type: 'bar', v: stepsOf, color: WC.strain, f: v => fmt(v, 0) })
     + wkCard(d, 'Calories', 'kb', { type: 'bar', v: dd => dayVal(dd, 'kb'), color: WC.strain, f: v => fmt(v, 0) })
-    + wkCard(d, 'Strength activity time', 'lift', { type: 'bar', v: liftMin, color: WC.strain, f: wHM });
+    + wkCard(d, 'Strength activity time', 'lift', { type: 'bar', v: liftMin, color: WC.strain, lab: '#fff', f: wHM });
   return h + wSrc(d);
 }
 
