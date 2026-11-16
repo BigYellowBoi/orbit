@@ -665,6 +665,15 @@ body:has(#updp) .fab { bottom: calc(var(--tabh) + max(8px, calc(env(safe-area-in
 .wrings { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 6px 0 8px; }
 .wring { display: flex; flex-direction: column; align-items: center; gap: 12px; background: none; border: 0; padding: 0; color: #fff; cursor: pointer; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .wr { position: relative; display: block; flex: none; }
+/* v1.111: a blank ring's first value pops in: the arc and number spring up, and a ring of its colour bursts outward */
+.wring.pop .wr svg { overflow: visible; }
+.wring.pop .wv { transform-box: view-box; transform-origin: 50% 50%; animation: ringpop .75s cubic-bezier(.34, 1.56, .64, 1) both; }
+.wring.pop .wr > b > span { display: inline-block; animation: numpop .6s .1s cubic-bezier(.34, 1.56, .64, 1) both; }
+.wring.pop .wr::after { content: ''; position: absolute; inset: 0; border-radius: 50%; border: 3px solid var(--pc, var(--accent)); pointer-events: none; animation: ringburst .9s ease-out both; }
+@keyframes ringpop { 0% { opacity: 0; transform: scale(.55) rotate(-40deg); } 60% { opacity: 1; } 100% { opacity: 1; transform: none; } }
+@keyframes numpop { 0% { opacity: 0; transform: scale(.4); } 100% { opacity: 1; transform: none; } }
+@keyframes ringburst { 0% { opacity: .9; transform: scale(.9); } 100% { opacity: 0; transform: scale(1.45); } }
+@media (prefers-reduced-motion: reduce) { .wring.pop .wv, .wring.pop .wr > b > span, .wring.pop .wr::after { animation: none; } .wring.pop .wr::after { display: none; } }
 .wr svg { display: block; transform: rotate(-90deg); }
 .wr > b { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding-top: 2px; font-family: var(--f-num); font-weight: 700; line-height: 1; color: #fff; font-variant-numeric: tabular-nums; }
 .wr > b > span { font-size: 27px; } .wr > b small { font-size: 22px; margin-left: 1px; font-weight: 700; color: #fff; }

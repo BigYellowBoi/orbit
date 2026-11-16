@@ -38,7 +38,7 @@ function wBand(k, r, sw, f, col) {
 /* A ring: full-circle track, value from 12 o'clock clockwise with WHOOP's rounded corners. */
 function wRing(f, col, size, sw, inner, label) {
   const r = (size - sw) / 2, k = size / 2;
-  return `<span class="wr${size > 100 ? ' big' : ''}" style="width:${size}px;height:${size}px"><svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" role="img" aria-label="${esc(label)}"><circle cx="${k}" cy="${k}" r="${r}" fill="none" stroke="${WC.track}" stroke-width="${sw}"/>${wBand(k, r, sw, f, col)}</svg><b>${inner}</b></span>`;
+  return `<span class="wr${size > 100 ? ' big' : ''}" style="width:${size}px;height:${size}px;--pc:${col}"><svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" role="img" aria-label="${esc(label)}"><circle cx="${k}" cy="${k}" r="${r}" fill="none" stroke="${WC.track}" stroke-width="${sw}"/>${wBand(k, r, sw, f, col)}</svg><b>${inner}</b></span>`;
 }
 const pctIn = v => v == null ? '<span class="nil">–</span>' : `<span>${fmt(v, 0)}<small>%</small></span>`;
 const strIn = v => v == null ? '<span class="nil">–</span>' : `<span>${fmtS(v)}</span>`;
@@ -61,7 +61,7 @@ const nightOf = d => addDays(d, -1);
 function alcAsk(d, sel) { // the question, or the same buttons in place when changing an answer
   const v = STATE.d[d]?.alc;
   return `<section class="alc" data-alc="${d}"><span class="alc-h">${wIco('glass')}<b>${sel ? '<span class="wlab">Alcohol</span>' : 'Alcohol last night?'}</b><span class="wlab">${esc(fmtDow(nightOf(d)) + ' ' + fmtDate(nightOf(d)))}</span></span>
-    <div class="alc-b" role="group" aria-label="Alcohol on ${esc(fmtDow(nightOf(d)) + ' ' + fmtDate(nightOf(d)))}"><button class="${sel && v === false ? 'on' : ''}" data-act="alc" data-d="${d}" data-v="0" aria-pressed="${v === false}">No</button><button class="${sel && v === true ? 'on' : ''}" data-act="alc" data-d="${d}" data-v="1" aria-pressed="${v === true}">Yes</button></div></section>`;
+    <div class="alc-b" role="group" aria-label="Alcohol on ${esc(fmtDow(nightOf(d)) + ' ' + fmtDate(nightOf(d)))}"><button class="${sel && v === true ? 'on' : ''}" data-act="alc" data-d="${d}" data-v="1" aria-pressed="${v === true}">Yes</button><button class="${sel && v === false ? 'on' : ''}" data-act="alc" data-d="${d}" data-v="0" aria-pressed="${v === false}">No</button></div></section>`;
 }
 function alcRow(d) { // the answer, with Change (Sleep detail; past days on Today)
   const v = STATE.d[d]?.alc;

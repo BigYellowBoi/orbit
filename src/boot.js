@@ -331,7 +331,9 @@ function renderReorder() { // the reorder button sits left of the gear on Streng
 function liveSnap() { const m = {}, n = {}; document.querySelectorAll('#view [data-live]').forEach(el => { const k = el.dataset.live, i = n[k] = (n[k] || 0) + 1; m[k + '#' + i] = el.getAttribute('aria-label') || el.textContent; }); return m; }
 function flashChanged(before) {
   const n = {}; document.querySelectorAll('#view [data-live]').forEach(el => { const k = el.dataset.live, i = n[k] = (n[k] || 0) + 1, was = before[k + '#' + i];
-    if (was != null && was !== (el.getAttribute('aria-label') || el.textContent)) { el.classList.add('flash'); el.addEventListener('animationend', () => el.classList.remove('flash'), { once: true }); } });
+    if (was == null || was === (el.getAttribute('aria-label') || el.textContent)) return;
+    const cls = /^ring-/.test(k) && /no data/.test(was) ? 'pop' : 'flash'; // a blank Today ring getting its first value pops in (v1.111)
+    el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); setTimeout(() => el.classList.remove(cls), 1400); });
 }
 function pulseMark() { const m = $('#mark'); if (!m) return; m.classList.remove('pulse'); void m.offsetWidth; m.classList.add('pulse'); m.addEventListener('animationend', () => m.classList.remove('pulse'), { once: true }); } // new data arrived
 /* Next empty set: a round button above the tab bar while a log is open; it scrolls to the first set without reps,
