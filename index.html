@@ -958,7 +958,7 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.99'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.100'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
@@ -2213,7 +2213,7 @@ const sevBreak = (rows) => (vals) => rows.map(([label, test, color]) => ({ label
 const METRICS = [
   // Recovery
   { id: 'rec', g: 'Recovery', label: 'Recovery', unit: '%', src: 'WHOOP', v: dv('rec'), chart: 'bar', better: 1, f: v => fmt(v, 0), yMin: 0, yMax: 100, color: v => recCol(v),
-    breakdown: sevBreak([['Green (67–99%)', v => v >= 67, 'var(--good)'], ['Yellow (34–66%)', v => v >= 34 && v < 67, 'var(--warn)'], ['Red (1–33%)', v => v < 34, 'var(--bad)']]) },
+    breakdown: sevBreak([['Green (67–99%)', v => v >= 67, '#6ee846'], ['Yellow (34–66%)', v => v >= 34 && v < 67, '#f9df4a'], ['Red (1–33%)', v => v < 34, '#ea3334']]) },
   { id: 'hrv', g: 'Recovery', label: 'Heart rate variability', short: 'HRV', unit: 'ms', src: 'WHOOP', v: dv('hrv'), chart: 'line', band: true, better: 1, f: v => fmt(v, 0) },
   { id: 'rhr', g: 'Recovery', label: 'Resting heart rate', unit: 'bpm', src: 'WHOOP', v: dv('rhr'), chart: 'line', better: -1, f: v => fmt(v, 0) },
   { id: 'rr', g: 'Recovery', label: 'Respiratory rate', unit: 'rpm', src: 'WHOOP', v: dv('rr'), chart: 'line', better: 0, f: v => fmt(v, 1) },
@@ -2258,7 +2258,7 @@ function exCols(id) {
   if (id === 'hvn') return `--s1:${WC.sleep};--s3:${WC.up}`;
   if (id === 'resth') return `--s1:${WC.deep};--s3:${WC.rem}`;
   if (g === 'Sleep') return `--s1:${WC.sleep}`;
-  if (g === 'Recovery') return `--s1:${WC.strain}`;
+  if (g === 'Recovery') return `--s1:${WC.rec}`;
   if (g === 'Strain') return `--s1:${WC.strain};${z}`;
   return '';
 }
@@ -3523,7 +3523,7 @@ const VIEWS = { today: vToday, log: vLog, history: vHistory, strength: vStrength
    Activity detail screens, the Trend screen, the alcohol check, and one back stack with scroll restore (ui.nav).
    Design reference: the "Orbit Today" Claude Design canvas. Numbers are real day fields (STATE.d).
    ============================================================ */
-const WC = { sleep: '#83a0b8', strain: '#408fdf', yellow: '#f9df4a', track: '#373d42', up: '#6eeda5', dn: '#ffb35c', lt: '#a3a6f5', deep: '#f19cf0', rem: '#a35be6', aw: '#c8c8c8',
+const WC = { rec: '#77ace1', green: '#6ee846', red: '#ea3334', sleep: '#83a0b8', strain: '#408fdf', yellow: '#f9df4a', track: '#373d42', up: '#6eeda5', dn: '#ffb35c', lt: '#a3a6f5', deep: '#f19cf0', rem: '#a35be6', aw: '#c8c8c8',
   z: ['#b8c4cc', '#4f8fc0', '#6abf8e', '#f5b06b', '#f2683c'], hm: '#5a6168', debt: '#d9dcde', grid: '#222830', dim: '#80889a', ink: '#e8ebef', card: '#111418' };
 const WP = { // line icons (24px grid)
   moon: 'M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z', cons: 'M14 3.5a8.5 8.5 0 1 0 6.5 13.5M17 3.5a8.5 8.5 0 0 1 4 7', eff: 'M4 20v-6M8 20V9M12 20V5M16 20v-8M20 20v-4',
@@ -3542,7 +3542,7 @@ function wSpan(on, off) { // "11:21 pm – 8:01 am", or "12:27 – 8:15 am" when
   const a = clockMin(on), b = clockMin(off); if (a == null || b == null) return '';
   const A = clockOf(a), B = clockOf(b); return A.slice(-2) === B.slice(-2) ? `${A.slice(0, -3)} – ${B}` : `${A} – ${B}`;
 }
-const recCol = r => r == null ? WC.track : r >= 67 ? 'var(--good)' : r >= 34 ? WC.yellow : 'var(--bad)';
+const recCol = r => r == null ? WC.track : r >= 67 ? WC.green : r >= 34 ? WC.yellow : WC.red; // sampled off his WHOOP Recovery trend (v1.100)
 const sleepBand = v => v == null ? -1 : v >= 85 ? 2 : v >= 70 ? 1 : 0; // WHOOP's sleep thresholds, as an approximation
 function wSeg3(v, row) { const b = sleepBand(v), c = ['#ffb35c', '#8e9293', WC.up]; return `<span class="wseg3${row ? ' row' : ''}" aria-hidden="true">${[0, 1, 2].map(i => `<i${i === b ? ` style="background:${c[i]}"` : ''}></i>`).join('')}</span>`; }
 
@@ -3720,7 +3720,8 @@ function wkChart(d, spec) {
   if (spec.type === 'bar') vals.forEach((v, i) => { if (v == null) return; const c = typeof col === 'function' ? col(v) : col, y = Math.min(PB - 1, Y(v)); body += `<rect x="${CX(i) - 6}" y="${y.toFixed(1)}" width="12" height="${(PB - y).toFixed(1)}" rx="2" fill="${c}"/>` + t(CX(i), (y - 6).toFixed(1), f(v), c); });
   if (spec.type === 'stack') vals.forEach((v, i) => { if (!v || !v.some(x => x)) return; let base = PB; v.forEach((x, k) => { if (!x) return; const h = (x / ((hiV - lo) || 1)) * (PB - PT); body += `<rect x="${CX(i) - 6}" y="${(base - h).toFixed(1)}" width="12" height="${h.toFixed(1)}" fill="${spec.colors[k]}"/>`; base -= h; }); body += t(CX(i), (base - 6).toFixed(1), f(tot(v)), WC.ink); });
   if (spec.type === 'line') { const pts = vals.map((v, i) => v == null ? null : [CX(i), Y(v)]).filter(Boolean), pl = pts.map(p => p.map(n => n.toFixed(1)).join(',')).join(' ');
-    if (pts.length > 1) body += `<polyline points="${pl}" fill="none" stroke="${col}" stroke-opacity=".55" stroke-width="2.5"/>`; // WHOOP: a dimmed line, no fill, hollow markers
+    if (pts.length > 1) { if (spec.fill) { const gid = 'wf' + (wkChart.n = (wkChart.n || 0) + 1); body += `<defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${col}" stop-opacity=".16"/><stop offset="1" stop-color="${col}" stop-opacity="0"/></linearGradient></defs><polygon points="${pts[0][0].toFixed(1)},${PB} ${pl} ${pts[pts.length - 1][0].toFixed(1)},${PB}" fill="url(#${gid})"/>`; }
+      body += `<polyline points="${pl}" fill="none" stroke="${col}" stroke-opacity=".55" stroke-width="2.5"/>`; } // WHOOP: a dimmed line, hollow markers; Recovery's metrics also get a fading fill
     vals.forEach((v, i) => { if (v == null) return; body += `<circle cx="${CX(i)}" cy="${Y(v).toFixed(1)}" r="4.5" fill="${WC.card}" stroke="${col}" stroke-width="2"/>` + t(CX(i), (Y(v) - 10).toFixed(1), f(v), col); }); }
   if (spec.type === 'dual') spec.colors.forEach((c, k) => { const pts = vals.map((v, i) => v && v[k] != null ? [CX(i), Y(v[k])] : null).filter(Boolean);
     if (pts.length > 1) body += `<polyline points="${pts.map(p => p.map(n => n.toFixed(1)).join(',')).join(' ')}" fill="none" stroke="${c}" stroke-opacity=".55" stroke-width="2.5"/>`;
@@ -3846,9 +3847,9 @@ function vRecovery() {
   const dv2 = k => dd => dayVal(dd, k);
   h += `<h2 class="wh2">Weekly trends</h2>`
     + wkCard(d, 'Recovery', 'rec', { type: 'bar', v: dv2('rec'), color: v => recCol(v), f: v => fmt(v, 0) + '%', yMin: 0, yMax: 100 })
-    + wkCard(d, 'Heart rate variability', 'hrv', { type: 'line', v: dv2('hrv'), color: WC.strain, f: v => fmt(v, 0) })
-    + wkCard(d, 'Resting heart rate', 'rhr', { type: 'line', v: dv2('rhr'), color: WC.strain, f: v => fmt(v, 0) })
-    + wkCard(d, 'Respiratory rate', 'rr', { type: 'line', v: dv2('rr'), color: WC.strain, f: v => v.toFixed(1) })
+    + wkCard(d, 'Heart rate variability', 'hrv', { type: 'line', v: dv2('hrv'), color: WC.rec, fill: true, f: v => fmt(v, 0) })
+    + wkCard(d, 'Resting heart rate', 'rhr', { type: 'line', v: dv2('rhr'), color: WC.rec, fill: true, f: v => fmt(v, 0) })
+    + wkCard(d, 'Respiratory rate', 'rr', { type: 'line', v: dv2('rr'), color: WC.rec, fill: true, f: v => v.toFixed(1) })
     + wkCard(d, 'Sleep performance', 'sp', { type: 'bar', v: dv2('sp'), color: WC.sleep, f: v => fmt(v, 0) + '%', yMin: 0, yMax: 100 });
   return h + wSrc(d);
 }

@@ -20,7 +20,7 @@ const sevBreak = (rows) => (vals) => rows.map(([label, test, color]) => ({ label
 const METRICS = [
   // Recovery
   { id: 'rec', g: 'Recovery', label: 'Recovery', unit: '%', src: 'WHOOP', v: dv('rec'), chart: 'bar', better: 1, f: v => fmt(v, 0), yMin: 0, yMax: 100, color: v => recCol(v),
-    breakdown: sevBreak([['Green (67–99%)', v => v >= 67, 'var(--good)'], ['Yellow (34–66%)', v => v >= 34 && v < 67, 'var(--warn)'], ['Red (1–33%)', v => v < 34, 'var(--bad)']]) },
+    breakdown: sevBreak([['Green (67–99%)', v => v >= 67, '#6ee846'], ['Yellow (34–66%)', v => v >= 34 && v < 67, '#f9df4a'], ['Red (1–33%)', v => v < 34, '#ea3334']]) },
   { id: 'hrv', g: 'Recovery', label: 'Heart rate variability', short: 'HRV', unit: 'ms', src: 'WHOOP', v: dv('hrv'), chart: 'line', band: true, better: 1, f: v => fmt(v, 0) },
   { id: 'rhr', g: 'Recovery', label: 'Resting heart rate', unit: 'bpm', src: 'WHOOP', v: dv('rhr'), chart: 'line', better: -1, f: v => fmt(v, 0) },
   { id: 'rr', g: 'Recovery', label: 'Respiratory rate', unit: 'rpm', src: 'WHOOP', v: dv('rr'), chart: 'line', better: 0, f: v => fmt(v, 1) },
@@ -65,7 +65,7 @@ function exCols(id) {
   if (id === 'hvn') return `--s1:${WC.sleep};--s3:${WC.up}`;
   if (id === 'resth') return `--s1:${WC.deep};--s3:${WC.rem}`;
   if (g === 'Sleep') return `--s1:${WC.sleep}`;
-  if (g === 'Recovery') return `--s1:${WC.strain}`;
+  if (g === 'Recovery') return `--s1:${WC.rec}`;
   if (g === 'Strain') return `--s1:${WC.strain};${z}`;
   return '';
 }
