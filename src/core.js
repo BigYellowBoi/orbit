@@ -11,6 +11,7 @@ const mean = a => a.length ? sum(a) / a.length : null;
 const clone = o => JSON.parse(JSON.stringify(o));
 const num = v => { if (v === '' || v == null) return null; const n = parseFloat(String(v).replace(',', '.')); return Number.isFinite(n) ? n : null; };
 function fmt(x, d = 1) { if (x == null || !Number.isFinite(x)) return '–'; return x.toLocaleString('en-AU', { maximumFractionDigits: d, minimumFractionDigits: 0 }); }
+function fmtS(x) { return x == null || !Number.isFinite(x) ? '–' : x.toFixed(1); } // strain: always one decimal (4.0, not 4), as WHOOP
 function todayStr() { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
 function toUTC(s) { const [y, m, d] = s.split('-').map(Number); return Date.UTC(y, m - 1, d); }
 function addDays(s, n) { const t = new Date(toUTC(s) + n * 864e5); return `${t.getUTCFullYear()}-${pad(t.getUTCMonth() + 1)}-${pad(t.getUTCDate())}`; }

@@ -41,13 +41,13 @@ function wRing(f, col, size, sw, inner, label) {
   return `<span class="wr${size > 100 ? ' big' : ''}" style="width:${size}px;height:${size}px"><svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" role="img" aria-label="${esc(label)}"><circle cx="${k}" cy="${k}" r="${r}" fill="none" stroke="${WC.track}" stroke-width="${sw}"/>${wBand(k, r, sw, f, col)}</svg><b>${inner}</b></span>`;
 }
 const pctIn = v => v == null ? '<span class="nil">–</span>' : `<span>${fmt(v, 0)}<small>%</small></span>`;
-const strIn = v => v == null ? '<span class="nil">–</span>' : `<span>${fmt(v, 1)}</span>`;
+const strIn = v => v == null ? '<span class="nil">–</span>' : `<span>${fmtS(v)}</span>`;
 
 /* ---------- Today: rings, tiles, alcohol ---------- */
 function todayTop(d) {
   const x = STATE.d[d] || {}, rc = recCol(x.rec);
   const ring = (s, f, col, inner, label, aria) => `<button class="wring" data-act="nav" data-s="${s}" data-d="${d}" data-live="ring-${s}" aria-label="${esc(aria)}">${wRing(f, col, 88, 6, inner, aria)}<span class="wlab">${label}${CHEV6}</span></button>`;
-  let h = `<div class="wrings">${ring('sleep', x.sp / 100, WC.sleep, pctIn(x.sp), 'Sleep', `Sleep ${x.sp == null ? 'no data' : fmt(x.sp, 0) + '%'}`)}${ring('recovery', x.rec / 100, rc, pctIn(x.rec), 'Recovery', `Recovery ${x.rec == null ? 'no data' : fmt(x.rec, 0) + '%'}`)}${ring('strain', x.str / 21, WC.strain, strIn(x.str), 'Strain', `Strain ${x.str == null ? 'no data' : fmt(x.str, 1)} of 21`)}</div>`;
+  let h = `<div class="wrings">${ring('sleep', x.sp / 100, WC.sleep, pctIn(x.sp), 'Sleep', `Sleep ${x.sp == null ? 'no data' : fmt(x.sp, 0) + '%'}`)}${ring('recovery', x.rec / 100, rc, pctIn(x.rec), 'Recovery', `Recovery ${x.rec == null ? 'no data' : fmt(x.rec, 0) + '%'}`)}${ring('strain', x.str / 21, WC.strain, strIn(x.str), 'Strain', `Strain ${x.str == null ? 'no data' : fmtS(x.str)} of 21`)}</div>`;
   const ir = inRangeCount(d), out = ir.of - ir.n;
   const hmT = !ir.of ? `<span class="wico nil">${wIco('pulse', '', 2)}</span><span class="wtile-t"><b class="st nil">No range yet</b><span>Needs 14 nights</span></span>`
     : `<span class="wico ${out ? 'warn' : 'ok'}">${wIco(out ? 'excl' : 'tick', '', 2.6)}</span><span class="wtile-t"><b class="st${out ? ' warn' : ''}">${out ? `${out} out of range` : 'Within range'}</b><span class="wnum" style="font-family:var(--f-body)">${ir.n}/${ir.of} Metrics</span></span>`;
@@ -88,7 +88,7 @@ function whoopCard(day) {
   const stT = stepsOf(t);
   return `<section class="card rcard"><div class="card-h"><h2>Recovery</h2>${x.rec != null ? pill(tone, recWord(x.rec)) : ''}</div>
     <div class="rc3">${col('HRV', val(x.hrv != null ? fmt(x.hrv, 0) : null, 'ms'), hb ? sub(`7-day ${HRV_STATE[hb.state][1].toLowerCase()}`, hbTone) : sub(''))}${col('Resting HR', val(x.rhr != null ? fmt(x.rhr, 0) : null, 'bpm'), vs(x.rhr, base('rhr'), 0, true))}${col('Sleep', val(x.slp != null ? fmt(x.slp / 60, 1) : null, 'h'), sub(x.sp != null ? `${fmt(x.sp, 0)}% of need` : ''))}</div>
-    <div class="rt3">${tile(isT ? 'Strain today' : 'Strain', x.str != null ? `<b class="wnum strain">${fmt(x.str, 1)}</b>` : val(null))}${tile('Sleep debt', val(x.sd != null ? fmt(x.sd, 0) : null, 'min'))}${tile(isT ? 'Steps today' : 'Steps', val(stT != null ? fmt(stT, 0) : null))}</div>${note}
+    <div class="rt3">${tile(isT ? 'Strain today' : 'Strain', x.str != null ? `<b class="wnum strain">${fmtS(x.str)}</b>` : val(null))}${tile('Sleep debt', val(x.sd != null ? fmt(x.sd, 0) : null, 'min'))}${tile(isT ? 'Steps today' : 'Steps', val(stT != null ? fmt(stT, 0) : null))}</div>${note}
     ${wSrc(t)}</section>`;
 }
 
@@ -97,7 +97,7 @@ const sportIco = n => /weight|strength|lift|function|power|crossfit/i.test(n) ? 
 const actEnd = a => { const s = clockMin(a.t); return s == null ? null : s + (a.min || 0); };
 function actTile(d, i) {
   const a = STATE.d[d].acts[i], s = clockMin(a.t), e = actEnd(a);
-  return `<button class="act" data-act="nav" data-s="activity" data-d="${d}" data-i="${i}" aria-label="${esc(a.n)}, strain ${a.str != null ? fmt(a.str, 1) : 'unknown'}"><span class="act-chip">${wIco(sportIco(a.n), '', 2)}<b>${a.str != null ? fmt(a.str, 1) : '–'}</b></span><span class="wlab">${esc(a.n)}</span><span class="act-t">${s != null ? `${esc(clockOf(s))}<br>${esc(clockOf(e))}` : ''}</span></button>`;
+  return `<button class="act" data-act="nav" data-s="activity" data-d="${d}" data-i="${i}" aria-label="${esc(a.n)}, strain ${a.str != null ? fmtS(a.str) : 'unknown'}"><span class="act-chip">${wIco(sportIco(a.n), '', 2)}<b>${a.str != null ? fmtS(a.str) : '–'}</b></span><span class="wlab">${esc(a.n)}</span><span class="act-t">${s != null ? `${esc(clockOf(s))}<br>${esc(clockOf(e))}` : ''}</span></button>`;
 }
 function handTile(name, min, ico) { return `<div class="act" role="group" aria-label="${esc(name)}, ${min} minutes, no strain"><span class="act-chip grey">${wIco(ico, '', 1.7)}<b>${fmt(min, 0)}<small>m</small></b></span><span class="wlab">${esc(name)}</span><span class="act-ns">No strain</span></div>`; }
 function doneActs(w) { // the WHOOP activities sessStats uses (lifting, and the cardio it logged), each its own tile; hand-typed cardio gets a grey one
@@ -200,15 +200,15 @@ function wkChart(d, spec) {
   if (spec.type === 'bar') vals.forEach((v, i) => { if (v == null) return; const c = typeof col === 'function' ? col(v) : col, y = Math.min(PB - 1, Y(v)); body += `<rect x="${CX(i) - 6}" y="${y.toFixed(1)}" width="12" height="${(PB - y).toFixed(1)}" rx="2" fill="${c}"/>` + t(CX(i), (y - 6).toFixed(1), f(v), c); });
   if (spec.type === 'stack') vals.forEach((v, i) => { if (!v || !v.some(x => x)) return; let base = PB; v.forEach((x, k) => { if (!x) return; const h = (x / ((hiV - lo) || 1)) * (PB - PT); body += `<rect x="${CX(i) - 6}" y="${(base - h).toFixed(1)}" width="12" height="${h.toFixed(1)}" fill="${spec.colors[k]}"/>`; base -= h; }); body += t(CX(i), (base - 6).toFixed(1), f(tot(v)), WC.ink); });
   if (spec.type === 'line') { const pts = vals.map((v, i) => v == null ? null : [CX(i), Y(v)]).filter(Boolean), pl = pts.map(p => p.map(n => n.toFixed(1)).join(',')).join(' ');
-    if (pts.length > 1) body += `<polygon points="${pts[0][0].toFixed(1)},${PB} ${pl} ${pts[pts.length - 1][0].toFixed(1)},${PB}" fill="${col}" fill-opacity=".1"/><polyline points="${pl}" fill="none" stroke="${col}" stroke-width="2"/>`;
+    if (pts.length > 1) body += `<polyline points="${pl}" fill="none" stroke="${col}" stroke-opacity=".55" stroke-width="2.5"/>`; // WHOOP: a dimmed line, no fill, hollow markers
     vals.forEach((v, i) => { if (v == null) return; body += `<circle cx="${CX(i)}" cy="${Y(v).toFixed(1)}" r="4.5" fill="${WC.card}" stroke="${col}" stroke-width="2"/>` + t(CX(i), (Y(v) - 10).toFixed(1), f(v), col); }); }
   if (spec.type === 'dual') spec.colors.forEach((c, k) => { const pts = vals.map((v, i) => v && v[k] != null ? [CX(i), Y(v[k])] : null).filter(Boolean);
-    if (pts.length > 1) body += `<polyline points="${pts.map(p => p.map(n => n.toFixed(1)).join(',')).join(' ')}" fill="none" stroke="${c}" stroke-width="2"${k ? ' stroke-dasharray="5 4"' : ''}/>`;
+    if (pts.length > 1) body += `<polyline points="${pts.map(p => p.map(n => n.toFixed(1)).join(',')).join(' ')}" fill="none" stroke="${c}" stroke-opacity=".55" stroke-width="2.5"/>`;
     vals.forEach((v, i) => { if (!v || v[k] == null) return; body += `<circle cx="${CX(i)}" cy="${Y(v[k]).toFixed(1)}" r="4" fill="${WC.card}" stroke="${c}" stroke-width="2"/>` + t(CX(i), (Y(v[k]) + (k ? -10 : 18)).toFixed(1), f(v[k]), c); }); });
   if (spec.type === 'float') { // time in bed: a bar from bed to wake, later times lower, labelled at both ends
     const all = has.flat(), mn = Math.min(...all) - 30, mx = Math.max(...all) + 30, Yt = m => PT + (m - mn) / (mx - mn) * (PB - PT - 14);
     vals.forEach((v, i) => { if (!v) return; const y0 = Yt(v[0]), y1 = Yt(v[1]); body += `<rect x="${CX(i) - 6}" y="${y0.toFixed(1)}" width="12" height="${(y1 - y0).toFixed(1)}" rx="2" fill="${col}"/>` + `<text x="${CX(i)}" y="${(y0 - 5).toFixed(1)}" text-anchor="middle" font-size="9.5" fill="${col}">${esc(clockOf(v[0]).replace(' ', ''))}</text><text x="${CX(i)}" y="${(y1 + 12).toFixed(1)}" text-anchor="middle" font-size="9.5" fill="${col}">${esc(clockOf(v[1]).replace(' ', ''))}</text>`; }); }
-  return wkFrame(days, hi, body) + (spec.legend ? `<div class="wleg gap">${spec.legend.map(([c, l, dash]) => `<span><i class="bar" style="${dash ? `border-top:2px dashed ${c};height:0` : `background:${c}`}"></i>${esc(l)}</span>`).join('')}</div>` : '');
+  return wkFrame(days, hi, body) + (spec.legend ? `<div class="wleg gap">${spec.legend.map(([c, l, dash]) => `<span><i class="bar" style="${dash === 'o' ? `width:9px;height:9px;border-radius:50%;border:2.5px solid ${c};box-sizing:border-box` : dash ? `border-top:2px dashed ${c};height:0` : `background:${c}`}"></i>${esc(l)}</span>`).join('')}</div>` : '');
 }
 function wkCard(d, label, metric, spec) { return `<section class="wcard"><div class="wch"><button class="wlab" data-act="nav" data-s="trend" data-m="${metric}" data-d="${d}" aria-label="${esc(label)}: open trends">${esc(label)}</button><button class="winfo" data-act="nav" data-s="trend" data-m="${metric}" data-d="${d}" aria-label="Open ${esc(label)} trends">${CHEV6}</button></div>${wkChart(d, spec)}</section>`; }
 
@@ -289,7 +289,7 @@ function vSleep() {
   const dv2 = k => dd => dayVal(dd, k);
   h += `<h2 class="wh2">Weekly trends</h2>`
     + wkCard(d, 'Sleep performance', 'sp', { type: 'bar', v: dv2('sp'), color: WC.sleep, f: f0, yMin: 0, yMax: 100 })
-    + wkCard(d, 'Hours vs. needed (hours)', 'hvn', { type: 'dual', v: dd => { const a = dayVal(dd, 'slp'), b = dayVal(dd, 'sn'); return a == null && b == null ? null : [a, b]; }, colors: [WC.sleep, '#8e9293'], f: wHM, legend: [[WC.sleep, 'Hours of sleep'], ['#8e9293', 'Sleep needed', true]] })
+    + wkCard(d, 'Hours vs. needed (hours)', 'hvn', { type: 'dual', v: dd => { const a = dayVal(dd, 'slp'), b = dayVal(dd, 'sn'); return a == null && b == null ? null : [a, b]; }, colors: [WC.sleep, WC.up], f: wHM, legend: [[WC.sleep, 'Hours of sleep', 'o'], [WC.up, 'Sleep needed', 'o']] })
     + wkCard(d, 'Hours vs. needed (%)', 'hvnp', { type: 'bar', v: hvnp, color: WC.sleep, f: f0, yMin: 0, yMax: 100 })
     + wkCard(d, 'Restorative sleep', 'resth', { type: 'stack', v: dd => { const y = STATE.d[dd]; return y && (y.deep != null || y.rem != null) ? [y.rem, y.deep] : null; }, colors: [WC.rem, WC.deep], f: wHM, legend: [[WC.deep, 'SWS (deep)'], [WC.rem, 'REM']] })
     + wkCard(d, 'Sleep consistency', 'sc', { type: 'bar', v: dv2('sc'), color: WC.sleep, f: f0, yMin: 0, yMax: 100 })
@@ -343,7 +343,7 @@ function vStrain() {
   const d = wDay(), x = STATE.d[d] || {}, zs = zoneSplit(d), tr = m => `data-act="nav" data-s="trend" data-m="${m}" data-d="${d}"`;
   const z13 = dd => zoneSplit(dd)?.z13, z45 = dd => zoneSplit(dd)?.z45;
   let h = '';
-  h += wBigRing(x.str / 21, WC.strain, strIn(x.str), 'Strain', `Strain ${x.str == null ? 'no data' : fmt(x.str, 1)} of 21`);
+  h += wBigRing(x.str / 21, WC.strain, strIn(x.str), 'Strain', `Strain ${x.str == null ? 'no data' : fmtS(x.str)} of 21`);
   h += `<section class="wcard rows wpt">${cmpRow({ ico: 'heart', label: 'Heart rate zones 1-3', v: x.str != null ? zs?.z13 ?? 0 : null, avg: avg30(d, dd => onWhoopDay(dd, z13)), f: wHM, act: tr('z13') })}${cmpRow({ ico: 'heart', label: 'Heart rate zones 4-5', v: x.str != null ? zs?.z45 ?? 0 : null, avg: avg30(d, dd => onWhoopDay(dd, z45)), f: wHM, act: tr('z45') })}${cmpRow({ ico: 'lift', label: 'Strength activity time', v: x.str != null ? liftMin(d) ?? 0 : null, avg: avg30(d, dd => onWhoopDay(dd, liftMin)), f: wHM, act: tr('lift') })}${cmpRow({ ico: 'shoe', label: 'Steps', v: stepsOf(d), avg: avg30(d, stepsOf), f: v => fmt(v, 0), act: tr('stp') })}${cmpLeg}</section>`;
   const acts = x.acts || [];
   if (acts.length) h += `<h2 class="wh2">${d === today() ? 'Today’s activities' : 'Activities'}</h2><div class="acts lone">${acts.map((a, i) => i).sort((a, b) => (clockMin(acts[a].t) ?? 0) - (clockMin(acts[b].t) ?? 0)).map(i => actTile(d, i)).join('')}</div>`;
@@ -364,7 +364,7 @@ function vActivity() {
   if (!a) return wBack() + '<p class="small dim">That activity isn’t here any more.</p>';
   const s = clockMin(a.t), e = actEnd(a);
   let h = wBack() + wTitle(`${d === today() ? 'Today' : fmtDow(d) + ' ' + fmtDate(d)}${s != null ? ` · ${wSpan(a.t, `${pad(Math.floor(e / 60) % 24)}:${pad(Math.round(e % 60))}`)}` : ''}`, a.n);
-  h += wBigRing(a.str / 21, WC.strain, strIn(a.str), 'Activity strain', `Activity strain ${a.str == null ? 'unknown' : fmt(a.str, 1)}`);
+  h += wBigRing(a.str / 21, WC.strain, strIn(a.str), 'Activity strain', `Activity strain ${a.str == null ? 'unknown' : fmtS(a.str)}`);
   const t = (lab, v, u) => `<div><span class="wlab">${lab}</span><b class="wnum">${v == null ? '–' : v}${v != null && u ? `<small>${u}</small>` : ''}</b></div>`;
   h += `<div class="wtiles4">${t('Duration', a.min != null ? wHM(a.min) : null)}${t('Calories', a.kcal != null ? fmt(a.kcal, 0) : null, 'kcal')}${t('Average HR', a.ahr, 'bpm')}${t('Max HR', a.mhr, 'bpm')}</div>`;
   if (a.z) { const mx = Math.max(...a.z, 1);

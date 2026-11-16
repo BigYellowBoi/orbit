@@ -19,7 +19,7 @@ const dv = k => d => dayVal(d, k);
 const sevBreak = (rows) => (vals) => rows.map(([label, test, color]) => ({ label, n: vals.filter(test).length, color }));
 const METRICS = [
   // Recovery
-  { id: 'rec', g: 'Recovery', label: 'Recovery', unit: '%', src: 'WHOOP', v: dv('rec'), chart: 'bar', better: 1, f: v => fmt(v, 0), yMin: 0, yMax: 100, color: v => `var(--${recTone(v)})`,
+  { id: 'rec', g: 'Recovery', label: 'Recovery', unit: '%', src: 'WHOOP', v: dv('rec'), chart: 'bar', better: 1, f: v => fmt(v, 0), yMin: 0, yMax: 100, color: v => recCol(v),
     breakdown: sevBreak([['Green (67–99%)', v => v >= 67, 'var(--good)'], ['Yellow (34–66%)', v => v >= 34 && v < 67, 'var(--warn)'], ['Red (1–33%)', v => v < 34, 'var(--bad)']]) },
   { id: 'hrv', g: 'Recovery', label: 'Heart rate variability', short: 'HRV', unit: 'ms', src: 'WHOOP', v: dv('hrv'), chart: 'line', band: true, better: 1, f: v => fmt(v, 0) },
   { id: 'rhr', g: 'Recovery', label: 'Resting heart rate', unit: 'bpm', src: 'WHOOP', v: dv('rhr'), chart: 'line', better: -1, f: v => fmt(v, 0) },
@@ -38,7 +38,7 @@ const METRICS = [
   { id: 'se', g: 'Sleep', label: 'Sleep efficiency', unit: '%', src: 'WHOOP', v: dv('se'), chart: 'line', better: 1, f: v => fmt(v, 0) },
   { id: 'sd', g: 'Sleep', label: 'Sleep debt', unit: '', src: 'WHOOP', v: debtAfter, chart: 'bar', better: -1, hmY: true, f: v => hm(v) },
   // Strain
-  { id: 'str', g: 'Strain', label: 'Day strain', unit: '', src: 'WHOOP', v: dv('str'), chart: 'bar', better: 0, delta: 'abs', partial: true, f: v => fmt(v, 1), yMin: 0, yMax: 21,
+  { id: 'str', g: 'Strain', label: 'Day strain', unit: '', src: 'WHOOP', v: dv('str'), chart: 'bar', better: 0, delta: 'abs', partial: true, f: fmtS, yMin: 0, yMax: 21,
     breakdown: sevBreak([['All out (18+)', v => v >= 18, 'var(--z5)'], ['Strenuous (14–18)', v => v >= 14 && v < 18, 'var(--z4)'], ['Moderate (10–14)', v => v >= 10 && v < 14, 'var(--z2)'], ['Light (under 10)', v => v < 10, 'var(--z1)']]) },
   { id: 'kb', g: 'Strain', label: 'Calories burned', unit: 'kcal', src: 'WHOOP', v: dv('kb'), chart: 'bar', better: 0, partial: true, f: v => fmt(v, 0) },
   { id: 'z13', g: 'Strain', label: 'Heart rate zones 1–3', unit: 'hr', src: 'WHOOP', v: d => { const z = zoneMin(d); return z ? z[1] + z[2] + z[3] : null; }, zones: [1, 2, 3], chart: 'zones', weekly: true, better: 0, partial: true, f: v => hm(v) },
@@ -58,6 +58,17 @@ const METRICS = [
     breakdown: sevBreak([['Under 70 dB', v => v < 70, 'var(--good)'], ['70–79 dB', v => v >= 70 && v < 80, 'var(--z1)'], ['80 dB+', v => v >= 80, 'var(--warn)']]) },
   { id: 'hpm', g: 'Hearing', label: 'Headphone time', unit: '', src: 'Apple Health (headphone audio levels)', v: dv('hpm'), chart: 'bar', better: 0, partial: true, hmY: true, f: v => hm(v) },
 ];
+/* WHOOP metrics keep WHOOP's colours here too (v1.99), so a card's chart and its Trend view match: sleep blue, deep and
+   REM, sleep needed green, strain blue, recovery green/yellow/red, WHOOP's zone colours. Others keep Orbit's palette. */
+function exCols(id) {
+  const g = (METRICS.find(x => x.id === id) || {}).g, z = WC.z.map((c, i) => `--z${i + 1}:${c}`).join(';');
+  if (id === 'hvn') return `--s1:${WC.sleep};--s3:${WC.up}`;
+  if (id === 'resth') return `--s1:${WC.deep};--s3:${WC.rem}`;
+  if (g === 'Sleep') return `--s1:${WC.sleep}`;
+  if (g === 'Recovery') return `--s1:${WC.strain}`;
+  if (g === 'Strain') return `--s1:${WC.strain};${z}`;
+  return '';
+}
 function explorerHTML() {
   const m = METRICS.find(x => x.id === ui.metric) || METRICS[0], [n0, word] = PERIODS[ui.per] || PERIODS.M, t = today();
   const n = m.weekly && n0 > 7 ? Math.round(n0 / 7) * 7 : n0; // weekly totals use whole 7-day weeks ending on the period's last day
@@ -85,7 +96,7 @@ function explorerHTML() {
   if (m.id === 'wt') { const wr = weightRate(end); if (wr) extra += `<div class="stat"><span>Rate, last ${wr.weeks} wk</span><b>${wr.wk >= 0 ? '+' : '−'}${fmt(Math.abs(wr.wk), 2)}<small>kg/wk</small></b></div>`; }
   const sentence = cur == null ? '' : prev == null ? `` : `<p class="small dim">Your ${m.weekly ? 'average weekly total' : 'average'} ${esc(m.short || m.label.toLowerCase())} ${ui.off ? 'in this period' : `this ${word}`} (${fmtH(cur)}${m.unit && !m.weekly ? (m.unit === '%' ? '' : ' ') + esc(m.unit) : ''}) was ${Math.abs(cur - prev) / Math.abs(prev) < .01 ? 'in line with' : cur > prev ? 'above' : 'below'} the ${word} before (${fmtH(prev)}${m.unit === '%' && !m.weekly ? '%' : ''}).</p>`;
 
-  let h = `<section class="card explorer">
+  let h = `<section class="card explorer" style="${exCols(m.id)}">
     <label class="vh" for="metric">Metric</label>
     <select class="in metric" id="metric" data-in="metric">${[...new Set(METRICS.map(x => x.g))].map(g => `<optgroup label="${esc(g)}">${METRICS.filter(x => x.g === g).map(x => `<option value="${x.id}" ${x.id === m.id ? 'selected' : ''}>${esc(x.label)}</option>`).join('')}</optgroup>`).join('')}</select>
     <div class="ex-top"><div class="stats ex-head"><div class="stat"><span>${m.weekly ? 'Avg. weekly total' : 'Average'}</span><b>${fmtH(cur)}<small>${esc(unitTxt)}</small></b></div>${extra}</div>
@@ -168,7 +179,7 @@ function explorerChart(m, days, start, n) {
         tip: x => { const d = addDays(start, x), r = rows.find(q => q.d === d); return r ? `${tipBase(d)}<br>${clockOf(r.on)} to ${clockOf(r.off)} · ${hm(r.off - r.on)} in bed` : ''; } });
     }
     case 'stack': return `<div class="legend"><span><i class="dot" style="background:var(--s1)"></i>Deep (SWS)</span><span><i class="dot" style="background:var(--s3)"></i>REM</span></div>` +
-      chartHTML({ ...base, yMin: 0, yFmt: v => hm(v * 60), bars: has.map(d => ({ x: xi(d), segs: [{ v: dayVal(d, 'deep') / 60, color: 'var(--s1)' }, { v: dayVal(d, 'rem') / 60, color: 'var(--s3)' }], tot: m.v(d) })), barLabel: lab ? b => hm(b.tot) : null,
+      chartHTML({ ...base, yMin: 0, yFmt: v => hm(v * 60), bars: has.map(d => ({ x: xi(d), segs: [{ v: dayVal(d, 'rem') / 60, color: 'var(--s3)' }, { v: dayVal(d, 'deep') / 60, color: 'var(--s1)' }], tot: m.v(d) })), barLabel: lab ? b => hm(b.tot) : null,
         tip: x => { const d = addDays(start, x); return m.v(d) == null ? '' : `${tipBase(d)}<br>Deep ${hm(dayVal(d, 'deep'))} · REM ${hm(dayVal(d, 'rem'))}<br>Total ${hm(m.v(d))}`; } });
     case 'weight': {
       const sc = days.filter(d => dayVal(d, 'wt') != null).map(d => ({ x: xi(d), y: dayVal(d, 'wt') }));

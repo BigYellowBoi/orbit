@@ -10,7 +10,7 @@ function sessStats(w) {
   const st = wStats(w), dur = sessDur(w), wl = whoopLiftMin(w.date) != null;
   const lift = wl ? actSpan(whoopActs(w.date, LIFT_RE)) : null, car = st.cardio && w.cardio?.src === 'whoop' ? actSpan(whoopCardio(w.date, w.cardio.name)) : null;
   const hasStr = [lift, car].some(s => s && s.str != null), hasT = [lift, car].some(s => s && s.from);
-  const top = s => hasStr ? (s && s.str != null ? `<em class="sstr">strain ${fmt(s.str, 1)}</em>` : '<em class="sstr" aria-hidden="true">&nbsp;</em>') : '';
+  const top = s => hasStr ? (s && s.str != null ? `<em class="sstr">strain ${fmtS(s.str)}</em>` : '<em class="sstr" aria-hidden="true">&nbsp;</em>') : '';
   const under = s => hasT ? (s && s.from ? `<em class="stime">${esc(s.from)}${s.to ? ` – ${esc(s.to)}` : ''}</em>` : '<em class="stime" aria-hidden="true">&nbsp;</em>') : '';
   const cell = (v, unit, label, s) => `<div class="stat" data-live="${esc(label)}">${top(s)}<b>${v}${unit ? `<small>${esc(unit)}</small>` : ''}</b>${under(s)}<span>${esc(label)}</span></div>`;
   return `<div class="stats${st.cardio ? '' : ' two'}">${cell(st.sets, '', 'sets')}${cell(dur ? fmtDur(dur) : '–', '', dur && wl ? whoopActs(w.date, LIFT_RE)[0].n : 'duration', lift)}${st.cardio ? cell(st.cardio, 'min', w.cardio?.name || 'Cardio', car) : ''}</div>`; // v1.64: no cardio, no cardio cell
@@ -407,7 +407,7 @@ function injCardHTML(w, e, i) {
   return `<div class="injnote ${ip.act}">${h}</div>`;
 }
 function actChips(a) { // a WHOOP activity as one line of chips (v1.36)
-  const c = [a.str != null && `<span class="strain">strain ${fmt(a.str, 1)}</span>`, a.ahr && `avg ${fmt(a.ahr, 0)} bpm`, a.kcal && `${fmt(a.kcal, 0)} kcal`].filter(Boolean);
+  const c = [a.str != null && `<span class="strain">strain ${fmtS(a.str)}</span>`, a.ahr && `avg ${fmt(a.ahr, 0)} bpm`, a.kcal && `${fmt(a.kcal, 0)} kcal`].filter(Boolean);
   return `<div class="whoopact"><b>WHOOP · ${esc(a.n)}</b><span class="achips">${c.map(x => `<span>${x}</span>`).join('')}</span></div>`;
 }
 function cardioTypes() { return Object.keys(CARDIO_RE); }
@@ -449,7 +449,7 @@ function vHistory() {
     const hq = [sessName(w), ...(w.ex || []).filter(e => doneSets(e).length).map(e => exDef(e.id).name), w.note || '', ...(w.ex || []).map(e => e.note || '')].join(' ').toLowerCase();
     h += `<button class="hrow" data-act="openlog" data-d="${w.date}" data-q="${esc(hq)}" data-s="${esc(w.rest ? '_rest' : w.s)}"><span class="hdate"><b>${esc(w.date.slice(8))}</b><small>${esc(fmtDow(w.date))}</small></span>
       <span class="hmain"><b${w.rest ? ' class="dim"' : ''}>${w.rest ? '' : `<i class="sesslg" style="background:${sessCol(w.s)}"></i>`}${esc(sessName(w))}</b><small>${w.rest ? (st.cardio ? `${st.cardio} min ${esc(w.cardio.name.toLowerCase())}` : 'No training') : `${st.sets} sets`}${sessDur(w) ? ` · ${fmtDur(sessDur(w))}` : ''}${!w.rest && st.cardio ? ` · ${st.cardio} min ${esc(w.cardio.name.toLowerCase())}` : ''}${prs ? ` · ${prs} best${prs > 1 ? 's' : ''}` : ''}</small></span>
-      ${rec != null || str != null ? `<span class="hwh">${rec != null ? `<b class="tn-${recTone(rec)}" aria-label="Recovery ${Math.round(rec)}%">${Math.round(rec)}%</b>` : ''}${str != null ? `<b class="strain" aria-label="Strain ${fmt(str, 1)}">${fmt(str, 1)}</b>` : ''}</span>` : '<span></span>'}${w.note && w.note.trim() ? `<span class="hnote">${esc(w.note.trim())}</span>` : ''}</button>`;
+      ${rec != null || str != null ? `<span class="hwh">${rec != null ? `<b class="tn-${recTone(rec)}" aria-label="Recovery ${Math.round(rec)}%">${Math.round(rec)}%</b>` : ''}${str != null ? `<b class="strain" aria-label="Strain ${fmtS(str)}">${fmtS(str)}</b>` : ''}</span>` : '<span></span>'}${w.note && w.note.trim() ? `<span class="hnote">${esc(w.note.trim())}</span>` : ''}</button>`;
   }
   return h + `</div>`;
 }
