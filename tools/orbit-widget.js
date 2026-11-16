@@ -128,6 +128,6 @@ function draw(d) {
 const c = await settings(), data = c ? await load(c) : null;
 const w = new ListWidget(); w.setPadding(0, 0, 0, 0); w.backgroundColor = new Color(C.bg1);
 w.backgroundImage = draw(data);
-w.addSpacer(); w.refreshAfterDate = new Date(Date.now() + 10 * 60e3);
+w.addSpacer(); w.refreshAfterDate = new Date(Date.now() + 5 * 60e3); // a hint only: iOS decides (roughly 40 to 70 refreshes a day)
 if (config.runsInWidget) Script.setWidget(w); else await w.presentMedium();
 Script.complete();
