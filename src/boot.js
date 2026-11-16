@@ -247,9 +247,9 @@ function render(force) {
     if (Math.abs(scrollY0() - y) > 1) scrollToY(y); // a re-render keeps your place; changing tabs scrolls to the top in go()
   }
   v.classList.toggle('cols', ['strength', 'body', 'data'].includes(ui.tab) || (ui.tab === 'today' && !(STATE.w[today()] && (!STATE.w[today()].fin || ui.editToday)) && !ui.dayOff)); // two columns on wide screens (CSS decides when)
-  document.querySelectorAll('.tabs [data-tab]').forEach(b => b.setAttribute('aria-current', b.dataset.tab === ({ log: 'history', friends: 'history', injuries: 'today', ...Object.fromEntries(NAV_SCREENS.map(k => [k, 'today'])) }[ui.tab] || ui.tab) ? 'page' : 'false'));
+  document.querySelectorAll('.tabs [data-tab]').forEach(b => b.setAttribute('aria-current', b.dataset.tab === ({ log: 'history', friends: 'history', injuries: 'today', ...Object.fromEntries(NAV_SCREENS.map(k => [k, 'today'])), healthspan: 'body' }[ui.tab] || ui.tab) ? 'page' : 'false'));
   const g = $('#gear'); g.setAttribute('aria-current', ui.tab === 'data' ? 'page' : 'false'); g.setAttribute('aria-label', ui.tab === 'data' ? 'Back' : 'Settings: sync, imports and backups');
-  renderSync(); renderMark(); renderUpdate(); renderFab(); renderReorder(); renderDaybar(); renderHback(); layoutRfx();
+  renderSync(); renderMark(); renderUpdate(); renderFab(); renderReorder(); renderDaybar(); renderHback(); renderHsMini(); layoutRfx();
   fadeCheck();
   if (ui.tab === 'history' && (ui.histQ || ui.histS)) filterHist(); if (ui.pick && ui.pick.q) filterPick(); // in-place filters survive a re-render
   if (snap) flashChanged(snap);
@@ -477,7 +477,7 @@ const ACT = {
   hsdobclr: () => { delete S().dob; saveSettings(); render(true); },
   hsrow: el => { const m = el.dataset.m, o = ui.hsOpen || (ui.hsOpen = new Set()); o.has(m) ? o.delete(m) : o.add(m); render(true); },
   hsweek: el => { ui.hsOff = Math.max(0, (ui.hsOff || 0) + +el.dataset.d); render(true); }, // 1 = a week further back
-  hstrend: el => { ui.metric = el.dataset.m; ui.per = '6M'; ui.off = 0; render(true); requestAnimationFrame(() => $('#metric')?.closest('.card')?.scrollIntoView({ behavior: 'smooth', block: 'start' })); },
+  hstrend: el => { navOpen('trend', { m: el.dataset.m, d: today() }); ui.per = '6M'; render(true); }, // WHOOP's View trend: six months
   partial: el => { const d = el.dataset.date, v = el.dataset.v === '1', m = S().partial = S().partial || {}; if (m[d] === v) delete m[d]; else m[d] = v; saveSettings(); render(true); }, // tap the chosen answer again to clear it
   restplan: () => { ui.restPlanOpen = !ui.restPlanOpen; ui.restPick = null; render(true); },
   picktoday: () => { ui.pickSess = 'today'; render(true); },

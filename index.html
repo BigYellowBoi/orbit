@@ -174,41 +174,67 @@ button { cursor: pointer; }
 .rk > em, .rt > em { font-style: normal; font-size: 11.5px; color: var(--ink-3); line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rcard em.tn-good { color: var(--good-ink); } .rcard em.tn-warn { color: var(--warn-ink); } .tn-inj { color: var(--inj-ink); }
 /* Healthspan (v1.74), WHOOP layout */
-.hscard { --hs-g2: var(--good); --hs-g1: color-mix(in srgb, var(--good) 45%, var(--surface-2)); --hs-n: var(--line-2); --hs-a1: color-mix(in srgb, var(--warn) 45%, var(--surface-2)); --hs-a2: var(--warn); }
-.hs-t-g2, .hs-t-g1 { color: var(--good-ink); } .hs-t-a2, .hs-t-a1 { color: var(--warn-ink); } .hs-t-n { color: var(--ink-3); }
-.hsnav { display: flex; align-items: center; justify-content: center; gap: 14px; } .hsnav b { font-family: var(--f-body); font-weight: 700; font-size: 12.5px; letter-spacing: .1em; text-transform: uppercase; min-width: 0; text-align: center; }
-.hsnav .iconbtn { font-size: 22px; line-height: 1; border: 0; background: none; } .hsnav .iconbtn:disabled { opacity: .3; }
+/* Healthspan (v1.107): WHOOP's screen, sizes from his iPhone 13 Pro Max screenshots (px = pt), colours raw P3 samples */
+.hscard { cursor: pointer; } .hscard .card-h .hs-chev svg { transform: rotate(-90deg); } .hs-chev { display: inline-flex; color: #fff; } .hs-chev svg { width: 20px; height: 20px; transition: transform .2s; }
 .hshero { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; }
-.hsst { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; min-width: 0; } .hsst b { font-size: 24px; font-weight: 600; font-family: var(--f-num); font-variant-numeric: tabular-nums; } .hsst span { font-family: var(--f-body); font-weight: 700; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-2); }
-.hsorb { --c: var(--ink-3); position: relative; width: min(46vw, 190px); aspect-ratio: 1; margin: 8px 0; display: grid; place-items: center; text-align: center; isolation: isolate; }
-.hsorb-cv { position: absolute; inset: -25%; width: 150%; height: 150%; z-index: -1; pointer-events: none; } .hsorb-p { position: absolute; width: 0; height: 0; color: var(--c); }
-.hs-o-good { --c: var(--wc-hs); } .hs-o-warn { --c: var(--warn); }
-.hsorb { cursor: pointer; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
-.hsorb-c b { display: block; font-size: 40px; font-weight: 600; letter-spacing: -.03em; line-height: 1; font-family: var(--f-num); font-variant-numeric: tabular-nums; text-shadow: 0 1px 12px #000; } .hsorb-c span { display: block; margin-top: 4px; font-family: var(--f-body); font-weight: 700; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-2); }
+.hsst { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; min-width: 0; } .hsst b { font-size: 22px; font-weight: 700; font-family: var(--f-num); } .hsst span { font-family: var(--f-body); font-weight: 700; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: #c8c8c8; }
+.hsorb { --c: #888a8c; position: relative; width: min(46vw, 190px); aspect-ratio: 1; display: grid; place-items: center; text-align: center; isolation: isolate; cursor: pointer; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.hsorb-cv { position: absolute; inset: -20%; width: 140%; height: 140%; z-index: -1; pointer-events: none; } .hsorb-p { position: absolute; width: 0; height: 0; color: var(--c); }
+.hs-o-good { --c: var(--wc-hsr); } .hs-o-warn { --c: var(--wc-hso); }
+.hsorb-c { display: flex; flex-direction: column; align-items: center; }
+.hsorb-c b { display: block; font: 700 46px/1 var(--f-num); letter-spacing: -.01em; color: #fff; } .hsorb-c span { display: block; margin-top: 8px; font: 700 13.5px var(--f-body); letter-spacing: .14em; text-transform: uppercase; color: #8a8c8e; }
+.hsorb-c em { font: 600 15.5px var(--f-body); font-style: normal; margin-top: 14px; }
+.hsorb.big { width: min(76vw, 330px); } .hsorb.sm { width: 104px; } .hsorb.mini { width: 118px; } .hsorb.ico { width: 66px; flex: none; }
+.hsorb.sm .hsorb-c b, .hsorb.mini .hsorb-c b { font-size: 25px; } .hsorb.sm .hsorb-c span, .hsorb.mini .hsorb-c span { font-size: 9.5px; margin-top: 3px; }
+html.hs-scr { background: #111417; } html.hs-scr #scroll { background: linear-gradient(#000 0, #000 330px, #111417 600px) local; }
+html.hs-scr .top { --bg: #000; background: #000; } html.hsmini-on .top { background: transparent; } html.hsmini-on .top::after { opacity: 0; } html.hsmini-on #hday { opacity: 0; }
+.hday.two { flex-direction: column; justify-content: center; line-height: 1.25; } .hday.two span { font-size: 13.5px; letter-spacing: .14em; } .hday.two small { font-size: 12px; letter-spacing: .14em; color: #888a8c; }
+#hsmini { position: fixed; z-index: 19; left: 0; right: 0; top: calc(env(safe-area-inset-top, 0px) + var(--hdrdrop) + 30px); display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; padding: 0 max(12px, calc((100% - var(--maxw, 720px)) / 2)); pointer-events: none; opacity: 0; transform: translateY(-6px); transition: opacity .22s, transform .22s; }
+#hsmini[hidden] { display: none; } html.hsmini-on #hsmini { opacity: 1; transform: none; pointer-events: auto; }
+#hsmini::before { content: ''; position: absolute; left: 0; right: 0; z-index: -2; top: calc(-1 * (env(safe-area-inset-top, 0px) + var(--hdrdrop) + 30px)); bottom: -28px; background: linear-gradient(#000 0, #000 62%, rgba(0, 0, 0, .7) 82%, rgba(0, 0, 0, 0)); }
+.hsm-s { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 2px; } .hsm-s b { font: 700 22px var(--f-num); color: #fff; } .hsm-s span { font: 700 12px var(--f-body); letter-spacing: .12em; text-transform: uppercase; color: #c8c8c8; }
+.hsx { --hs-card: #282c2e; display: flex; flex-direction: column; padding-bottom: 30px; }
+.hsnav { position: relative; display: flex; align-items: center; justify-content: center; gap: 14px; min-height: 40px; } .hsnav b { font: 700 13.5px var(--f-body); letter-spacing: .14em; text-transform: uppercase; color: #fff; min-width: 0; text-align: center; }
+.hsnav .iconbtn { border: 0; background: none; color: #fff; padding: 8px; display: inline-flex; } .hsnav .iconbtn:disabled { color: #4a4d50; opacity: 1; }
+.hs-i { position: absolute; right: 0; top: 50%; transform: translateY(-50%); width: 30px; height: 30px; border-radius: 50%; border: 2px solid #8a8c8e; background: none; color: #c8c8c8; font: 700 16px Georgia, serif; display: grid; place-items: center; padding: 0; }
+.hsx-orbw { display: flex; justify-content: center; margin: 46px 0 40px; } .hsx-dob { margin: -10px 4px 24px; }
+.hsx-lab { font: 700 12.5px var(--f-body); letter-spacing: .14em; text-transform: uppercase; color: #fff; }
+.hspace { display: flex; flex-direction: column; margin: 0 2px; }
+.hspace-v { position: relative; display: flex; justify-content: space-between; align-items: center; margin-top: 26px; height: 34px; font: 500 15px var(--f-body); color: #b8b9ba; } .hspace-v > span { display: inline-flex; align-items: center; gap: 8px; }
+.hspace-v b { position: absolute; top: 10px; transform: translateX(-50%); font: 700 22px var(--f-num); color: #fff; }
+.hs-slow { width: 16px; height: 16px; border-radius: 50%; background: #3a3d40; border: 1.5px solid #6a6d70; } .hs-fast { width: 17px; height: 17px; color: #b8b9ba; }
+.hspace-s { position: relative; display: flex; justify-content: space-between; height: 24px; margin-top: 20px; } .hspace-s i { width: 1.5px; background: #3a3d40; border-radius: 1px; } .hspace-s i.maj { background: #5c5f62; width: 2px; }
+.hspace-m { position: absolute; top: -4px; bottom: -6px; width: 3px; margin-left: -1.5px; background: #fff; border-radius: 2px; }
+.hspace-l { display: flex; justify-content: space-between; margin: 12px -12px 0; font: 700 12.5px var(--f-num); color: #888a8c; }
+.hsg-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 40px 4px 14px; flex-wrap: wrap; }
+.hsx-gh { font: 500 21px var(--f-body); color: #fff; margin: 0; letter-spacing: 0; } .hsx > .hsx-gh { margin: 40px 4px 14px; }
+.hsg-k { display: inline-flex; align-items: center; gap: 7px; font: 500 13px var(--f-body); color: #b8b9ba; white-space: nowrap; } .hsg-sep { width: 1px; height: 20px; background: #3a3d40; margin: 0 6px; }
+.tri { width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; margin-right: 4px; } .tri.dn { border-top: 8px solid #fff; } .tri.up { border-bottom: 8px solid #888a8c; }
+.hsx-card { background: var(--hs-card); border-radius: 12px; overflow: hidden; }
+.hsr { position: relative; padding: 22px 20px 20px; display: flex; flex-direction: column; gap: 8px; } .hsr.open { background: #1c1e20; }
+.hsr:not(.open) + .hsr:not(.open)::before { content: ''; position: absolute; top: 0; left: 16px; right: 16px; height: 1px; background: #333639; }
+.hsr-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; background: none; border: 0; padding: 0; color: #fff; text-align: left; font: 700 12.5px var(--f-body); letter-spacing: .14em; text-transform: uppercase; min-height: 24px; }
+.hsr-h small { text-transform: none; letter-spacing: 0; font-weight: 500; color: #888a8c; } .hsr.open .hs-chev svg { transform: rotate(180deg); }
+.hsr-b { display: grid; grid-template-columns: minmax(0, 1fr) 62px; gap: 16px; align-items: center; }
+.hsr-y { text-align: right; } .hsr-y b { display: block; font: 700 23px/1.15 var(--f-num); } .hsr-y small { font: 400 15px var(--f-body); color: #888a8c; }
+.hsb { position: relative; } .hsb-top { position: relative; height: 34px; } .hsb.open .hsb-top { height: 58px; }
+.hsb-l { position: absolute; display: flex; flex-direction: column; align-items: center; white-space: nowrap; } .hsb-top .hsb-l { bottom: 10px; } .hsb-bot .hsb-l { top: 0; }
+.hsb-l b { font: 700 16.5px var(--f-num); color: #fff; } .hsb-l small { font: 500 14px var(--f-body); color: #888a8c; } .hsb-l em { font: 500 14.5px var(--f-body); font-style: normal; color: #e8e9ea; }
+.hsb-t { position: relative; display: grid; grid-template-columns: repeat(10, 1fr); gap: 1.5px; height: 3px; } .hsb-t > i { background: var(--t); } .hsb-t > i:first-child { border-radius: 2px 0 0 2px; } .hsb-t > i:nth-child(10) { border-radius: 0 2px 2px 0; }
+.hsb.open .hsb-t { height: 22px; } .hsb.open .hsb-t > i { background: var(--f); box-shadow: inset 0 3px var(--t); } .hsb.open .hsb-t > i:first-child { border-radius: 4px 0 0 4px; } .hsb.open .hsb-t > i:nth-child(10) { border-radius: 0 4px 4px 0; }
+.hsb-m { position: absolute; width: 0; height: 0; z-index: 1; }
+.hsb-m.dn { top: -10px; margin-left: -7px; border-left: 7px solid transparent; border-right: 7px solid transparent; border-top: 10px solid #fff; filter: drop-shadow(0 0 1.5px rgba(0, 0, 0, .7)); } .hsb.open .hsb-m.dn { top: -8px; }
+.hsb-m.up { top: calc(100% + 5px); margin-left: -5.5px; border-left: 5.5px solid transparent; border-right: 5.5px solid transparent; border-bottom: 7px solid #888a8c; }
+.hsb-e { display: flex; justify-content: space-between; margin-top: 12px; font: 700 13.5px var(--f-num); } .hsb.open .hsb-t .hsb-e { position: absolute; left: 7px; right: 7px; top: 3px; bottom: 0; align-items: center; margin: 0; z-index: 0; }
+.hsb-bot { position: relative; height: 50px; margin-top: 16px; }
+.hsr-x { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; padding-top: 18px; } .hsr-x > b { font: 500 17px var(--f-body); color: #fff; } .hsr-x p { margin: 0; color: #a7a9ab; font-size: 15.5px; line-height: 1.45; } .hsr-x .hsvo2 { width: 100%; margin-top: 4px; }
+.hs-vt { background: none; border: 0; padding: 8px 0 4px; color: var(--wc-rec); font: 700 13px var(--f-body); letter-spacing: .14em; text-transform: uppercase; display: inline-flex; gap: 12px; align-items: center; } .hs-vt svg { width: 22px; height: 14px; }
+.hsx-ach { display: flex; gap: 22px; align-items: center; border: 1.5px solid #2e3235; border-radius: 14px; padding: 20px 22px; margin-top: 40px; } .hsx-ach > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; } .hsx-ach b { font: 600 18px var(--f-body); color: #fff; } .hsx-ach span { color: #a7a9ab; font-size: 14.5px; } .hsx-ach .hsx-mil { font-size: 12.5px; color: #888a8c; margin-top: 4px; }
+.hsx-tc { padding: 22px 16px 8px; margin-bottom: 14px; } .hsx-th { margin-bottom: 14px; }
+.hst-leg { display: flex; gap: 18px; flex-wrap: wrap; font: 700 11.5px var(--f-body); letter-spacing: .12em; text-transform: uppercase; color: #fff; } .hst-leg .sw { width: 13px; height: 13px; border-radius: 3px; background: #fff; display: inline-block; margin-right: 9px; vertical-align: -2px; } .hst-leg .sw.grad { background: linear-gradient(135deg, #f2ab45, #77ace1 55%, #6eeda5); }
+.hst { width: 100%; display: block; margin-top: 10px; overflow: visible; } .hst-g { stroke: #3a3d40; stroke-width: 1; } .hst-y { fill: #888a8c; font: 700 11px var(--f-num); } .hst-y.on { fill: #fff; } .hst-x { fill: #888a8c; font: 500 12px var(--f-body); } .hst-t { font: 700 13px var(--f-num); }
+.hsx-dobc { align-self: center; margin-top: 18px; }
 .hsdob { width: 150px !important; }
-.hspace-s { position: relative; display: flex; justify-content: space-between; height: 34px; align-items: center; } .hspace-s i { width: 2px; height: 18px; border-radius: 1px; background: var(--line); } .hspace-s i.maj { background: var(--line-2); height: 22px; }
-.hspace-one { position: absolute; left: 50%; top: 4px; width: 2px; height: 26px; margin-left: -1px; background: var(--ink-3); z-index: 0; }
-.hspace-m { position: absolute; top: 0; width: 4px; height: 34px; margin-left: -2px; border-radius: 2px; z-index: 1; background: var(--ink); box-shadow: 0 0 0 2px var(--surface), 0 0 12px 2px rgba(255,255,255,.55); }
-.hs-m-g { background: var(--good); box-shadow: 0 0 0 2px var(--surface), 0 0 14px 3px color-mix(in srgb, var(--good) 60%, transparent); } .hs-m-a { background: var(--warn); box-shadow: 0 0 0 2px var(--surface), 0 0 14px 3px color-mix(in srgb, var(--warn) 60%, transparent); }
-.hsmiles { text-align: center; }
-.hspace { display: flex; flex-direction: column; gap: 6px; } .hspace-h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-.hspace-v { display: flex; justify-content: space-between; align-items: baseline; } .hspace-v b { font-size: 26px; font-weight: 600; font-family: var(--f-num); font-variant-numeric: tabular-nums; }
-.hspace-l { display: flex; justify-content: space-between; font: 600 11.5px var(--f-num); color: var(--ink-3); }
-.hsg { display: flex; flex-direction: column; } .hsg-h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; padding: 10px 0 4px; } .hsg-h h3 { font-size: 18px; font-weight: 600; margin: 0; } .hsg-sep { color: var(--line-2); margin: 0 4px; }
-.hsr { border-top: 1px solid var(--line); padding: 10px 0 12px; display: flex; flex-direction: column; gap: 6px; }
-.hsr-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; background: none; border: 0; padding: 0; color: var(--ink); text-align: left; font-family: var(--f-body); font-weight: 700; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; min-height: 32px; }
-.hsr-h small { text-transform: none; letter-spacing: 0; font-weight: 500; } .hsr.open .chev { transform: rotate(180deg); }
-.hsr-b { display: grid; grid-template-columns: minmax(0, 1fr) 56px; gap: 12px; align-items: center; }
-.hsr-y { text-align: right; } .hsr-y b { display: block; font-size: 22px; font-weight: 600; font-family: var(--f-num); font-variant-numeric: tabular-nums; line-height: 1.1; } .hsr-y small { font-size: 12px; color: var(--ink-3); }
-.hsb { position: relative; display: flex; flex-direction: column; gap: 2px; }
-.hsb-l { position: relative; display: inline-flex; align-items: baseline; gap: 3px; white-space: nowrap; align-self: flex-start; font-family: var(--f-num); font-variant-numeric: tabular-nums; } .hsb-l b { font-size: 15px; font-weight: 600; } .hsb-l small { font-size: 11.5px; color: var(--ink-3); }
-.hsb-l em { font-style: normal; font-size: 11.5px; color: var(--ink-3); margin-left: 4px; } .hsb-l.l6 { margin-bottom: 7px; } .hsb-l.l30 { margin-top: 4px; }
-.hsb-t { position: relative; display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px; height: 5px; } .hsb-t > i { border-radius: 1px; }
-.hsb-t > i.hs-g2 { background: var(--hs-g2); } .hsb-t > i.hs-g1 { background: var(--hs-g1); } .hsb-t > i.hs-n { background: var(--hs-n); } .hsb-t > i.hs-a1 { background: var(--hs-a1); } .hsb-t > i.hs-a2 { background: var(--hs-a2); }
-.hsb-m { position: absolute; width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; margin-left: -6px; }
-.hsb-m.dn { bottom: 6px; border-top: 8px solid var(--ink); } .hsb-m.up { top: 7px; border-bottom: 7px solid var(--ink-3); }
-.hsb-e { display: flex; justify-content: space-between; margin-top: 8px; font: 600 11.5px var(--f-num); }
-.hsr-x { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; padding-top: 4px; } .hsr-x p { margin: 0; } .hsr-x .hsvo2 { width: 100%; margin-top: 4px; }
 .hsvo2 { display: flex; gap: 8px; align-items: center; } .hsvo2 > span { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; } .hsvo2 .in { width: 76px; flex: none; text-align: center; }
 .rsrc { font-family: var(--f-num); font-variant-numeric: tabular-nums; font-size: 11.5px; letter-spacing: .04em; color: var(--ink-3); }
 .rtiles.e4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } @container (min-width: 600px) { .rtiles.e4 { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
@@ -669,8 +695,9 @@ body:has(#updp) .fab { bottom: calc(var(--tabh) + max(8px, calc(env(safe-area-in
 /* ---------- v1.81 Today redesign: rings, tiles, Health monitor, ring detail screens (WHOOP-style) ---------- */
 :root { /* WHOOP's colours, as sampled raw off his iPhone screenshots, which are Display P3 (v1.105): the P3 value where the browser
    supports it (his iPhone shows exactly WHOOP's colour), else the same colour converted to sRGB */
-  --wc-rec: #66aee6; --wc-hs: #2ee68a; --wc-green: #19eb02; --wc-red: #ff0026; --wc-sleep: #7ba1bb; --wc-strain: #0092e7; --wc-yellow: #fede00; --wc-up: #02f19e; --wc-dn: #ffaf47; --wc-lt: #a4a3f1; --wc-deep: #fa95fa; --wc-rem: #ac5aed; --wc-z1: #adc2cd; --wc-z2: #479ac2; --wc-z3: #59b996; --wc-z4: #fcac5c; --wc-z5: #ff6422; --wc-rs2: #5a7689; --wc-rs3: #455b68;
+  --wc-rec: #66aee6; --wc-hsr: #1dd06f; --wc-hso: #ffa722; --wc-green: #19eb02; --wc-red: #ff0026; --wc-sleep: #7ba1bb; --wc-strain: #0092e7; --wc-yellow: #fede00; --wc-up: #02f19e; --wc-dn: #ffaf47; --wc-lt: #a4a3f1; --wc-deep: #fa95fa; --wc-rem: #ac5aed; --wc-z1: #adc2cd; --wc-z2: #479ac2; --wc-z3: #59b996; --wc-z4: #fcac5c; --wc-z5: #ff6422; --wc-rs2: #5a7689; --wc-rs3: #455b68;
 }
+@supports (color: color(display-p3 1 1 1)) { :root { --wc-hsr: color(display-p3 0.384 0.804 0.475); --wc-hso: color(display-p3 0.949 0.671 0.271); } }
 @supports (color: color(display-p3 1 1 1)) { :root { --wc-rec: color(display-p3 0.467 0.675 0.882); --wc-green: color(display-p3 0.431 0.91 0.275); --wc-red: color(display-p3 0.918 0.2 0.204); --wc-sleep: color(display-p3 0.514 0.627 0.722); --wc-strain: color(display-p3 0.251 0.565 0.878); --wc-yellow: color(display-p3 0.976 0.875 0.29); --wc-up: color(display-p3 0.431 0.929 0.647); --wc-dn: color(display-p3 1 0.702 0.361); --wc-lt: color(display-p3 0.643 0.639 0.922); --wc-deep: color(display-p3 0.925 0.604 0.957); --wc-rem: color(display-p3 0.631 0.369 0.898); --wc-z1: color(display-p3 0.694 0.757 0.8); --wc-z2: color(display-p3 0.365 0.596 0.745); --wc-z3: color(display-p3 0.447 0.718 0.596); --wc-z4: color(display-p3 0.941 0.686 0.416); --wc-z5: color(display-p3 0.929 0.431 0.224); --wc-rs2: color(display-p3 0.376 0.459 0.529); --wc-rs3: color(display-p3 0.286 0.353 0.404); } }
 #view { --w-sleep: var(--wc-sleep); --w-strain: var(--wc-strain); --w-yellow: var(--wc-yellow); --w-track: #373d42; --w-in: var(--wc-up); --w-up: var(--wc-up); --w-dn: var(--wc-dn); --w-hatch: repeating-linear-gradient(135deg, #2c323a 0 2px, #171b21 2px 6px); --w-lt: var(--wc-lt); --w-deep: var(--wc-deep); --w-rem: var(--wc-rem); --w-lab: #c8ccd0; }
 .wlab { font-family: var(--f-body); font-weight: 700; font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; color: #fff; }
@@ -956,7 +983,7 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.106'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.107'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
@@ -3276,147 +3303,7 @@ function energyCard() {
     ${tile('Expenditure', ex != null ? fmt(ex, 0) : null, 'kcal', '')}
     ${tile('Intake, 7 days', ik != null ? fmt(ik, 0) : null, 'kcal', ik != null && ex != null ? `${ik - ex >= 0 ? '+' : '−'}${fmt(Math.abs(ik - ex), 0)} vs expenditure` : '')}</div></section>`;
 }
-/* Healthspan (v1.74): laid out like WHOOP's Healthspan screen. A glowing orb with years younger, the Pace of Aging scale,
-   a week navigator (ui.hsOff weeks back from the latest), then Sleep / Strain / Fitness groups of range bars: ▼ the 6M
-   average, ▲ the 30D one, the 6M Age Impact on the right. Segment colours come from hsImpact at each segment's midpoint
-   (grey near the target, green younger, amber older), so they follow the fitted formula. Bar ends fitted to WHOOP's
-   screenshots (Oct 2026): steps 0–16K, VO2 15–70, RHR 40–80, consistency 40–100%, sleep 5–8 h, zones 1–3 and strength
-   0–6.5 h a week, zones 4–5 0–1 h. Tap a row for both averages, a verdict and its trend; VO2 entry sits in the VO2 row. */
-const HS_FMT = { steps: [0, ''], rhr: [0, 'bpm'], sleep_consistency: [0, '%'], z13: ['hm', 'h'], z45: ['hm', 'h'], sleep_hours: ['hh', 'h'], strength: ['hm', 'h'], vo2: [0, 'ml/kg/min'] };
-const HS_RANGE = { steps: [0, 16000], rhr: [40, 80], sleep_consistency: [40, 100], z13: [0, 390], z45: [0, 60], sleep_hours: [5, 8], strength: [0, 390], vo2: [15, 70] };
-const HS_GROUPS = [['Sleep', ['sleep_consistency', 'sleep_hours']], ['Strain', ['z13', 'z45', 'strength', 'steps']], ['Fitness', ['vo2', 'rhr']]];
-const HS_TREND = { steps: 'stp', rhr: 'rhr', sleep_consistency: 'sc', z13: 'z13', z45: 'z45', strength: 'lift' }; // Trends explorer ids
-const HS_NOUN = { steps: 'daily Steps', rhr: 'Resting HR', sleep_consistency: 'Sleep Consistency', z13: 'weekly Time in HR Zones 1-3', z45: 'weekly Time in HR Zones 4-5', sleep_hours: 'Hours of Sleep', strength: 'weekly Strength Activity Time', vo2: 'VO2 max' };
-/* Healthspan orb (v1.106, after WHOOP's): a canvas blob whose edge wobbles from a few slow sine harmonics, a soft dark
-   core that follows the shape, a glowing rim, a slow light sweep, and ~170 motes orbiting inside it, crowded toward
-   the rim. Blooms in on first sight; a tap sends a ripple round the edge and spins the motes up. One rAF loop draws
-   any .hsorb-cv on the page and idles (polls every 250 ms) when there is none or the page is hidden. */
-const HSO = { motes: null, col: null, from: null, colAt: 0, born: 0, seen: -1e9, kick: 0, kickAt: -9, spin: 0, last: 0, on: false };
-function hsoMotes() { let r = 11; const rnd = () => (r = (r * 16807) % 2147483647) / 2147483647, out = [];
-  for (let i = 0; i < 170; i++) { const u = rnd(), big = rnd() < .1;
-    out.push({ a: rnd() * 6.2832, f: Math.min(1.02, .97 - Math.pow(u, 1.8) * .62), w: (rnd() - .5) * .16 + (rnd() < .5 ? .05 : -.05),
-      s: big ? 1.6 + rnd() * 1.6 : .5 + rnd() * 1.1, big, tw: 1.2 + rnd() * 2.6, ph: rnd() * 6.28, wob: rnd() * 6.28 }); }
-  return out; }
-function hsoCol(el) { // the tone colour as [r, g, b] 0..1 plus whether it's Display P3
-  const pr = el.querySelector('.hsorb-p'), c = pr ? getComputedStyle(pr).color : 'rgb(128,136,154)';
-  let m = /color\(display-p3\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)/.exec(c); if (m) return { v: [+m[1], +m[2], +m[3]], p3: true };
-  m = /rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/.exec(c); return { v: m ? [m[1] / 255, m[2] / 255, m[3] / 255] : [.5, .53, .6], p3: false };
-}
-function hsoR(th, t, k) { // edge radius as a share of the base radius
-  return 1 + .034 * Math.sin(2 * th + t * .31) + .024 * Math.sin(3 * th - t * .23 + 1) + .014 * Math.sin(5 * th + t * .47 + 2) + .012 * Math.sin(t * 1.25)
-    + k * .05 * Math.sin(6 * th - t * 9) ; }
-function hsoPath(x, cx, cy, R, t, k, sc) { x.beginPath(); for (let i = 0; i <= 72; i++) { const th = i / 72 * 6.2832, r = R * sc * hsoR(th, t, k); i ? x.lineTo(cx + Math.cos(th) * r, cy + Math.sin(th) * r) : x.moveTo(cx + Math.cos(th) * r, cy + Math.sin(th) * r); } x.closePath(); }
-function hsoDraw(cv, now) {
-  const box = cv.parentNode, css = box.clientWidth, dpr = Math.min(devicePixelRatio || 1, 2.5), pad = 1.5, W = Math.round(css * pad * dpr);
-  if (!css) return;
-  const c = hsoCol(box);
-  if (cv.width !== W || cv.dataset.cs !== (c.p3 ? 'p3' : 's')) { cv.width = cv.height = W; cv.dataset.cs = c.p3 ? 'p3' : 's'; cv._x = null; }
-  const x = cv._x || (cv._x = cv.getContext('2d', c.p3 ? { colorSpace: 'display-p3' } : undefined));
-  if (!HSO.col || HSO.col.join() !== c.v.join()) { HSO.from = HSO.col ? hsoNow(now) : c.v; HSO.col = c.v; HSO.colAt = now; }
-  const col = hsoNow(now), sp = c.p3 ? 'display-p3' : 'srgb';
-  const rgba = (a, wt = 0, dk = 1) => `color(${sp} ${col.map(v => ((v * dk) * (1 - wt) + wt).toFixed(3)).join(' ')} / ${a.toFixed(3)})`;
-  const t = now / 1000, still = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (!cv._born) cv._born = now - HSO.seen < 2500 ? -1e9 : now; // a re-render (week change) carries on without blooming again
-  HSO.seen = now;
-  const e = still ? 1 : Math.min(1, (now - cv._born) / 1400), bloom = 1 - Math.pow(1 - e, 3), ov = e < 1 ? Math.sin(e * Math.PI) * .05 : 0;
-  const kick = still ? 0 : Math.max(0, 1 - (t - HSO.kickAt) / 1.6), k = kick * kick;
-  const dt = Math.min(.05, HSO.last ? t - HSO.last : 0); HSO.last = t; HSO.spin += dt * (1 + 7 * k);
-  const cx = W / 2, cy = W / 2, R = W / pad / 2 * (.62 + .38 * bloom + ov);
-  x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, W, W); x.globalAlpha = Math.min(1, e * 1.6);
-  // outer halo
-  x.save(); hsoPath(x, cx, cy, R, t, k, 1); x.shadowColor = rgba(.5 + .12 * Math.sin(t * 1.1) + .25 * k); x.shadowBlur = R * .32; x.fillStyle = rgba(1, 0, .55); x.fill(); x.restore();
-  x.save(); hsoPath(x, cx, cy, R, t, k, 1); x.clip();
-  // rim body, then a soft black core that follows the shape
-  const g = x.createRadialGradient(cx, cy, R * .3, cx, cy, R * 1.05); g.addColorStop(0, rgba(1, 0, .12)); g.addColorStop(.62, rgba(1, 0, .32)); g.addColorStop(.88, rgba(1, 0, .78)); g.addColorStop(1, rgba(1, .14, 1));
-  x.fillStyle = g; x.fillRect(0, 0, W, W);
-  x.shadowColor = '#000'; x.shadowBlur = R * .42; x.fillStyle = '#000';
-  hsoPath(x, cx, cy, R, t, k, .7 + .02 * Math.sin(t * .9)); x.fill(); x.fill(); x.shadowBlur = R * .18; x.fill();
-  x.shadowBlur = 0;
-  // light sweep round the rim
-  x.globalCompositeOperation = 'lighter';
-  const sa = t * .35, lg = x.createLinearGradient(cx + Math.cos(sa) * R, cy + Math.sin(sa) * R, cx - Math.cos(sa) * R, cy - Math.sin(sa) * R);
-  lg.addColorStop(0, rgba(.22 + .2 * k, .35)); lg.addColorStop(.45, rgba(0)); x.fillStyle = lg; x.fillRect(0, 0, W, W);
-  // motes
-  const ms = HSO.motes || (HSO.motes = hsoMotes()), u = dpr;
-  for (const m of ms) {
-    const th = m.a + HSO.spin * m.w, f = (m.f + .02 * Math.sin(t * .6 + m.wob)) * (.3 + .7 * bloom), r = R * f * hsoR(th, t, k);
-    const px = cx + Math.cos(th) * r, py = cy + Math.sin(th) * r, tw = .5 + .5 * Math.sin(t * m.tw + m.ph);
-    const rim = Math.max(0, Math.min(1, (f - .45) / .45)), a = (.12 + .78 * rim) * (.35 + .65 * tw) * (still ? .8 : 1), s = m.s * u * (1 + .6 * k);
-    if (m.big) { const bg = x.createRadialGradient(px, py, 0, px, py, s * 2.4); bg.addColorStop(0, rgba(a * .9, .55)); bg.addColorStop(.45, rgba(a * .45, .3)); bg.addColorStop(1, rgba(0, .3));
-      x.fillStyle = bg; x.beginPath(); x.arc(px, py, s * 2.4, 0, 6.2832); x.fill(); }
-    else { x.fillStyle = rgba(a, .45 + .3 * tw); x.beginPath(); x.arc(px, py, s, 0, 6.2832); x.fill(); }
-  }
-  x.restore();
-  // crisp bright edge
-  x.save(); hsoPath(x, cx, cy, R, t, k, 1); x.lineWidth = 1.1 * u; x.strokeStyle = rgba(.6, .3); x.shadowColor = rgba(.9); x.shadowBlur = 8 * u; x.stroke(); x.restore();
-  x.globalAlpha = 1;
-}
-function hsoNow(now) { const p = Math.min(1, (now - HSO.colAt) / 700), q = p * p * (3 - 2 * p); return HSO.col.map((v, i) => HSO.from[i] + (v - HSO.from[i]) * q); }
-function hsoLoop() {
-  const cvs = document.hidden ? [] : [...document.querySelectorAll('.hsorb-cv')];
-  if (!cvs.length) { HSO.last = 0; setTimeout(hsoLoop, 250); return; }
-  const now = performance.now();
-  for (const cv of cvs) { if (!cv._tap) { cv._tap = 1; cv.parentNode.addEventListener('pointerdown', () => { HSO.kickAt = performance.now() / 1000; }); }
-    const b = cv.getBoundingClientRect(); if (b.bottom > -50 && b.top < innerHeight + 50) hsoDraw(cv, now); }
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) { setTimeout(hsoLoop, 600); return; }
-  requestAnimationFrame(hsoLoop);
-}
-if (typeof window !== 'undefined' && !HSO.on) { HSO.on = true; setTimeout(hsoLoop, 0); }
-function hsVal(m, x) { // value text, no unit
-  if (x == null || !Number.isFinite(x)) return '–';
-  const f = HS_FMT[m][0];
-  return f === 'hm' ? hm(x) : f === 'hh' ? hm(x * 60) : m === 'steps' ? fmt(x, 0) : fmt(x, f);
-}
-function hsEnd(m, x) { const f = HS_FMT[m][0]; return f === 'hm' ? (x % 60 ? hm(x) : x / 60) + 'h' : f === 'hh' ? x + 'h' : m === 'steps' ? (x ? x / 1000 + 'K' : '0K') : m === 'rhr' ? x + 'bpm' : m === 'sleep_consistency' ? x + '%' : '' + x; }
-function hsTone(y) { return y < -0.5 ? 'g2' : y < -0.1 ? 'g1' : y > 0.5 ? 'a2' : y > 0.1 ? 'a1' : 'n'; }
-function hsBar(m, x6, x30, open) {
-  const [lo, hi] = HS_RANGE[m], pos = x => x == null ? null : Math.max(0, Math.min(100, (x - lo) / (hi - lo) * 100));
-  const seg = Array.from({ length: 10 }, (_, i) => `<i class="hs-${hsTone(hsImpact(m, lo + (i + .5) / 10 * (hi - lo)))}"></i>`).join('');
-  const p6 = pos(x6), p30 = pos(x30), u = HS_FMT[m][1];
-  const lab = (p, cls, txt) => `<span class="hsb-l ${cls}" style="left:${p}%;transform:translateX(-${p}%)">${txt}</span>`;
-  return `<div class="hsb">
-    ${p6 != null ? lab(p6, 'l6', `<b>${hsVal(m, x6)}</b>${u ? ` <small>${u}</small>` : ''}${open ? '<em>6 Month avg.</em>' : ''}`) : ''}
-    <div class="hsb-t">${seg}${p6 != null ? `<span class="hsb-m dn" style="left:${p6}%"></span>` : ''}${p30 != null ? `<span class="hsb-m up" style="left:${p30}%"></span>` : ''}</div>
-    <div class="hsb-e"><span class="hs-t-${hsTone(hsImpact(m, lo))}">${hsEnd(m, lo)}</span><span class="hs-t-${hsTone(hsImpact(m, hi))}">${hsEnd(m, hi)}</span></div>
-    ${open && p30 != null ? lab(p30, 'l30', `<b>${hsVal(m, x30)}</b>${u ? ` <small>${u}</small>` : ''}<em>30 Day avg.</em>`) : ''}</div>`;
-}
-function healthspanCard() {
-  const h = healthspan(), v2 = hsVo2(), lastV = v2[v2.length - 1];
-  const vo2In = `<div class="hsvo2"><span class="small">VO2 max this week${lastV ? `<span class="xs muted">Last ${fmt(lastV.v, 1)} · ${esc(fmtD(lastV.d))}</span>` : ''}</span><input class="in" type="number" inputmode="decimal" step="0.1" min="20" max="90" id="vo2in" aria-label="VO2 max this week" ><button class="btn sm" data-act="vo2add">Save</button></div>`;
-  if (!h.cur) return `<section class="card"><div class="card-h"><h2>Healthspan</h2><span class="eyebrow">calibrating</span></div><p class="small dim">Needs 21 WHOOP recoveries in the last 31 days.</p>${vo2In}</section>`;
-  const n = h.weeks.length, off = Math.min(Math.max(ui.hsOff || 0, 0), n - 1), w = h.weeks[n - 1 - off], prev = h.weeks[n - 2 - off], flags = hsFlags(w.x6);
-  const open = ui.hsOpen || (ui.hsOpen = new Set()), stale = !lastV || lastV.d < addDays(today(), -6);
-  const dob = S().dob, ageAt = dob ? diffDays(dob, w.W) / 365.2425 : null, rawAge = ageAt != null ? ageAt + w.total : null; // WHOOP Age: your age plus the 6M impacts; WHOOP floors it at 18
-  const oAge = rawAge == null ? null : rawAge < 18 ? '&lt;18.0' : fmt(Math.round(rawAge * 10) / 10, 1).replace(/^(\d+)$/, '$1.0');
-  const yrs = w.yrs, orbTone = yrs > 0 ? 'good' : yrs < 0 ? 'warn' : 'n';
-  const sgn = x => (x > 0.05 ? '+' : x < -0.05 ? '−' : '') + Math.abs(x).toFixed(1);
-  // Pace scale: −1.0× to 3.0× in 0.1 steps, 1.0× marked
-  const pp = Math.max(0, Math.min(100, (w.pace + 1) / 4 * 100));
-  const ticks = Array.from({ length: 41 }, (_, i) => `<i${i % 10 === 0 ? ' class="maj"' : ''}></i>`).join('');
-  const row = m => {
-    const x6 = w.x6[m], x30 = w.x30[m], i6 = w.i6[m], isOpen = open.has(m), t = hsTone(i6);
-    const verdict = i6 < -0.1 ? 'Outperforming' : i6 > 0.1 ? 'Underperforming' : 'On track';
-    const drift = Math.abs(w.d[m]) < 0.05 ? 'Your 30-day average is holding steady.' : w.d[m] < 0 ? 'Your 30-day average is pulling this younger.' : 'Your 30-day average is pulling this older.';
-    const lead = i6 < -0.1 ? `You're boosting your long-term health with your ${HS_NOUN[m]}.` : i6 > 0.1 ? `Your ${HS_NOUN[m]} is adding years.` : `Your ${HS_NOUN[m]} is close to neutral.`;
-    const body = isOpen ? `<div class="hsr-x"><b>${verdict}</b><p class="small dim">${lead} ${drift}</p>
-      ${HS_TREND[m] ? `<button class="link" data-act="hstrend" data-m="${HS_TREND[m]}">View trend →</button>` : ''}${m === 'vo2' ? vo2In : ''}</div>` : '';
-    return `<div class="hsr${isOpen ? ' open' : ''}"><button class="hsr-h" data-act="hsrow" data-m="${m}" aria-expanded="${isOpen}"><span>${esc(HS_NAME[m])}${flags.includes(m) ? ' <small class="muted">· outside fit</small>' : ''}${m === 'vo2' && stale && !isOpen ? ' <small class="hs-t-a1">· add this week</small>' : ''}</span><span class="chev">${ICON.down}</span></button>
-      <div class="hsr-b">${hsBar(m, x6, x30, isOpen)}<div class="hsr-y hs-t-${t}"><b>${sgn(i6)}</b><small>years</small></div></div>${body}</div>`;
-  };
-  return `<section class="card hscard"><div class="card-h"><h2>Healthspan</h2>${h.miles.length ? `<span class="eyebrow">best ${Math.max(...h.miles.map(m => m.yrs))} yrs</span>` : ''}</div>
-    <div class="hsnav"><button class="iconbtn" data-act="hsweek" data-d="1" aria-label="Previous week" ${off >= n - 1 ? 'disabled' : ''}>‹</button><b>${esc(fmtD(w.W))} – ${esc(fmtD(addDays(w.W, 6)))}</b><button class="iconbtn" data-act="hsweek" data-d="-1" aria-label="Next week" ${off ? '' : 'disabled'}>›</button></div>
-    <div class="hshero"><div class="hsst"><b class="hs-t-${yrs > 0 ? 'g2' : yrs < 0 ? 'a2' : 'n'}">${yrs ? Math.abs(yrs) : '0'}</b><span>${yrs < 0 ? 'Years older' : 'Years younger'}</span></div>
-      <div class="hsorb hs-o-${orbTone}" aria-label="${oAge != null ? 'Orbit Age ' + oAge : ''}"><canvas class="hsorb-cv" data-keep aria-hidden="true"></canvas><i class="hsorb-p"></i><div class="hsorb-c">${oAge != null ? `<b>${oAge}</b><span>Orbit Age</span>` : `<b>${yrs ? Math.abs(yrs) : '0'}</b><span>${yrs < 0 ? 'yrs older' : 'yrs younger'}</span>`}</div></div>
-      <div class="hsst"><b>${fmt(w.pace, 1)}×</b><span>Pace of Aging</span></div></div>
-    ${dob ? '' : `<div class="hsvo2"><span class="small">Birth date<span class="xs muted">Shows your Orbit Age</span></span><input class="in hsdob" type="date" id="dobin" aria-label="Birth date"><button class="btn sm" data-act="hsdob">Save</button></div>`}
-    ${h.miles.length ? `<p class="xs muted hsmiles">Milestones: ${h.miles.map(m => `${m.yrs} yrs ${esc(fmtD(m.W))}`).join(' · ')}</p>` : ''}
-    <div class="hspace"><div class="hspace-h"><span class="eyebrow">Pace of Aging</span>${prev ? `<span class="xs muted">${fmt(prev.pace, 1)}× the week before</span>` : ''}</div>
-      <div class="hspace-v"><span class="xs muted">Slow</span><b class="hs-t-${w.pace < 0.95 ? 'g2' : w.pace > 1.05 ? 'a2' : 'n'}">${fmt(w.pace, 1)}×</b><span class="xs muted">Fast</span></div>
-      <div class="hspace-s">${ticks}<span class="hspace-m hs-m-${w.pace < 0.95 ? 'g' : w.pace > 1.05 ? 'a' : 'n'}" style="left:${pp}%"></span><span class="hspace-one"></span></div>
-      <div class="hspace-l"><span>−1.0×</span><span>1.0×</span><span>3.0×</span></div></div>
-    ${HS_GROUPS.map(([g, ms]) => `<div class="hsg"><div class="hsg-h"><h3>${g}</h3><span class="xs muted">▼ 6 Month avg. <span class="hsg-sep">|</span> ▲ 30 Day avg.</span></div>${ms.map(row).join('')}</div>`).join('')}
-    ${infoHTML(`A copy of WHOOP's Healthspan, fitted to your WHOOP numbers (Pace within ±0.1 of the app in about 9 weeks of 10). Each bar: ▼ your 6-month average, ▲ your 30-day one; green segments make you younger, amber older, grey is about neutral. Years on the right are that metric's 6-month Age Impact. Pace adds up how the 30-day values are moving those impacts. VO2 comes from WHOOP's weekly estimate, so type it in each week (tap VO2 max). Orbit Age is your age plus the 6-month impacts, shown as under 18 below 18 like WHOOP.`)}${dob ? `<button class="link dim" data-act="hsdobclr">Change birth date</button>` : ''}</section>`;
-}
+/* Healthspan: the Body card, its screen, orb and bars live in hspan.js (v1.107). */
 function recAfterCard() { // v1.81: also its own screen, from Recovery detail
   const raAll = recoveryAfter(), ra = raAll.filter(r => r.n >= 2).sort((a, b) => b.avg - a.avg), nAlc = sum(raAll.map(r => r.alc));
   const alcAvg = nAlc ? sum(raAll.map(r => r.alc * (r.alcAvg || 0))) / nAlc : null; // any session, then a drink: for comparison
@@ -4011,6 +3898,257 @@ const WACT = {
   alcedit: el => { ui.alcEdit = el.dataset.d; render(true); },
 };
 Object.assign(VIEWS, { health: vHealth, sleep: vSleep, recovery: vRecovery, strain: vStrain, activity: vActivity, trend: vTrend, alcohol: vAlcohol });
+/* ---------- Healthspan (v1.107): WHOOP's Healthspan screen, laid out and coloured from his screenshots (16 Nov 2026) ----------
+   Body has a small card that opens the `healthspan` screen (a nav screen, back stack as the ring screens). The screen: title
+   and "Next update in N days" in the header, a week navigator, the big orb (Orbit Age, years younger), Pace of Aging, then
+   Sleep / Strain / Fitness cards of range bars (▼ 6M average, ▲ 30D, the 6M Age Impact on the right; an open row is darker
+   with a tall filled bar, a verdict and View trend), milestones, and Trend View charts (Orbit Age vs your age, Pace).
+   Scrolling the big orb away brings a fixed mini bar (#hsmini: years younger, mini orb, pace) over the header, as WHOOP's.
+   Colours are raw samples off his Display P3 screenshots, so they're written as color(display-p3 …). Segment colours follow
+   hsImpact at each segment's midpoint: orange (older) through brown and grey (neutral) to dark and bright green (younger).
+   Bar ends read off WHOOP's screens: steps 0–16K, VO2 15–70, RHR 40–80, consistency 40–100%, sleep 5–8 h, zones 1–3
+   0–10 h, zones 4–5 0–1 h, strength 0–8 h a week. */
+const HS_FMT = { steps: [0, 'Steps'], rhr: [0, 'bpm'], sleep_consistency: [0, '%'], z13: ['hm', 'h'], z45: ['hm', 'h'], sleep_hours: ['hh', 'h'], strength: ['hm', 'h'], vo2: [0, 'ml/kg/min'] };
+const HS_RANGE = { steps: [0, 16000], rhr: [40, 80], sleep_consistency: [40, 100], z13: [0, 600], z45: [0, 60], sleep_hours: [5, 8], strength: [0, 480], vo2: [15, 70] };
+const HS_GROUPS = [['Sleep', ['sleep_consistency', 'sleep_hours']], ['Strain', ['z13', 'z45', 'strength', 'steps']], ['Fitness', ['vo2', 'rhr']]];
+const HS_TITLE = { steps: 'Steps', rhr: 'RHR', sleep_consistency: 'Sleep consistency', z13: 'Time in HR zones 1-3 (weekly)', z45: 'Time in HR zones 4-5 (weekly)', sleep_hours: 'Hours of sleep', strength: 'Strength activity time (weekly)', vo2: 'VO₂ max' };
+const HS_TREND = { steps: 'stp', rhr: 'rhr', sleep_consistency: 'sc', z13: 'z13', z45: 'z45', strength: 'lift' }; // Trends explorer ids
+const HS_NOUN = { steps: 'daily Steps', rhr: 'Resting HR', sleep_consistency: 'Sleep Consistency', z13: 'weekly Time in HR Zones 1-3', z45: 'weekly Time in HR Zones 4-5', sleep_hours: 'Hours of Sleep', strength: 'weekly Strength Activity Time', vo2: 'VO2 max' };
+// WHOOP's colours (raw P3 samples): orange, dark brown, neutral grey, dark green, bright green, open-row card
+const HSP = { o: [.949, .671, .271], b: [.396, .322, .188], g: [.588, .588, .588], gd: [.173, .365, .282], gb: [.431, .929, .647], card: [.11, .118, .125] };
+const p3 = (c, a) => `color(display-p3 ${c.map(v => v.toFixed(3)).join(' ')}${a != null ? ' / ' + a : ''})`;
+const mix3 = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
+function hsCol(y) { // a segment's colour from its Age Impact (years; + is older)
+  if (Math.abs(y) < 0.03) return HSP.g;
+  const t = Math.pow(Math.min(1, Math.abs(y) / 0.45), 0.75);
+  return y > 0 ? mix3(HSP.b, HSP.o, t) : mix3(HSP.gd, HSP.gb, t);
+}
+const hsYrsCol = y => { const r = Math.round(y * 10) / 10; return r > 0 ? p3(HSP.o) : r < 0 ? p3(HSP.gb) : '#fff'; };
+function hsVal(m, x) { // value text, no unit
+  if (x == null || !Number.isFinite(x)) return '–';
+  const f = HS_FMT[m][0];
+  return f === 'hm' ? hm(x) : f === 'hh' ? hm(x * 60) : fmt(x, f);
+}
+function hsEnd(m, x) { const f = HS_FMT[m][0]; return f === 'hm' ? (x % 60 ? hm(x) : x / 60) + 'h' : f === 'hh' ? x + 'h' : m === 'steps' ? (x ? x / 1000 + 'K' : '0K') : m === 'rhr' ? x + 'bpm' : m === 'sleep_consistency' ? x + '%' : '' + x; }
+const hsSgn = x => { const r = Math.round(x * 10) / 10; return (r > 0 ? '+' : r < 0 ? '-' : '') + Math.abs(r).toFixed(1); };
+function hsBar(m, x6, x30, open) {
+  const [lo, hi] = HS_RANGE[m], pos = x => x == null ? null : Math.max(0, Math.min(100, (x - lo) / (hi - lo) * 100));
+  const cols = Array.from({ length: 10 }, (_, i) => hsCol(hsImpact(m, lo + (i + .5) / 10 * (hi - lo))));
+  const seg = cols.map(c => `<i style="--t:${p3(c)};--f:${p3(mix3(HSP.card, c, .15))}"></i>`).join('');
+  const p6 = pos(x6), p30 = pos(x30), u = HS_FMT[m][1];
+  const at = p => `left:${p}%;transform:translateX(-${Math.max(0, Math.min(100, (p - 8) / 84 * 100)).toFixed(0)}%)`; // centred, kept inside at the ends
+  const val = (x, cls, em) => `<span class="hsb-l ${cls}" style="${at(cls === 'l6' ? p6 : p30)}">${em && cls === 'l6' ? `<em>${em}</em>` : ''}<b>${hsVal(m, x)}${u ? `${u === '%' ? '' : ' '}<small>${u}</small>` : ''}</b>${em && cls === 'l30' ? `<em>${em}</em>` : ''}</span>`;
+  const ends = `<div class="hsb-e"><span style="color:${p3(cols[0])}">${hsEnd(m, lo)}</span><span style="color:${p3(cols[9])}">${hsEnd(m, hi)}</span></div>`;
+  return `<div class="hsb${open ? ' open' : ''}">
+    <div class="hsb-top">${p6 != null ? val(x6, 'l6', open ? '6 Month avg.' : '') : ''}</div>
+    <div class="hsb-t">${seg}${p6 != null ? `<span class="hsb-m dn" style="left:${p6}%"></span>` : ''}${p30 != null ? `<span class="hsb-m up" style="left:${p30}%"></span>` : ''}${open ? ends : ''}</div>
+    ${open ? '' : ends}${open && p30 != null ? `<div class="hsb-bot">${val(x30, 'l30', '30 Day avg.')}</div>` : ''}</div>`;
+}
+
+/* The orb (v1.106, reworked v1.107 to WHOOP's): a canvas blob whose edge wobbles from a few slow sine harmonics; inside, a
+   radial ramp from black (centre to ~45%) to the body green, a thin bright rim line and a soft dark drop shadow. Motes: ~110
+   are born near the centre and drift outward (slight spiral), growing and brightening, fading out at the rim; ~70 more
+   orbit slowly in the rim band, a few as soft bokeh. Blooms in on first sight; a tap sends a ripple round the edge and a
+   burst outward. One rAF loop draws every visible .hsorb-cv and idles (polls every 250 ms) when there's none. */
+const HSO = { col: null, from: null, colAt: 0, seen: -1e9, kickAt: -9, spin: 0, rt: 0, last: 0, on: false, rim: null, out: null };
+const hsoH = n => { const x = Math.sin(n * 12.9898) * 43758.5453; return x - Math.floor(x); };
+function hsoMotes() { let r = 11; const rnd = () => (r = (r * 16807) % 2147483647) / 2147483647, rim = [], out = [];
+  for (let i = 0; i < 70; i++) { const big = rnd() < .16;
+    rim.push({ a: rnd() * 6.2832, f: .74 + rnd() * .25, w: (rnd() - .5) * .14, s: big ? 2.2 + rnd() * 2.4 : .7 + rnd() * 1.2, big, tw: 1 + rnd() * 2.4, ph: rnd() * 6.28, wob: rnd() * 6.28 }); }
+  for (let i = 0; i < 110; i++) out.push({ D: 5 + rnd() * 7, ph: rnd(), f0: .02 + rnd() * .22, fe: .78 + rnd() * .22, w: (rnd() - .5) * .7, s: .6 + rnd() * 1.5, big: rnd() < .07, k: i * 7.31 + 3 });
+  HSO.rim = rim; HSO.out = out;
+}
+function hsoCol(el) { // the tone colour as [r, g, b] 0..1 plus whether it's Display P3
+  const pr = el.querySelector('.hsorb-p'), c = pr ? getComputedStyle(pr).color : 'rgb(128,136,154)';
+  let m = /color\(display-p3\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)/.exec(c); if (m) return { v: [+m[1], +m[2], +m[3]], p3: true };
+  m = /rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/.exec(c); return { v: m ? [m[1] / 255, m[2] / 255, m[3] / 255] : [.5, .53, .6], p3: false };
+}
+function hsoR(th, t, k) { // edge radius as a share of the base radius
+  return 1 + .034 * Math.sin(2 * th + t * .31) + .024 * Math.sin(3 * th - t * .23 + 1) + .014 * Math.sin(5 * th + t * .47 + 2) + .012 * Math.sin(t * 1.25) + k * .05 * Math.sin(6 * th - t * 9);
+}
+function hsoPath(x, cx, cy, R, t, k, sc) { x.beginPath(); for (let i = 0; i <= 72; i++) { const th = i / 72 * 6.2832, r = R * sc * hsoR(th, t, k); i ? x.lineTo(cx + Math.cos(th) * r, cy + Math.sin(th) * r) : x.moveTo(cx + Math.cos(th) * r, cy + Math.sin(th) * r); } x.closePath(); }
+function hsoNow(now) { const p = Math.min(1, (now - HSO.colAt) / 700), q = p * p * (3 - 2 * p); return HSO.col.map((v, i) => HSO.from[i] + (v - HSO.from[i]) * q); }
+function hsoDraw(cv, now, dt) {
+  const box = cv.parentNode, css = box.clientWidth, pad = 1.4; if (!css) return;
+  const dpr = Math.min(devicePixelRatio || 1, css > 200 ? 2 : 2.5), W = Math.round(css * pad * dpr), c = hsoCol(box);
+  if (cv.width !== W || cv.dataset.cs !== (c.p3 ? 'p3' : 's')) { cv.width = cv.height = W; cv.dataset.cs = c.p3 ? 'p3' : 's'; cv._x = null; }
+  const x = cv._x || (cv._x = cv.getContext('2d', c.p3 ? { colorSpace: 'display-p3' } : undefined));
+  if (!HSO.col || HSO.col.join() !== c.v.join()) { HSO.from = HSO.col ? hsoNow(now) : c.v; HSO.col = c.v; HSO.colAt = now; }
+  const rim = hsoNow(now), body = rim.map(v => v * .715), sp = c.p3 ? 'display-p3' : 'srgb';
+  const col = (base, a, wt = 0) => `color(${sp} ${base.map(v => (v * (1 - wt) + wt).toFixed(3)).join(' ')} / ${a.toFixed(3)})`;
+  const t = now / 1000, still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!cv._born) cv._born = now - HSO.seen < 2500 ? -1e9 : now; // a re-render (week change) carries on without blooming again
+  HSO.seen = now;
+  const e = still ? 1 : Math.min(1, (now - cv._born) / 1400), bloom = 1 - Math.pow(1 - e, 3), ov = e < 1 ? Math.sin(e * Math.PI) * .05 : 0;
+  const kick = still ? 0 : Math.max(0, 1 - (t - HSO.kickAt) / 1.6), k = kick * kick, u = dpr * css / 300;
+  const cx = W / 2, cy = W / 2, R = W / pad / 2 * (.62 + .38 * bloom + ov);
+  x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, W, W); x.globalAlpha = Math.min(1, e * 1.6);
+  // soft dark drop shadow, as WHOOP's sits on the page
+  x.save(); hsoPath(x, cx, cy, R, t, k, 1); x.shadowColor = 'rgba(0,0,0,.8)'; x.shadowBlur = R * .14; x.shadowOffsetY = R * .05; x.fillStyle = '#000'; x.fill(); x.restore();
+  x.save(); hsoPath(x, cx, cy, R, t, k, 1); x.clip();
+  const g = x.createRadialGradient(cx, cy, 0, cx, cy, R * 1.03);
+  g.addColorStop(0, '#000'); g.addColorStop(.44, '#000'); g.addColorStop(.6, col(body, .22)); g.addColorStop(.78, col(body, .55)); g.addColorStop(.95, col(body, 1)); g.addColorStop(1, col(body, 1));
+  x.fillStyle = g; x.fillRect(0, 0, W, W);
+  if (!HSO.rim) hsoMotes();
+  // motes born near the centre, drifting outward
+  for (const m of HSO.out) {
+    const q = HSO.rt / m.D + m.ph, cyc = Math.floor(q), p = q - cyc;
+    const th = hsoH(m.k + cyc * 1.618) * 6.2832 + p * m.w, f = (m.f0 + (m.fe - m.f0) * (p * .6 + p * p * .4)) * (.3 + .7 * bloom), r = R * f * hsoR(th, t, k);
+    const fade = Math.min(1, p / .15, (1 - p) / .12), a = Math.max(0, fade) * (.2 + .8 * p) * (still ? .8 : 1), s = m.s * u * (.35 + .9 * p) * (m.big ? 2 : 1);
+    const px = cx + Math.cos(th) * r, py = cy + Math.sin(th) * r;
+    if (m.big) { x.fillStyle = col(rim, a * .45, .35); x.beginPath(); x.arc(px, py, s, 0, 6.2832); x.fill(); }
+    else { x.fillStyle = col(rim, a, .6); x.beginPath(); x.arc(px, py, s, 0, 6.2832); x.fill(); }
+  }
+  // residents of the rim band
+  for (const m of HSO.rim) {
+    const th = m.a + HSO.spin * m.w, f = (m.f + .015 * Math.sin(t * .6 + m.wob)) * (.3 + .7 * bloom), r = R * f * hsoR(th, t, k);
+    const px = cx + Math.cos(th) * r, py = cy + Math.sin(th) * r, tw = .5 + .5 * Math.sin(t * m.tw + m.ph), s = m.s * u * (1 + .4 * k);
+    if (m.big) { x.fillStyle = col(rim, (.3 + .25 * tw), .3); x.beginPath(); x.arc(px, py, s, 0, 6.2832); x.fill(); }
+    else { x.fillStyle = col(rim, .55 + .45 * tw, .65); x.beginPath(); x.arc(px, py, s, 0, 6.2832); x.fill(); }
+  }
+  x.restore();
+  // thin bright rim line
+  x.save(); hsoPath(x, cx, cy, R, t, k, 1); x.lineWidth = Math.max(1, 1.5 * u); x.strokeStyle = col(rim, .95, .08); x.shadowColor = col(rim, .6 + .4 * k); x.shadowBlur = (3 + 8 * k) * u; x.stroke(); x.restore();
+  x.globalAlpha = 1;
+}
+function hsoLoop() {
+  const cvs = document.hidden ? [] : [...document.querySelectorAll('.hsorb-cv')];
+  if (!cvs.length) { HSO.last = 0; setTimeout(hsoLoop, 250); return; }
+  const now = performance.now(), t = now / 1000, dt = Math.min(.05, HSO.last ? t - HSO.last : 0), k = Math.max(0, 1 - (t - HSO.kickAt) / 1.6) ** 2;
+  HSO.last = t; HSO.spin += dt * (1 + 6 * k); HSO.rt += dt * (1 + 5 * k);
+  const miniOn = document.documentElement.classList.contains('hsmini-on');
+  for (const cv of cvs) {
+    if (!cv._tap) { cv._tap = 1; cv.parentNode.addEventListener('pointerdown', () => { HSO.kickAt = performance.now() / 1000; }); }
+    if (cv.closest('#hsmini') && !miniOn) continue;
+    const b = cv.getBoundingClientRect(); if (b.bottom > -50 && b.top < innerHeight + 50) hsoDraw(cv, now, dt);
+  }
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) { setTimeout(hsoLoop, 600); return; }
+  requestAnimationFrame(hsoLoop);
+}
+if (typeof window !== 'undefined' && !HSO.on) { HSO.on = true; setTimeout(hsoLoop, 0); }
+const hsOrb = (cls, tone, inner, aria = '') => `<div class="hsorb ${cls} hs-o-${tone}"${aria ? ` aria-label="${esc(aria)}"` : ''}><canvas class="hsorb-cv" data-keep aria-hidden="true"></canvas><i class="hsorb-p"></i><div class="hsorb-c">${inner}</div></div>`;
+
+/* One week's numbers, shared by the card, the screen and the mini bar */
+function hsWeek(off) {
+  const h = healthspan(); if (!h.cur) return null;
+  const n = h.weeks.length, o = Math.min(Math.max(off || 0, 0), n - 1), w = h.weeks[n - 1 - o];
+  const dob = S().dob, ageAt = dob ? diffDays(dob, w.W) / 365.2425 : null, rawAge = ageAt != null ? ageAt + w.total : null; // Orbit Age: your age plus the 6M impacts; WHOOP floors it at 18
+  const age = rawAge == null ? null : rawAge < 18 ? '&lt;18.0' : fmt(Math.round(rawAge * 10) / 10, 1).replace(/^(\d+)$/, '$1.0');
+  const tone = w.yrs > 0 ? 'good' : w.yrs < 0 ? 'warn' : 'n';
+  const yrsTxt = w.yrs ? String(Math.abs(w.yrs)) : '0', yrsLab = w.yrs < 0 ? 'years older' : 'years younger';
+  return { h, n, o, w, prev: h.weeks[n - 2 - o], age, tone, yrsTxt, yrsLab, yCol: w.yrs > 0 ? p3(HSP.gb) : w.yrs < 0 ? p3(HSP.o) : '#fff', pace: fmt(w.pace, 1).replace(/^(-?\d+)$/, '$1.0') + 'x' };
+}
+function hsVo2In() { const v2 = hsVo2(), lastV = v2[v2.length - 1];
+  return `<div class="hsvo2"><span class="small">VO2 max this week${lastV ? `<span class="xs muted">Last ${fmt(lastV.v, 1)} · ${esc(fmtD(lastV.d))}</span>` : ''}</span><input class="in" type="number" inputmode="decimal" step="0.1" min="20" max="90" id="vo2in" aria-label="VO2 max this week" ><button class="btn sm" data-act="vo2add">Save</button></div>`; }
+
+/* Body card: a summary that opens the screen */
+function healthspanCard() {
+  const k = hsWeek(0);
+  if (!k) return `<section class="card"><div class="card-h"><h2>Healthspan</h2><span class="eyebrow">calibrating</span></div><p class="small dim">Needs 21 WHOOP recoveries in the last 31 days.</p>${hsVo2In()}</section>`;
+  return `<section class="card hscard" data-act="nav" data-s="healthspan" role="button" aria-label="Open Healthspan"><div class="card-h"><h2>Healthspan</h2><span class="hs-chev">${ICON.down}</span></div>
+    <div class="hshero"><div class="hsst"><b style="color:${k.yCol}">${k.yrsTxt}</b><span>${k.yrsLab}</span></div>
+      ${hsOrb('sm', k.tone, k.age != null ? `<b>${k.age}</b><span>Orbit Age</span>` : `<b>${k.yrsTxt}</b><span>${k.yrsLab}</span>`)}
+      <div class="hsst"><b>${k.pace}</b><span>Pace of Aging</span></div></div></section>`;
+}
+
+/* The screen */
+function hsTrendSVG(series, yt, yf, ref, months) { // WHOOP line chart: grid, y labels left, months under, hollow end marker with a tag
+  const Wd = 360, H = 210, L = 44, Rr = 14, T = 16, B = 34, xs = series[0].pts.length - 1 || 1, lo = yt[0], hi = yt[yt.length - 1];
+  const X = i => L + 10 + (Wd - L - Rr - 20) * i / xs, Y = v => T + (H - T - B) * (1 - (v - lo) / (hi - lo));
+  let s = yt.map(v => `<line x1="${L}" x2="${Wd - Rr}" y1="${Y(v)}" y2="${Y(v)}" class="hst-g"/><text x="${L - 8}" y="${Y(v) + 4}" text-anchor="end" class="hst-y${v === ref ? ' on' : ''}">${yf(v)}</text>`).join('');
+  if (ref != null) s += `<line x1="${X(0) - 6}" x2="${X(xs)}" y1="${Y(ref)}" y2="${Y(ref)}" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>`;
+  s += months.map(([i, m]) => `<text x="${X(i)}" y="${H - 8}" text-anchor="middle" class="hst-x">${m}</text>`).join('');
+  for (const se of series) {
+    const p = se.pts.map((v, i) => v == null ? null : [X(i), Y(Math.max(lo, Math.min(hi, v)))]).filter(Boolean); if (!p.length) continue;
+    s += `<path d="M${p.map(q => q.map(z => z.toFixed(1)).join(' ')).join('L')}" fill="none" stroke="${se.col}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`;
+    const [ex, ey] = p[p.length - 1], tw = se.tag.length * 8 + 12, ty = se.tagUp ? ey - 34 : ey + 12;
+    s += `<circle cx="${ex}" cy="${ey}" r="5.5" fill="var(--hs-card)" stroke="${se.col}" stroke-width="2.5"/><rect x="${ex - tw / 2}" y="${ty}" width="${tw}" height="22" rx="4" fill="#111417"/><text x="${ex}" y="${ty + 16}" text-anchor="middle" class="hst-t" fill="${se.col}">${se.tag}</text>`;
+  }
+  return `<svg class="hst" viewBox="0 0 ${Wd} ${H}" role="img">${s}</svg>`;
+}
+function hsTrends(k) {
+  const ws = k.h.weeks.slice(Math.max(0, k.n - k.o - 26), k.n - k.o), dob = S().dob;
+  if (ws.length < 2) return '';
+  const months = []; ws.forEach((w, i) => { const m = fmtDate(w.W).split(' ')[1]; if (!months.length || months[months.length - 1][1] !== m) months.push([i, m]); });
+  const mo = months.filter(([i]) => i > 0 || months.length < 7);
+  let h = '<h2 class="hsx-gh">Trend View</h2>';
+  if (dob) {
+    const chron = ws.map(w => diffDays(dob, w.W) / 365.2425), age = ws.map((w, i) => Math.max(18, chron[i] + w.total));
+    const all = [...chron, ...age], lo = Math.floor(Math.min(...all)) - 1, step = Math.max(1, Math.ceil((Math.ceil(Math.max(...all)) + 2 - lo) / 4)), yt = [0, 1, 2, 3, 4].map(i => lo + i * step);
+    const last = age[age.length - 1], tag = (chron[chron.length - 1] + ws[ws.length - 1].total) < 18 ? '&lt;18.0' : fmt(last, 1);
+    h += `<section class="hsx-card hsx-tc"><div class="hsx-th"><span class="hsx-lab">Orbit Age trend</span></div>
+      <div class="hst-leg"><span><i class="sw grad"></i>Your Orbit Age</span><span><i class="sw"></i>Chronological age</span></div>
+      ${hsTrendSVG([{ pts: chron, col: '#fff', tag: fmt(chron[chron.length - 1], 1), tagUp: true }, { pts: age, col: p3(HSP.gb), tag }], yt, v => v.toFixed(1), null, mo)}</section>`;
+  }
+  const pace = ws.map(w => w.pace);
+  h += `<section class="hsx-card hsx-tc"><div class="hsx-th"><span class="hsx-lab">Pace of Aging trend</span></div>
+    ${hsTrendSVG([{ pts: pace, col: 'var(--wc-rec)', tag: fmt(pace[pace.length - 1], 1).replace(/^(-?\d+)$/, '$1.0') + 'x', tagUp: true }], [-1, 0, 1, 2, 3], v => v.toFixed(1) + 'x', 1, mo)}</section>`;
+  return h;
+}
+function vHealthspan() {
+  const k = hsWeek(ui.hsOff);
+  if (!k) return `<section class="card"><div class="card-h"><h2>Healthspan</h2><span class="eyebrow">calibrating</span></div><p class="small dim">Needs 21 WHOOP recoveries in the last 31 days.</p>${hsVo2In()}</section>`;
+  const { w, n, o } = k, flags = hsFlags(w.x6), open = ui.hsOpen || (ui.hsOpen = new Set());
+  const v2 = hsVo2(), lastV = v2[v2.length - 1], stale = !lastV || lastV.d < addDays(today(), -6), dob = S().dob;
+  const pp = Math.max(0, Math.min(100, (w.pace + 1) / 4 * 100));
+  const ticks = Array.from({ length: 41 }, (_, i) => `<i${i % 10 === 0 ? ' class="maj"' : ''}></i>`).join('');
+  const row = m => {
+    const x6 = w.x6[m], x30 = w.x30[m], i6 = w.i6[m], isOpen = open.has(m);
+    const verdict = w.d[m] < -0.3 ? 'Huge improvement' : i6 < -0.1 ? 'Outperforming' : i6 > 0.1 ? (w.d[m] < -0.05 ? 'Improving' : 'Underperforming') : 'Meeting recommendation';
+    const drift = Math.abs(w.d[m]) < 0.05 ? 'Your 30-day average is holding steady.' : w.d[m] < 0 ? 'Your 30-day average is pulling this younger.' : 'Your 30-day average is pulling this older.';
+    const lead = i6 < -0.1 ? `You're boosting your long-term health with your ${HS_NOUN[m]}.` : i6 > 0.1 ? `Your ${HS_NOUN[m]} is adding years.` : `Your ${HS_NOUN[m]} is close to neutral.`;
+    const body = isOpen ? `<div class="hsr-x"><b>${verdict}</b><p>${lead} ${drift}</p>
+      ${HS_TREND[m] ? `<button class="hs-vt" data-act="hstrend" data-m="${HS_TREND[m]}">View trend <svg viewBox="0 0 22 14" aria-hidden="true"><path d="M1 7h19M14 1l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>` : ''}${m === 'vo2' ? hsVo2In() : ''}</div>` : '';
+    return `<div class="hsr${isOpen ? ' open' : ''}"><button class="hsr-h" data-act="hsrow" data-m="${m}" aria-expanded="${isOpen}"><span>${esc(HS_TITLE[m])}${flags.includes(m) ? ' <small>· outside fit</small>' : ''}${m === 'vo2' && stale && !isOpen ? ` <small style="color:${p3(HSP.o)}">· add this week</small>` : ''}</span><span class="hs-chev">${ICON.down}</span></button>
+      <div class="hsr-b">${hsBar(m, x6, x30, isOpen)}<div class="hsr-y"><b style="color:${hsYrsCol(i6)}">${hsSgn(i6)}</b><small>years</small></div></div>${body}</div>`;
+  };
+  const miles = k.h.miles;
+  return `<div class="hsx">
+    <div class="hsnav"><button class="iconbtn" data-act="hsweek" data-d="1" aria-label="Previous week" ${o >= n - 1 ? 'disabled' : ''}>${HS_CHEV(1)}</button><b>${esc(hsWk(w.W))} - ${esc(hsWk(addDays(w.W, 6)))}</b><button class="iconbtn" data-act="hsweek" data-d="-1" aria-label="Next week" ${o ? '' : 'disabled'}>${HS_CHEV(0)}</button><button class="hs-i" data-act="winfo" data-k="hs" aria-label="About Healthspan">i</button></div>
+    <div class="hsx-orbw">${hsOrb('big', k.tone, k.age != null ? `<b>${k.age}</b><span>Orbit Age</span><em style="color:${k.yCol}">${k.yrsTxt} ${k.yrsLab}</em>` : `<b>${k.yrsTxt}</b><span>${k.yrsLab}</span>`, k.age != null ? 'Orbit Age ' + k.age.replace('&lt;', 'under ') : '')}</div>
+    ${dob ? '' : `<div class="hsvo2 hsx-dob"><span class="small">Birth date<span class="xs muted">Shows your Orbit Age</span></span><input class="in hsdob" type="date" id="dobin" aria-label="Birth date"><button class="btn sm" data-act="hsdob">Save</button></div>`}
+    <section class="hspace"><span class="hsx-lab">Pace of Aging</span>
+      <div class="hspace-v"><span><i class="hs-slow"></i>Slow</span><b style="left:${pp}%">${k.pace}</b><span>Fast<svg class="hs-fast" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2c4 0 7 2 7.6 5.5.6 3.6-1.4 7.6-4.6 9.4-2.6 1.4-5.8.6-7.6-1.6C3.4 13 2 10 3 7 4 4 6.6 2 10 2z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M13 3.4c-1.5 3-1.6 6-.4 9.4" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></span></div>
+      <div class="hspace-s">${ticks}<span class="hspace-m" style="left:${pp}%"></span></div>
+      <div class="hspace-l"><span>-1.0x</span><span>1.0x</span><span>3.0x</span></div></section>
+    ${HS_GROUPS.map(([g, ms]) => `<div class="hsg"><div class="hsg-h"><h2 class="hsx-gh">${g}</h2><span class="hsg-k"><i class="tri dn"></i>6 Month avg.<span class="hsg-sep"></span><i class="tri up"></i>30 Day avg.</span></div><section class="hsx-card">${ms.map(row).join('')}</section></div>`).join('')}
+    ${miles.length ? `<section class="hsx-ach">${hsOrb('ico', 'good', '')}<div><b>Milestones</b><span>${miles.length} Healthspan milestone${miles.length > 1 ? 's' : ''} earned</span><span class="hsx-mil">${miles.map(m => `${m.yrs} yrs · ${esc(fmtDMY(m.W))}`).join('<br>')}</span></div></section>` : ''}
+    ${hsTrends(k)}
+    ${dob ? `<button class="link dim hsx-dobc" data-act="hsdobclr">Change birth date</button>` : ''}</div>`;
+}
+const HS_CHEV = back => `<svg viewBox="0 0 12 20" width="11" height="18" aria-hidden="true"><path d="${back ? 'M9.5 2 2 10l7.5 8' : 'M2.5 2 10 10l-7.5 8'}" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const hsWk = d => { const [y, m, dd] = d.split('-'); return ['Jan.', 'Feb.', 'Mar.', 'Apr.', 'May', 'Jun.', 'Jul.', 'Aug.', 'Sep.', 'Oct.', 'Nov.', 'Dec.'][+m - 1] + ' ' + +dd; };
+INFO_TXT.hs = { t: 'What is Healthspan?', p: 'A copy of WHOOP\'s Healthspan, fitted to your WHOOP numbers (Pace within ±0.1 of the app in about 9 weeks of 10). It updates every Sunday.',
+  l: [['Orbit Age:', 'your age plus each metric\'s 6-month Age Impact, shown as under 18 below 18, as WHOOP does.'], ['Pace of Aging:', 'how your 30-day averages are moving those impacts. 1.0x is ageing a year a year.'], ['Bars:', '▼ your 6-month average, ▲ your 30-day one. Green segments make you younger, orange older, grey is about neutral.']],
+  n: ['VO2 comes from WHOOP\'s weekly estimate, so type it in each week (open VO₂ max).'] };
+NAV_NAME.healthspan = 'Healthspan';
+NAV_SCREENS.push('healthspan');
+VIEWS.healthspan = vHealthspan;
+
+/* Header title and the mini bar that takes over once the big orb scrolls away */
+function hsNextUpd() { const n = (7 - new Date(toUTC(today())).getUTCDay()) % 7 || 7; return `Next update in ${n} day${n > 1 ? 's' : ''}`; }
+function renderHsMini() {
+  const on = ui.tab === 'healthspan', root = document.documentElement; root.classList.toggle('hs-scr', on);
+  let el = $('#hsmini');
+  if (!on) { if (el) el.hidden = true; root.classList.remove('hsmini-on'); $('#hday')?.classList.remove('two'); return; }
+  const c = $('#hday'); if (c) { const t = `<span>Healthspan</span><small>${hsNextUpd()}</small>`; if (c.innerHTML !== t) c.innerHTML = t; c.hidden = false; c.classList.add('two'); }
+  const k = hsWeek(ui.hsOff);
+  if (!el) { el = document.createElement('div'); el.id = 'hsmini'; el.setAttribute('aria-hidden', 'true');
+    el.innerHTML = `<div class="hsm-s"><b></b><span></span></div>${hsOrb('mini', 'good', '<b></b><span>Orbit Age</span>')}<div class="hsm-s"><b></b><span>Pace of Aging</span></div>`; document.body.appendChild(el); }
+  el.hidden = !k; if (!k) return;
+  const [l, r] = el.querySelectorAll('.hsm-s'), orb = el.querySelector('.hsorb');
+  l.querySelector('b').textContent = k.yrsTxt; l.querySelector('b').style.color = k.yCol; l.querySelector('span').textContent = k.yrsLab;
+  r.querySelector('b').textContent = k.pace; orb.className = `hsorb mini hs-o-${k.tone}`;
+  orb.querySelector('.hsorb-c').innerHTML = k.age != null ? `<b>${k.age}</b><span>Orbit Age</span>` : `<b>${k.yrsTxt}</b><span>Years</span>`;
+  hsMiniCheck();
+}
+function hsMiniCheck() {
+  const root = document.documentElement; if (ui.tab !== 'healthspan') return;
+  const big = $('.hsorb.big'), top = $('.top'); if (!big || !top) return;
+  const on = big.getBoundingClientRect().bottom < top.getBoundingClientRect().bottom + 60;
+  if (root.classList.contains('hsmini-on') !== on) root.classList.toggle('hsmini-on', on);
+}
+if (typeof document !== 'undefined') document.addEventListener('scroll', () => { if (ui.tab === 'healthspan') hsMiniCheck(); }, { capture: true, passive: true });
 /* ============================================================
    PERSISTENCE — browser copy + private claude.ai storage
    Cloud layout (per viewer, private): data/users/<id>/settings
@@ -4260,9 +4398,9 @@ function render(force) {
     if (Math.abs(scrollY0() - y) > 1) scrollToY(y); // a re-render keeps your place; changing tabs scrolls to the top in go()
   }
   v.classList.toggle('cols', ['strength', 'body', 'data'].includes(ui.tab) || (ui.tab === 'today' && !(STATE.w[today()] && (!STATE.w[today()].fin || ui.editToday)) && !ui.dayOff)); // two columns on wide screens (CSS decides when)
-  document.querySelectorAll('.tabs [data-tab]').forEach(b => b.setAttribute('aria-current', b.dataset.tab === ({ log: 'history', friends: 'history', injuries: 'today', ...Object.fromEntries(NAV_SCREENS.map(k => [k, 'today'])) }[ui.tab] || ui.tab) ? 'page' : 'false'));
+  document.querySelectorAll('.tabs [data-tab]').forEach(b => b.setAttribute('aria-current', b.dataset.tab === ({ log: 'history', friends: 'history', injuries: 'today', ...Object.fromEntries(NAV_SCREENS.map(k => [k, 'today'])), healthspan: 'body' }[ui.tab] || ui.tab) ? 'page' : 'false'));
   const g = $('#gear'); g.setAttribute('aria-current', ui.tab === 'data' ? 'page' : 'false'); g.setAttribute('aria-label', ui.tab === 'data' ? 'Back' : 'Settings: sync, imports and backups');
-  renderSync(); renderMark(); renderUpdate(); renderFab(); renderReorder(); renderDaybar(); renderHback(); layoutRfx();
+  renderSync(); renderMark(); renderUpdate(); renderFab(); renderReorder(); renderDaybar(); renderHback(); renderHsMini(); layoutRfx();
   fadeCheck();
   if (ui.tab === 'history' && (ui.histQ || ui.histS)) filterHist(); if (ui.pick && ui.pick.q) filterPick(); // in-place filters survive a re-render
   if (snap) flashChanged(snap);
@@ -4490,7 +4628,7 @@ const ACT = {
   hsdobclr: () => { delete S().dob; saveSettings(); render(true); },
   hsrow: el => { const m = el.dataset.m, o = ui.hsOpen || (ui.hsOpen = new Set()); o.has(m) ? o.delete(m) : o.add(m); render(true); },
   hsweek: el => { ui.hsOff = Math.max(0, (ui.hsOff || 0) + +el.dataset.d); render(true); }, // 1 = a week further back
-  hstrend: el => { ui.metric = el.dataset.m; ui.per = '6M'; ui.off = 0; render(true); requestAnimationFrame(() => $('#metric')?.closest('.card')?.scrollIntoView({ behavior: 'smooth', block: 'start' })); },
+  hstrend: el => { navOpen('trend', { m: el.dataset.m, d: today() }); ui.per = '6M'; render(true); }, // WHOOP's View trend: six months
   partial: el => { const d = el.dataset.date, v = el.dataset.v === '1', m = S().partial = S().partial || {}; if (m[d] === v) delete m[d]; else m[d] = v; saveSettings(); render(true); }, // tap the chosen answer again to clear it
   restplan: () => { ui.restPlanOpen = !ui.restPlanOpen; ui.restPick = null; render(true); },
   picktoday: () => { ui.pickSess = 'today'; render(true); },
