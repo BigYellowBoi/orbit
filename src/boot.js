@@ -476,6 +476,7 @@ const ACT = {
   hsdob: () => { const v = $('#dobin')?.value; if (!/^\d{4}-\d\d-\d\d$/.test(v || '') || v > today() || v < '1900-01-01') { toast('Enter your birth date.', 'bad'); return; } S().dob = v; saveSettings(); render(true); },
   hsdobclr: () => { delete S().dob; saveSettings(); render(true); },
   hsrow: el => { const m = el.dataset.m, o = ui.hsOpen || (ui.hsOpen = new Set()); o.has(m) ? o.delete(m) : o.add(m); render(true); },
+  hsnow: () => { ui.hsOff = 0; render(true); }, // tap the dates: back to this week
   hsweek: el => { ui.hsOff = Math.max(0, (ui.hsOff || 0) + +el.dataset.d); render(true); }, // 1 = a week further back
   hstrend: el => { navOpen('trend', { m: el.dataset.m, d: today() }); ui.per = '6M'; render(true); }, // WHOOP's View trend: six months
   partial: el => { const d = el.dataset.date, v = el.dataset.v === '1', m = S().partial = S().partial || {}; if (m[d] === v) delete m[d]; else m[d] = v; saveSettings(); render(true); }, // tap the chosen answer again to clear it

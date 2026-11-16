@@ -239,7 +239,7 @@ function vHealthspan() {
   };
   const miles = k.h.miles;
   return `<div class="hsx">
-    <div class="hsnav"><button class="iconbtn" data-act="hsweek" data-d="1" aria-label="Previous week" ${o >= n - 1 ? 'disabled' : ''}>${HS_CHEV(1)}</button><b>${esc(hsWk(w.W))} - ${esc(hsWk(addDays(w.W, 6)))}</b><button class="iconbtn" data-act="hsweek" data-d="-1" aria-label="Next week" ${o ? '' : 'disabled'}>${HS_CHEV(0)}</button><button class="hs-i" data-act="winfo" data-k="hs" aria-label="About Healthspan">i</button></div>
+    <div class="hsnav"><button class="iconbtn" data-act="hsweek" data-d="1" aria-label="Previous week" ${o >= n - 1 ? 'disabled' : ''}>${HS_CHEV(1)}</button><button class="hsnav-d" data-act="hsnow" aria-label="Back to this week"${o ? '' : ' disabled'}><b>${esc(hsWk(w.W))} - ${esc(hsWk(addDays(w.W, 6)))}</b></button><button class="iconbtn" data-act="hsweek" data-d="-1" aria-label="Next week" ${o ? '' : 'disabled'}>${HS_CHEV(0)}</button><button class="hs-i" data-act="winfo" data-k="hs" aria-label="About Healthspan">i</button></div>
     <div class="hsx-orbw">${hsOrb('big', k.tone, k.age != null ? `<b>${k.age}</b><span>Orbit Age</span><em style="color:${k.yCol}">${k.yrsTxt} ${k.yrsLab}</em>` : `<b>${k.yrsTxt}</b><span>${k.yrsLab}</span>`, k.age != null ? 'Orbit Age ' + k.age.replace('&lt;', 'under ') : '', k.w.pace)}</div>
     ${dob ? '' : `<div class="hsvo2 hsx-dob"><span class="small">Birth date<span class="xs muted">Shows your Orbit Age</span></span><input class="in hsdob" type="date" id="dobin" aria-label="Birth date"><button class="btn sm" data-act="hsdob">Save</button></div>`}
     <section class="hspace"><span class="hsx-lab">Pace of Aging</span>
