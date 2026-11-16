@@ -216,6 +216,7 @@ function morph(a, b) {
   if (a.nodeType !== b.nodeType || a.nodeName !== b.nodeName) { a.replaceWith(b); return; }
   if (a.nodeType === 3 || a.nodeType === 8) { if (a.nodeValue !== b.nodeValue) a.nodeValue = b.nodeValue; return; }
   if (a.nodeType !== 1) return;
+  if (a.hasAttribute('data-keep')) return; // drawn by script (the Healthspan orb canvas): leave its size and pixels alone
   for (const at of [...a.attributes]) if (!b.hasAttribute(at.name)) a.removeAttribute(at.name);
   for (const at of [...b.attributes]) if (a.getAttribute(at.name) !== at.value) a.setAttribute(at.name, at.value);
   if (a !== document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(a.nodeName)) { // an edited field ignores its value attribute, so set the live value too

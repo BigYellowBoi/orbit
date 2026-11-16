@@ -682,10 +682,81 @@ const HS_RANGE = { steps: [0, 16000], rhr: [40, 80], sleep_consistency: [40, 100
 const HS_GROUPS = [['Sleep', ['sleep_consistency', 'sleep_hours']], ['Strain', ['z13', 'z45', 'strength', 'steps']], ['Fitness', ['vo2', 'rhr']]];
 const HS_TREND = { steps: 'stp', rhr: 'rhr', sleep_consistency: 'sc', z13: 'z13', z45: 'z45', strength: 'lift' }; // Trends explorer ids
 const HS_NOUN = { steps: 'daily Steps', rhr: 'Resting HR', sleep_consistency: 'Sleep Consistency', z13: 'weekly Time in HR Zones 1-3', z45: 'weekly Time in HR Zones 4-5', sleep_hours: 'Hours of Sleep', strength: 'weekly Strength Activity Time', vo2: 'VO2 max' };
-const HS_DOTS = (() => { let r = 7, o = ''; const rnd = () => (r = (r * 16807) % 2147483647) / 2147483647;
-  for (let i = 0; i < 26; i++) { const a = rnd() * 6.283, d = 18 + rnd() * 30, s = 2 + rnd() * 4;
-    o += `<i class="hsdot" style="left:${(50 + Math.cos(a) * d).toFixed(1)}%;top:${(50 + Math.sin(a) * d).toFixed(1)}%;width:${s.toFixed(1)}px;height:${s.toFixed(1)}px;--dx:${((rnd() - .5) * 14).toFixed(1)}px;--dy:${((rnd() - .5) * 14).toFixed(1)}px;animation-duration:${(5 + rnd() * 6).toFixed(1)}s,${(2 + rnd() * 3).toFixed(1)}s;animation-delay:-${(rnd() * 8).toFixed(1)}s,-${(rnd() * 4).toFixed(1)}s"></i>`; }
-  return o; })();
+/* Healthspan orb (v1.106, after WHOOP's): a canvas blob whose edge wobbles from a few slow sine harmonics, a soft dark
+   core that follows the shape, a glowing rim, a slow light sweep, and ~170 motes orbiting inside it, crowded toward
+   the rim. Blooms in on first sight; a tap sends a ripple round the edge and spins the motes up. One rAF loop draws
+   any .hsorb-cv on the page and idles (polls every 250 ms) when there is none or the page is hidden. */
+const HSO = { motes: null, col: null, from: null, colAt: 0, born: 0, seen: -1e9, kick: 0, kickAt: -9, spin: 0, last: 0, on: false };
+function hsoMotes() { let r = 11; const rnd = () => (r = (r * 16807) % 2147483647) / 2147483647, out = [];
+  for (let i = 0; i < 170; i++) { const u = rnd(), big = rnd() < .1;
+    out.push({ a: rnd() * 6.2832, f: Math.min(1.02, .97 - Math.pow(u, 1.8) * .62), w: (rnd() - .5) * .16 + (rnd() < .5 ? .05 : -.05),
+      s: big ? 1.6 + rnd() * 1.6 : .5 + rnd() * 1.1, big, tw: 1.2 + rnd() * 2.6, ph: rnd() * 6.28, wob: rnd() * 6.28 }); }
+  return out; }
+function hsoCol(el) { // the tone colour as [r, g, b] 0..1 plus whether it's Display P3
+  const pr = el.querySelector('.hsorb-p'), c = pr ? getComputedStyle(pr).color : 'rgb(128,136,154)';
+  let m = /color\(display-p3\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)/.exec(c); if (m) return { v: [+m[1], +m[2], +m[3]], p3: true };
+  m = /rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/.exec(c); return { v: m ? [m[1] / 255, m[2] / 255, m[3] / 255] : [.5, .53, .6], p3: false };
+}
+function hsoR(th, t, k) { // edge radius as a share of the base radius
+  return 1 + .034 * Math.sin(2 * th + t * .31) + .024 * Math.sin(3 * th - t * .23 + 1) + .014 * Math.sin(5 * th + t * .47 + 2) + .012 * Math.sin(t * 1.25)
+    + k * .05 * Math.sin(6 * th - t * 9) ; }
+function hsoPath(x, cx, cy, R, t, k, sc) { x.beginPath(); for (let i = 0; i <= 72; i++) { const th = i / 72 * 6.2832, r = R * sc * hsoR(th, t, k); i ? x.lineTo(cx + Math.cos(th) * r, cy + Math.sin(th) * r) : x.moveTo(cx + Math.cos(th) * r, cy + Math.sin(th) * r); } x.closePath(); }
+function hsoDraw(cv, now) {
+  const box = cv.parentNode, css = box.clientWidth, dpr = Math.min(devicePixelRatio || 1, 2.5), pad = 1.5, W = Math.round(css * pad * dpr);
+  if (!css) return;
+  const c = hsoCol(box);
+  if (cv.width !== W || cv.dataset.cs !== (c.p3 ? 'p3' : 's')) { cv.width = cv.height = W; cv.dataset.cs = c.p3 ? 'p3' : 's'; cv._x = null; }
+  const x = cv._x || (cv._x = cv.getContext('2d', c.p3 ? { colorSpace: 'display-p3' } : undefined));
+  if (!HSO.col || HSO.col.join() !== c.v.join()) { HSO.from = HSO.col ? hsoNow(now) : c.v; HSO.col = c.v; HSO.colAt = now; }
+  const col = hsoNow(now), sp = c.p3 ? 'display-p3' : 'srgb';
+  const rgba = (a, wt = 0, dk = 1) => `color(${sp} ${col.map(v => ((v * dk) * (1 - wt) + wt).toFixed(3)).join(' ')} / ${a.toFixed(3)})`;
+  const t = now / 1000, still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!cv._born) cv._born = now - HSO.seen < 2500 ? -1e9 : now; // a re-render (week change) carries on without blooming again
+  HSO.seen = now;
+  const e = still ? 1 : Math.min(1, (now - cv._born) / 1400), bloom = 1 - Math.pow(1 - e, 3), ov = e < 1 ? Math.sin(e * Math.PI) * .05 : 0;
+  const kick = still ? 0 : Math.max(0, 1 - (t - HSO.kickAt) / 1.6), k = kick * kick;
+  const dt = Math.min(.05, HSO.last ? t - HSO.last : 0); HSO.last = t; HSO.spin += dt * (1 + 7 * k);
+  const cx = W / 2, cy = W / 2, R = W / pad / 2 * (.62 + .38 * bloom + ov);
+  x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, W, W); x.globalAlpha = Math.min(1, e * 1.6);
+  // outer halo
+  x.save(); hsoPath(x, cx, cy, R, t, k, 1); x.shadowColor = rgba(.5 + .12 * Math.sin(t * 1.1) + .25 * k); x.shadowBlur = R * .32; x.fillStyle = rgba(1, 0, .55); x.fill(); x.restore();
+  x.save(); hsoPath(x, cx, cy, R, t, k, 1); x.clip();
+  // rim body, then a soft black core that follows the shape
+  const g = x.createRadialGradient(cx, cy, R * .3, cx, cy, R * 1.05); g.addColorStop(0, rgba(1, 0, .12)); g.addColorStop(.62, rgba(1, 0, .32)); g.addColorStop(.88, rgba(1, 0, .78)); g.addColorStop(1, rgba(1, .14, 1));
+  x.fillStyle = g; x.fillRect(0, 0, W, W);
+  x.shadowColor = '#000'; x.shadowBlur = R * .42; x.fillStyle = '#000';
+  hsoPath(x, cx, cy, R, t, k, .7 + .02 * Math.sin(t * .9)); x.fill(); x.fill(); x.shadowBlur = R * .18; x.fill();
+  x.shadowBlur = 0;
+  // light sweep round the rim
+  x.globalCompositeOperation = 'lighter';
+  const sa = t * .35, lg = x.createLinearGradient(cx + Math.cos(sa) * R, cy + Math.sin(sa) * R, cx - Math.cos(sa) * R, cy - Math.sin(sa) * R);
+  lg.addColorStop(0, rgba(.22 + .2 * k, .35)); lg.addColorStop(.45, rgba(0)); x.fillStyle = lg; x.fillRect(0, 0, W, W);
+  // motes
+  const ms = HSO.motes || (HSO.motes = hsoMotes()), u = dpr;
+  for (const m of ms) {
+    const th = m.a + HSO.spin * m.w, f = (m.f + .02 * Math.sin(t * .6 + m.wob)) * (.3 + .7 * bloom), r = R * f * hsoR(th, t, k);
+    const px = cx + Math.cos(th) * r, py = cy + Math.sin(th) * r, tw = .5 + .5 * Math.sin(t * m.tw + m.ph);
+    const rim = Math.max(0, Math.min(1, (f - .45) / .45)), a = (.12 + .78 * rim) * (.35 + .65 * tw) * (still ? .8 : 1), s = m.s * u * (1 + .6 * k);
+    if (m.big) { const bg = x.createRadialGradient(px, py, 0, px, py, s * 2.4); bg.addColorStop(0, rgba(a * .9, .55)); bg.addColorStop(.45, rgba(a * .45, .3)); bg.addColorStop(1, rgba(0, .3));
+      x.fillStyle = bg; x.beginPath(); x.arc(px, py, s * 2.4, 0, 6.2832); x.fill(); }
+    else { x.fillStyle = rgba(a, .45 + .3 * tw); x.beginPath(); x.arc(px, py, s, 0, 6.2832); x.fill(); }
+  }
+  x.restore();
+  // crisp bright edge
+  x.save(); hsoPath(x, cx, cy, R, t, k, 1); x.lineWidth = 1.1 * u; x.strokeStyle = rgba(.6, .3); x.shadowColor = rgba(.9); x.shadowBlur = 8 * u; x.stroke(); x.restore();
+  x.globalAlpha = 1;
+}
+function hsoNow(now) { const p = Math.min(1, (now - HSO.colAt) / 700), q = p * p * (3 - 2 * p); return HSO.col.map((v, i) => HSO.from[i] + (v - HSO.from[i]) * q); }
+function hsoLoop() {
+  const cvs = document.hidden ? [] : [...document.querySelectorAll('.hsorb-cv')];
+  if (!cvs.length) { HSO.last = 0; setTimeout(hsoLoop, 250); return; }
+  const now = performance.now();
+  for (const cv of cvs) { if (!cv._tap) { cv._tap = 1; cv.parentNode.addEventListener('pointerdown', () => { HSO.kickAt = performance.now() / 1000; }); }
+    const b = cv.getBoundingClientRect(); if (b.bottom > -50 && b.top < innerHeight + 50) hsoDraw(cv, now); }
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) { setTimeout(hsoLoop, 600); return; }
+  requestAnimationFrame(hsoLoop);
+}
+if (typeof window !== 'undefined' && !HSO.on) { HSO.on = true; setTimeout(hsoLoop, 0); }
 function hsVal(m, x) { // value text, no unit
   if (x == null || !Number.isFinite(x)) return '–';
   const f = HS_FMT[m][0];
@@ -730,7 +801,7 @@ function healthspanCard() {
   return `<section class="card hscard"><div class="card-h"><h2>Healthspan</h2>${h.miles.length ? `<span class="eyebrow">best ${Math.max(...h.miles.map(m => m.yrs))} yrs</span>` : ''}</div>
     <div class="hsnav"><button class="iconbtn" data-act="hsweek" data-d="1" aria-label="Previous week" ${off >= n - 1 ? 'disabled' : ''}>‹</button><b>${esc(fmtD(w.W))} – ${esc(fmtD(addDays(w.W, 6)))}</b><button class="iconbtn" data-act="hsweek" data-d="-1" aria-label="Next week" ${off ? '' : 'disabled'}>›</button></div>
     <div class="hshero"><div class="hsst"><b class="hs-t-${yrs > 0 ? 'g2' : yrs < 0 ? 'a2' : 'n'}">${yrs ? Math.abs(yrs) : '0'}</b><span>${yrs < 0 ? 'Years older' : 'Years younger'}</span></div>
-      <div class="hsorb hs-o-${orbTone}" aria-label="${oAge != null ? 'Orbit Age ' + oAge : ''}"><i class="hsorb-g"></i>${HS_DOTS}<div class="hsorb-c">${oAge != null ? `<b>${oAge}</b><span>Orbit Age</span>` : `<b>${yrs ? Math.abs(yrs) : '0'}</b><span>${yrs < 0 ? 'yrs older' : 'yrs younger'}</span>`}</div></div>
+      <div class="hsorb hs-o-${orbTone}" aria-label="${oAge != null ? 'Orbit Age ' + oAge : ''}"><canvas class="hsorb-cv" data-keep aria-hidden="true"></canvas><i class="hsorb-p"></i><div class="hsorb-c">${oAge != null ? `<b>${oAge}</b><span>Orbit Age</span>` : `<b>${yrs ? Math.abs(yrs) : '0'}</b><span>${yrs < 0 ? 'yrs older' : 'yrs younger'}</span>`}</div></div>
       <div class="hsst"><b>${fmt(w.pace, 1)}×</b><span>Pace of Aging</span></div></div>
     ${dob ? '' : `<div class="hsvo2"><span class="small">Birth date<span class="xs muted">Shows your Orbit Age</span></span><input class="in hsdob" type="date" id="dobin" aria-label="Birth date"><button class="btn sm" data-act="hsdob">Save</button></div>`}
     ${h.miles.length ? `<p class="xs muted hsmiles">Milestones: ${h.miles.map(m => `${m.yrs} yrs ${esc(fmtD(m.W))}`).join(' · ')}</p>` : ''}
