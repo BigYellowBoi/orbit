@@ -18,8 +18,9 @@ const WIDGET_W = 364;
 const K = WIDGET_W / W, P = (x, y) => new Point(x * K, y * K), RR = (x, y, w, h) => new Rect(x * K, y * K, w * K, h * K);
 const SC = Device.screenScale(); // 3 on current iPhones
 const PALETTE = 'whoop'; // 'whoop': yellow, blue and grey as sampled from the WHOOP widget; 'orbit': the app's own (--warn, --strain, --ink-2)
-const C = { bg0: '#383f45', bg1: '#1b1f22', track: '#43474a', blue: '#4190df', grey: '#95999b', white: '#ffffff', purple: '#b388ff', purpleIn: '#e2d3ff', markOff: '#4b535d',
-  green: '#16ec06', yellow: '#fadf48', red: '#ff0026' };
+// v1.105: WHOOP's colours converted from his screenshots' Display P3 to sRGB (Scriptable draws in sRGB); green and red were already sRGB
+const C = { bg0: '#363f46', bg1: '#1a1f22', track: '#42474a', blue: '#0792e6', grey: '#94999b', white: '#ffffff', purple: '#b388ff', purpleIn: '#e2d3ff', markOff: '#4b535d',
+  green: '#16ec06', yellow: '#ffde00', red: '#ff0026' };
 if (PALETTE === 'orbit') Object.assign(C, { yellow: '#ffde00', blue: '#0093e7', grey: '#a5adb8' });
 // Text weight. iOS has no DIN as heavy or wide as WHOOP's, so all text is drawn into the image: each string is drawn
 // a few times shifted right by up to FAUX points (thicker strokes), then stretched sideways by STRETCH (wider letters).

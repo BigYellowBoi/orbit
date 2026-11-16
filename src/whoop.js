@@ -3,8 +3,8 @@
    Activity detail screens, the Trend screen, the alcohol check, and one back stack with scroll restore (ui.nav).
    Design reference: the "Orbit Today" Claude Design canvas. Numbers are real day fields (STATE.d).
    ============================================================ */
-const WC = { rec: '#77ace1', green: '#6ee846', red: '#ea3334', sleep: '#83a0b8', strain: '#4090e0', yellow: '#f9df4a', track: '#373d42', up: '#6eeda5', dn: '#ffb35c', lt: '#a4a3eb', deep: '#ec9af4', rem: '#a15ee5', aw: '#c8c8c8',
-  z: ['#b1c1cc', '#5d98be', '#72b798', '#f0af6a', '#ed6e39'], hm: '#5a6168', debt: '#d9dcde', grid: '#222830', dim: '#80889a', ink: '#e8ebef', card: '#111418' };
+const WC = { rec: 'var(--wc-rec)', green: 'var(--wc-green)', red: 'var(--wc-red)', sleep: 'var(--wc-sleep)', strain: 'var(--wc-strain)', yellow: 'var(--wc-yellow)', track: '#373d42', up: 'var(--wc-up)', dn: 'var(--wc-dn)', lt: 'var(--wc-lt)', deep: 'var(--wc-deep)', rem: 'var(--wc-rem)', aw: '#c8c8c8',
+  z: [1, 2, 3, 4, 5].map(i => `var(--wc-z${i})`), hm: '#5a6168', debt: '#d9dcde', grid: '#222830', dim: '#80889a', ink: '#e8ebef', card: '#111418' };
 const WP = { // line icons (24px grid)
   moon: 'M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z', cons: 'M14 3.5a8.5 8.5 0 1 0 6.5 13.5M17 3.5a8.5 8.5 0 0 1 4 7', eff: 'M4 20v-6M8 20V9M12 20V5M16 20v-8M20 20v-4',
   hrv: 'M3 12h4l2-4 3 8 2-4h7', heart: 'M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.5-7 10-7 10z', lungs: 'M12 4v7M12 11c-1.5 0-2.5-2-4.5-2S4 12 4 15.5 5 20 7 20s4-2 5-4.5M12 11c1.5 0 2.5-2 4.5-2s3.5 3 3.5 6.5S19 20 17 20s-4-2-5-4.5',
@@ -24,7 +24,7 @@ function wSpan(on, off) { // "11:21 pm – 8:01 am", or "12:27 – 8:15 am" when
 }
 const recCol = r => r == null ? WC.track : r >= 67 ? WC.green : r >= 34 ? WC.yellow : WC.red; // sampled off his WHOOP Recovery trend (v1.100)
 const sleepBand = v => v == null ? -1 : v >= 85 ? 2 : v >= 70 ? 1 : 0; // WHOOP's sleep thresholds, as an approximation
-function wSeg3(v, row) { const b = sleepBand(v), c = ['#ffb35c', '#8e9293', WC.up]; return `<span class="wseg3${row ? ' row' : ''}" aria-hidden="true">${[0, 1, 2].map(i => `<i${i === b ? ` style="background:${c[i]}"` : ''}></i>`).join('')}</span>`; }
+function wSeg3(v, row) { const b = sleepBand(v), c = [WC.dn, '#8e9293', WC.up]; return `<span class="wseg3${row ? ' row' : ''}" aria-hidden="true">${[0, 1, 2].map(i => `<i${i === b ? ` style="background:${c[i]}"` : ''}></i>`).join('')}</span>`; }
 
 /* A ring's value arc as a filled band with slightly rounded corners, as WHOOP's and the widget's band() (corner = 18% of the stroke).
    SVG coordinates before the ring's rotate(-90deg): angle 0 is +x, clockwise. */
@@ -247,7 +247,7 @@ function vSleep() {
   const hvnp = dd => { const a = dayVal(dd, 'slp'), b = dayVal(dd, 'sn'); return a != null && b ? a / b * 100 : null; };
   const crow = (id, ico, label, v) => `<button class="wrow" data-act="wscroll" data-id="${id}"><span class="wrow-l">${wIco(ico)}<span class="wlab">${esc(label)}</span></span><span class="wrow-c">${wSeg3(v, true)}<b class="wnum">${v == null ? '–' : f0(v)}</b></span></button>`;
   h += `<section class="wcard rows wpt">${crow('hvn', 'moon', 'Hours vs. needed', hvnp(d))}${crow('cons', 'cons', 'Sleep consistency', x.sc)}${crow('eff', 'eff', 'Sleep efficiency', x.se)}
-    <div class="wleg gap"><span><i class="bar" style="background:#ffb35c"></i>Poor</span><span><i class="bar" style="background:#8e9293"></i>Sufficient</span><span><i class="bar" style="background:${WC.up}"></i>Optimal</span></div></section>`;
+    <div class="wleg gap"><span><i class="bar" style="background:${WC.dn}"></i>Poor</span><span><i class="bar" style="background:#8e9293"></i>Sufficient</span><span><i class="bar" style="background:${WC.up}"></i>Optimal</span></div></section>`;
   h += `<h2 class="wh2">${d === today() ? "Last night's sleep" : 'That night’s sleep'}</h2>` + alcRow(d);
   // hours of sleep + stages
   const bed = x.bed, st = [['Awake', 'aw', WC.aw], ['Light', 'lt', WC.lt], ['SWS (deep)', 'deep', WC.deep], ['REM', 'rem', WC.rem]];

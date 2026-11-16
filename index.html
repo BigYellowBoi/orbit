@@ -674,7 +674,12 @@ body:has(#updp) .fab { bottom: calc(var(--tabh) + max(8px, calc(env(safe-area-in
 .rmd { display: block; font-size: 11.5px; color: var(--ink-3); font-weight: 400; }
 
 /* ---------- v1.81 Today redesign: rings, tiles, Health monitor, ring detail screens (WHOOP-style) ---------- */
-#view { --w-sleep: #83a0b8; --w-strain: #4090e0; --w-yellow: #f9df4a; --w-track: #373d42; --w-in: #6eeda5; --w-up: #6eeda5; --w-dn: #ffb35c; --w-hatch: repeating-linear-gradient(135deg, #2c323a 0 2px, #171b21 2px 6px); --w-lt: #a3a6f5; --w-deep: #f19cf0; --w-rem: #a35be6; --w-lab: #c8ccd0; }
+:root { /* WHOOP's colours, as sampled raw off his iPhone screenshots, which are Display P3 (v1.105): the P3 value where the browser
+   supports it (his iPhone shows exactly WHOOP's colour), else the same colour converted to sRGB */
+  --wc-rec: #66aee6; --wc-green: #19eb02; --wc-red: #ff0026; --wc-sleep: #7ba1bb; --wc-strain: #0092e7; --wc-yellow: #fede00; --wc-up: #02f19e; --wc-dn: #ffaf47; --wc-lt: #a4a3f1; --wc-deep: #fa95fa; --wc-rem: #ac5aed; --wc-z1: #adc2cd; --wc-z2: #479ac2; --wc-z3: #59b996; --wc-z4: #fcac5c; --wc-z5: #ff6422; --wc-rs2: #5a7689; --wc-rs3: #455b68;
+}
+@supports (color: color(display-p3 1 1 1)) { :root { --wc-rec: color(display-p3 0.467 0.675 0.882); --wc-green: color(display-p3 0.431 0.91 0.275); --wc-red: color(display-p3 0.918 0.2 0.204); --wc-sleep: color(display-p3 0.514 0.627 0.722); --wc-strain: color(display-p3 0.251 0.565 0.878); --wc-yellow: color(display-p3 0.976 0.875 0.29); --wc-up: color(display-p3 0.431 0.929 0.647); --wc-dn: color(display-p3 1 0.702 0.361); --wc-lt: color(display-p3 0.643 0.639 0.922); --wc-deep: color(display-p3 0.925 0.604 0.957); --wc-rem: color(display-p3 0.631 0.369 0.898); --wc-z1: color(display-p3 0.694 0.757 0.8); --wc-z2: color(display-p3 0.365 0.596 0.745); --wc-z3: color(display-p3 0.447 0.718 0.596); --wc-z4: color(display-p3 0.941 0.686 0.416); --wc-z5: color(display-p3 0.929 0.431 0.224); --wc-rs2: color(display-p3 0.376 0.459 0.529); --wc-rs3: color(display-p3 0.286 0.353 0.404); } }
+#view { --w-sleep: var(--wc-sleep); --w-strain: var(--wc-strain); --w-yellow: var(--wc-yellow); --w-track: #373d42; --w-in: var(--wc-up); --w-up: var(--wc-up); --w-dn: var(--wc-dn); --w-hatch: repeating-linear-gradient(135deg, #2c323a 0 2px, #171b21 2px 6px); --w-lt: var(--wc-lt); --w-deep: var(--wc-deep); --w-rem: var(--wc-rem); --w-lab: #c8ccd0; }
 .wlab { font-family: var(--f-body); font-weight: 700; font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; color: #fff; }
 .wlab.sm { font-size: 10.5px; color: var(--w-lab); } .wlab.dim { color: var(--ink-3); }
 .wnum { font-family: var(--f-num); font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: 0; }
@@ -958,7 +963,7 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.104'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.105'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
@@ -2216,7 +2221,7 @@ const sevBreak = (rows) => (vals) => rows.map(([label, test, color]) => ({ label
 const METRICS = [
   // Recovery
   { id: 'rec', g: 'Recovery', label: 'Recovery', unit: '%', src: 'WHOOP', v: dv('rec'), chart: 'bar', better: 1, f: v => fmt(v, 0), yMin: 0, yMax: 100, color: v => recCol(v),
-    breakdown: sevBreak([['Green (67–99%)', v => v >= 67, '#6ee846'], ['Yellow (34–66%)', v => v >= 34 && v < 67, '#f9df4a'], ['Red (1–33%)', v => v < 34, '#ea3334']]) },
+    breakdown: sevBreak([['Green (67–99%)', v => v >= 67, 'var(--wc-green)'], ['Yellow (34–66%)', v => v >= 34 && v < 67, 'var(--wc-yellow)'], ['Red (1–33%)', v => v < 34, 'var(--wc-red)']]) },
   { id: 'hrv', g: 'Recovery', label: 'Heart rate variability', short: 'HRV', unit: 'ms', src: 'WHOOP', v: dv('hrv'), chart: 'line', band: true, better: 1, f: v => fmt(v, 0) },
   { id: 'rhr', g: 'Recovery', label: 'Resting heart rate', unit: 'bpm', src: 'WHOOP', v: dv('rhr'), chart: 'line', better: -1, f: v => fmt(v, 0) },
   { id: 'rr', g: 'Recovery', label: 'Respiratory rate', unit: 'rpm', src: 'WHOOP', v: dv('rr'), chart: 'line', better: 0, f: v => fmt(v, 1) },
@@ -2231,7 +2236,7 @@ const METRICS = [
   { id: 'sc', g: 'Sleep', label: 'Sleep consistency', unit: '%', src: 'WHOOP', v: dv('sc'), chart: 'bar', better: 1, f: v => fmt(v, 0), yMin: 0, yMax: 100 },
   { id: 'resth', g: 'Sleep', label: 'Restorative sleep (hours)', unit: '', src: 'WHOOP', v: d => { const a = dayVal(d, 'deep'), b = dayVal(d, 'rem'); return a != null && b != null ? a + b : null; }, chart: 'stack', better: 1, f: v => hm(v) },
   { id: 'restp', g: 'Sleep', label: 'Restorative sleep (%)', unit: '%', src: 'WHOOP', v: d => { const a = dayVal(d, 'deep'), b = dayVal(d, 'rem'), t = dayVal(d, 'bed'); return a != null && b != null && t ? (a + b) / t * 100 : null; }, chart: 'bar', better: 1, f: v => fmt(v, 0), // of time in bed, as WHOOP (v1.102: 51%, 24 high / 6 sufficient over 18 Oct to 16 Nov, as his WHOOP Trend)
-    breakdown: sevBreak([['High (over 45%)', v => v > 45, '#83a0b8'], ['Sufficient (30–45%)', v => v >= 30 && v <= 45, '#607587'], ['Low (under 30%)', v => v < 30, '#495a67']]) },
+    breakdown: sevBreak([['High (over 45%)', v => v > 45, 'var(--wc-sleep)'], ['Sufficient (30–45%)', v => v >= 30 && v <= 45, 'var(--wc-rs2)'], ['Low (under 30%)', v => v < 30, 'var(--wc-rs3)']]) },
   { id: 'se', g: 'Sleep', label: 'Sleep efficiency', unit: '%', src: 'WHOOP', v: dv('se'), chart: 'line', better: 1, f: v => fmt(v, 0) },
   { id: 'sd', g: 'Sleep', label: 'Sleep debt', unit: '', src: 'WHOOP', v: debtAfter, chart: 'bar', better: -1, hmY: true, f: v => hm(v) },
   // Strain
@@ -3531,8 +3536,8 @@ const VIEWS = { today: vToday, log: vLog, history: vHistory, strength: vStrength
    Activity detail screens, the Trend screen, the alcohol check, and one back stack with scroll restore (ui.nav).
    Design reference: the "Orbit Today" Claude Design canvas. Numbers are real day fields (STATE.d).
    ============================================================ */
-const WC = { rec: '#77ace1', green: '#6ee846', red: '#ea3334', sleep: '#83a0b8', strain: '#4090e0', yellow: '#f9df4a', track: '#373d42', up: '#6eeda5', dn: '#ffb35c', lt: '#a4a3eb', deep: '#ec9af4', rem: '#a15ee5', aw: '#c8c8c8',
-  z: ['#b1c1cc', '#5d98be', '#72b798', '#f0af6a', '#ed6e39'], hm: '#5a6168', debt: '#d9dcde', grid: '#222830', dim: '#80889a', ink: '#e8ebef', card: '#111418' };
+const WC = { rec: 'var(--wc-rec)', green: 'var(--wc-green)', red: 'var(--wc-red)', sleep: 'var(--wc-sleep)', strain: 'var(--wc-strain)', yellow: 'var(--wc-yellow)', track: '#373d42', up: 'var(--wc-up)', dn: 'var(--wc-dn)', lt: 'var(--wc-lt)', deep: 'var(--wc-deep)', rem: 'var(--wc-rem)', aw: '#c8c8c8',
+  z: [1, 2, 3, 4, 5].map(i => `var(--wc-z${i})`), hm: '#5a6168', debt: '#d9dcde', grid: '#222830', dim: '#80889a', ink: '#e8ebef', card: '#111418' };
 const WP = { // line icons (24px grid)
   moon: 'M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z', cons: 'M14 3.5a8.5 8.5 0 1 0 6.5 13.5M17 3.5a8.5 8.5 0 0 1 4 7', eff: 'M4 20v-6M8 20V9M12 20V5M16 20v-8M20 20v-4',
   hrv: 'M3 12h4l2-4 3 8 2-4h7', heart: 'M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.5-7 10-7 10z', lungs: 'M12 4v7M12 11c-1.5 0-2.5-2-4.5-2S4 12 4 15.5 5 20 7 20s4-2 5-4.5M12 11c1.5 0 2.5-2 4.5-2s3.5 3 3.5 6.5S19 20 17 20s-4-2-5-4.5',
@@ -3552,7 +3557,7 @@ function wSpan(on, off) { // "11:21 pm – 8:01 am", or "12:27 – 8:15 am" when
 }
 const recCol = r => r == null ? WC.track : r >= 67 ? WC.green : r >= 34 ? WC.yellow : WC.red; // sampled off his WHOOP Recovery trend (v1.100)
 const sleepBand = v => v == null ? -1 : v >= 85 ? 2 : v >= 70 ? 1 : 0; // WHOOP's sleep thresholds, as an approximation
-function wSeg3(v, row) { const b = sleepBand(v), c = ['#ffb35c', '#8e9293', WC.up]; return `<span class="wseg3${row ? ' row' : ''}" aria-hidden="true">${[0, 1, 2].map(i => `<i${i === b ? ` style="background:${c[i]}"` : ''}></i>`).join('')}</span>`; }
+function wSeg3(v, row) { const b = sleepBand(v), c = [WC.dn, '#8e9293', WC.up]; return `<span class="wseg3${row ? ' row' : ''}" aria-hidden="true">${[0, 1, 2].map(i => `<i${i === b ? ` style="background:${c[i]}"` : ''}></i>`).join('')}</span>`; }
 
 /* A ring's value arc as a filled band with slightly rounded corners, as WHOOP's and the widget's band() (corner = 18% of the stroke).
    SVG coordinates before the ring's rotate(-90deg): angle 0 is +x, clockwise. */
@@ -3775,7 +3780,7 @@ function vSleep() {
   const hvnp = dd => { const a = dayVal(dd, 'slp'), b = dayVal(dd, 'sn'); return a != null && b ? a / b * 100 : null; };
   const crow = (id, ico, label, v) => `<button class="wrow" data-act="wscroll" data-id="${id}"><span class="wrow-l">${wIco(ico)}<span class="wlab">${esc(label)}</span></span><span class="wrow-c">${wSeg3(v, true)}<b class="wnum">${v == null ? '–' : f0(v)}</b></span></button>`;
   h += `<section class="wcard rows wpt">${crow('hvn', 'moon', 'Hours vs. needed', hvnp(d))}${crow('cons', 'cons', 'Sleep consistency', x.sc)}${crow('eff', 'eff', 'Sleep efficiency', x.se)}
-    <div class="wleg gap"><span><i class="bar" style="background:#ffb35c"></i>Poor</span><span><i class="bar" style="background:#8e9293"></i>Sufficient</span><span><i class="bar" style="background:${WC.up}"></i>Optimal</span></div></section>`;
+    <div class="wleg gap"><span><i class="bar" style="background:${WC.dn}"></i>Poor</span><span><i class="bar" style="background:#8e9293"></i>Sufficient</span><span><i class="bar" style="background:${WC.up}"></i>Optimal</span></div></section>`;
   h += `<h2 class="wh2">${d === today() ? "Last night's sleep" : 'That night’s sleep'}</h2>` + alcRow(d);
   // hours of sleep + stages
   const bed = x.bed, st = [['Awake', 'aw', WC.aw], ['Light', 'lt', WC.lt], ['SWS (deep)', 'deep', WC.deep], ['REM', 'rem', WC.rem]];

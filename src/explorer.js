@@ -20,7 +20,7 @@ const sevBreak = (rows) => (vals) => rows.map(([label, test, color]) => ({ label
 const METRICS = [
   // Recovery
   { id: 'rec', g: 'Recovery', label: 'Recovery', unit: '%', src: 'WHOOP', v: dv('rec'), chart: 'bar', better: 1, f: v => fmt(v, 0), yMin: 0, yMax: 100, color: v => recCol(v),
-    breakdown: sevBreak([['Green (67–99%)', v => v >= 67, '#6ee846'], ['Yellow (34–66%)', v => v >= 34 && v < 67, '#f9df4a'], ['Red (1–33%)', v => v < 34, '#ea3334']]) },
+    breakdown: sevBreak([['Green (67–99%)', v => v >= 67, 'var(--wc-green)'], ['Yellow (34–66%)', v => v >= 34 && v < 67, 'var(--wc-yellow)'], ['Red (1–33%)', v => v < 34, 'var(--wc-red)']]) },
   { id: 'hrv', g: 'Recovery', label: 'Heart rate variability', short: 'HRV', unit: 'ms', src: 'WHOOP', v: dv('hrv'), chart: 'line', band: true, better: 1, f: v => fmt(v, 0) },
   { id: 'rhr', g: 'Recovery', label: 'Resting heart rate', unit: 'bpm', src: 'WHOOP', v: dv('rhr'), chart: 'line', better: -1, f: v => fmt(v, 0) },
   { id: 'rr', g: 'Recovery', label: 'Respiratory rate', unit: 'rpm', src: 'WHOOP', v: dv('rr'), chart: 'line', better: 0, f: v => fmt(v, 1) },
@@ -35,7 +35,7 @@ const METRICS = [
   { id: 'sc', g: 'Sleep', label: 'Sleep consistency', unit: '%', src: 'WHOOP', v: dv('sc'), chart: 'bar', better: 1, f: v => fmt(v, 0), yMin: 0, yMax: 100 },
   { id: 'resth', g: 'Sleep', label: 'Restorative sleep (hours)', unit: '', src: 'WHOOP', v: d => { const a = dayVal(d, 'deep'), b = dayVal(d, 'rem'); return a != null && b != null ? a + b : null; }, chart: 'stack', better: 1, f: v => hm(v) },
   { id: 'restp', g: 'Sleep', label: 'Restorative sleep (%)', unit: '%', src: 'WHOOP', v: d => { const a = dayVal(d, 'deep'), b = dayVal(d, 'rem'), t = dayVal(d, 'bed'); return a != null && b != null && t ? (a + b) / t * 100 : null; }, chart: 'bar', better: 1, f: v => fmt(v, 0), // of time in bed, as WHOOP (v1.102: 51%, 24 high / 6 sufficient over 18 Oct to 16 Nov, as his WHOOP Trend)
-    breakdown: sevBreak([['High (over 45%)', v => v > 45, '#83a0b8'], ['Sufficient (30–45%)', v => v >= 30 && v <= 45, '#607587'], ['Low (under 30%)', v => v < 30, '#495a67']]) },
+    breakdown: sevBreak([['High (over 45%)', v => v > 45, 'var(--wc-sleep)'], ['Sufficient (30–45%)', v => v >= 30 && v <= 45, 'var(--wc-rs2)'], ['Low (under 30%)', v => v < 30, 'var(--wc-rs3)']]) },
   { id: 'se', g: 'Sleep', label: 'Sleep efficiency', unit: '%', src: 'WHOOP', v: dv('se'), chart: 'line', better: 1, f: v => fmt(v, 0) },
   { id: 'sd', g: 'Sleep', label: 'Sleep debt', unit: '', src: 'WHOOP', v: debtAfter, chart: 'bar', better: -1, hmY: true, f: v => hm(v) },
   // Strain

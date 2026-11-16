@@ -628,7 +628,12 @@ body:has(#updp) .fab { bottom: calc(var(--tabh) + max(8px, calc(env(safe-area-in
 .rmd { display: block; font-size: 11.5px; color: var(--ink-3); font-weight: 400; }
 
 /* ---------- v1.81 Today redesign: rings, tiles, Health monitor, ring detail screens (WHOOP-style) ---------- */
-#view { --w-sleep: #83a0b8; --w-strain: #4090e0; --w-yellow: #f9df4a; --w-track: #373d42; --w-in: #6eeda5; --w-up: #6eeda5; --w-dn: #ffb35c; --w-hatch: repeating-linear-gradient(135deg, #2c323a 0 2px, #171b21 2px 6px); --w-lt: #a3a6f5; --w-deep: #f19cf0; --w-rem: #a35be6; --w-lab: #c8ccd0; }
+:root { /* WHOOP's colours, as sampled raw off his iPhone screenshots, which are Display P3 (v1.105): the P3 value where the browser
+   supports it (his iPhone shows exactly WHOOP's colour), else the same colour converted to sRGB */
+  --wc-rec: #66aee6; --wc-green: #19eb02; --wc-red: #ff0026; --wc-sleep: #7ba1bb; --wc-strain: #0092e7; --wc-yellow: #fede00; --wc-up: #02f19e; --wc-dn: #ffaf47; --wc-lt: #a4a3f1; --wc-deep: #fa95fa; --wc-rem: #ac5aed; --wc-z1: #adc2cd; --wc-z2: #479ac2; --wc-z3: #59b996; --wc-z4: #fcac5c; --wc-z5: #ff6422; --wc-rs2: #5a7689; --wc-rs3: #455b68;
+}
+@supports (color: color(display-p3 1 1 1)) { :root { --wc-rec: color(display-p3 0.467 0.675 0.882); --wc-green: color(display-p3 0.431 0.91 0.275); --wc-red: color(display-p3 0.918 0.2 0.204); --wc-sleep: color(display-p3 0.514 0.627 0.722); --wc-strain: color(display-p3 0.251 0.565 0.878); --wc-yellow: color(display-p3 0.976 0.875 0.29); --wc-up: color(display-p3 0.431 0.929 0.647); --wc-dn: color(display-p3 1 0.702 0.361); --wc-lt: color(display-p3 0.643 0.639 0.922); --wc-deep: color(display-p3 0.925 0.604 0.957); --wc-rem: color(display-p3 0.631 0.369 0.898); --wc-z1: color(display-p3 0.694 0.757 0.8); --wc-z2: color(display-p3 0.365 0.596 0.745); --wc-z3: color(display-p3 0.447 0.718 0.596); --wc-z4: color(display-p3 0.941 0.686 0.416); --wc-z5: color(display-p3 0.929 0.431 0.224); --wc-rs2: color(display-p3 0.376 0.459 0.529); --wc-rs3: color(display-p3 0.286 0.353 0.404); } }
+#view { --w-sleep: var(--wc-sleep); --w-strain: var(--wc-strain); --w-yellow: var(--wc-yellow); --w-track: #373d42; --w-in: var(--wc-up); --w-up: var(--wc-up); --w-dn: var(--wc-dn); --w-hatch: repeating-linear-gradient(135deg, #2c323a 0 2px, #171b21 2px 6px); --w-lt: var(--wc-lt); --w-deep: var(--wc-deep); --w-rem: var(--wc-rem); --w-lab: #c8ccd0; }
 .wlab { font-family: var(--f-body); font-weight: 700; font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; color: #fff; }
 .wlab.sm { font-size: 10.5px; color: var(--w-lab); } .wlab.dim { color: var(--ink-3); }
 .wnum { font-family: var(--f-num); font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: 0; }
