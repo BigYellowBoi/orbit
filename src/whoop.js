@@ -116,12 +116,25 @@ const NAV_NAME = { today: 'Today', health: 'Health monitor', sleep: 'Sleep', rec
 function navName(e) { if (e.screen === 'activity') return STATE.d[e.params?.d]?.acts?.[e.params?.i]?.n || 'Activity'; return NAV_NAME[e.screen] || 'Back'; }
 function wBack() { return ''; } // v1.89: the back button lives in the header, where the logo is (renderHback)
 const RING_SCREENS = ['sleep', 'recovery', 'strain'];
-function renderHback() { // while the back stack has a screen: chevron in place of the logo; ring screens name the day in the centre, as WHOOP does
+/* v1.110: sub-screens opened from a tab (past log, Injuries, Friends) get the same chevron, back to where they came from */
+const SUB_PARENT = { log: 'history', injuries: 'today', friends: 'history' };
+const subBack = () => !ui.nav.length && ui.tab !== 'data' && SUB_PARENT[ui.tab];
+function hdrTitle() { // the centred header title: ring screens name the day, as WHOOP does; other sub-screens name themselves
+  const dayName = d => { const n = Math.round((Date.parse(d) - Date.parse(today())) / 864e5); return n === 0 ? 'Today' : n === -1 ? 'Yesterday' : n === 1 ? 'Tomorrow' : fmtDow(d) + ' ' + fmtDate(d); };
+  if (RING_SCREENS.includes(ui.tab)) return dayName(wDay());
+  if (ui.tab === 'health') return 'Health monitor';
+  if (ui.tab === 'activity') return STATE.d[ui.np?.d]?.acts?.[ui.np?.i]?.n || 'Activity';
+  if (ui.tab === 'log') return fmtDow(ui.logDate || today()) + ' ' + fmtDate(ui.logDate || today());
+  if (ui.tab === 'injuries') return ui.injForm ? (ui.injForm.id ? 'Edit injury' : 'New injury') : 'Injuries';
+  if (ui.tab === 'friends') return 'Friends';
+  return '';
+}
+function renderHback() { // while the back stack has a screen (or a sub-screen is open): chevron in place of the logo, title in the centre
   const b = $('#hback'), c = $('#hday'), br = $('.brand'); if (!b) return;
-  const e = ui.nav[ui.nav.length - 1], on = !!e && ui.tab !== 'data';
+  const e = ui.nav[ui.nav.length - 1], sub = subBack(), on = (!!e && ui.tab !== 'data') || !!sub;
   b.hidden = !on; if (br) br.hidden = on;
-  if (on) b.setAttribute('aria-label', 'Back to ' + navName(e));
-  const day = on && RING_SCREENS.includes(ui.tab) ? (d => { const n = Math.round((Date.parse(d) - Date.parse(today())) / 864e5); return n === 0 ? 'Today' : n === -1 ? 'Yesterday' : n === 1 ? 'Tomorrow' : fmtDow(d) + ' ' + fmtDate(d); })(wDay()) : '';
+  if (on) b.setAttribute('aria-label', 'Back to ' + (e ? navName(e) : sub === 'today' ? 'Today' : 'History'));
+  const day = on ? hdrTitle() : '';
   c.hidden = !day; if (c.textContent !== day) c.textContent = day;
 }
 const wTitle = (eye, title) => `<div class="wtitle"><span class="wlab">${esc(eye)}</span><h1>${esc(title)}</h1></div>`;
@@ -218,9 +231,9 @@ const HM_LAB = { rr: ['Respiratory rate', 'rpm'], spo2: ['Blood oxygen', '%'], r
 const sgn = (x, d) => (x > 0 ? '+' : x < 0 ? '−' : '') + Math.abs(x).toFixed(d);
 function vHealth() {
   const d = wDay(), ir = inRangeCount(d), out = ir.of - ir.n;
-  let h = wBack() + wTitle(`${d === today() ? 'Last night' : fmtDow(d) + ' ' + fmtDate(d)} · vs your 30-day normal`, 'Health monitor');
+  let h = wBack(); const eye = `<span class="wlab dim wsub">${d === today() ? 'Last night' : fmtDow(d) + ' ' + fmtDate(d)} · vs your 30-day normal</span>`; // v1.110: title in the header, this line under the summary
   h += `<section class="hmsum">${!ir.of ? `<span class="wico lg nil">${wIco('pulse', '', 2)}</span><span><b class="nil">No range yet</b><span>Ranges need 14 of the 30 nights before</span></span>`
-    : `<span class="wico lg ${out ? 'warn' : 'ok'}">${wIco(out ? 'excl' : 'tick', '', 2.6)}</span><span><b class="${out ? 'warn' : ''}">${out ? `${out} out of range` : 'Within range'}</b><span>${ir.n} of ${ir.of} in your normal range</span></span>`}</section>`;
+    : `<span class="wico lg ${out ? 'warn' : 'ok'}">${wIco(out ? 'excl' : 'tick', '', 2.6)}</span><span><b class="${out ? 'warn' : ''}">${out ? `${out} out of range` : 'Within range'}</b><span>${ir.n} of ${ir.of} in your normal range</span></span>`}${iBtn('hmhow', 'How ranges work', 'The green band is your normal range from the last 30 nights: the mean ± 1.5 SD.', `The dot is ${d === today() ? 'last night' : 'that night'}.`)}</section>` + eye;
   const tile = k => {
     const r = healthRange(d, k), [lab, unit] = HM_LAB[k], dec = HM_DEC[k], v = dayVal(d, k), sk = k === 'skt';
     const sh = x => sk && r ? x - r.mean : x, fv = x => sk ? sgn(rnd(sh(x), dec), dec) : rnd(x, dec).toFixed(dec);
@@ -231,7 +244,7 @@ function vHealth() {
       line = v == null ? `<em class="nil">No reading · normal ${rng}</em>` : r.state === 'within' ? `<em>✓ within ${rng}</em>` : `<em class="warn">${r.state} ${rng}</em>`; }
     return `<button class="hmt" data-act="nav" data-s="trend" data-m="${k}" data-d="${d}"><span class="wlab">${esc(lab)}</span><b class="wnum">${v == null ? '–' : fv(v)}${v != null ? `<small>${esc(unit)}</small>` : ''}</b>${bar}${line}</button>`;
   };
-  h += `<div class="hmg">${HM_KEYS.map(tile).join('')}<div class="hmhow"><span class="wlab dim">How ranges work</span><span>Green band is your normal from the last 30 nights. The dot is ${d === today() ? 'last night' : 'that night'}.</span></div></div>`;
+  h += `<div class="hmg">${HM_KEYS.map(tile).join('')}</div>`;
   const days = [6, 5, 4, 3, 2, 1, 0].map(i => addDays(d, -i));
   h += `<section class="wcard"><div class="card-h"><h2>Last 7 nights</h2><span class="eyebrow">in range</span></div><div class="hm7">${days.map(x => { const c = inRangeCount(x), cls = !c.of ? 'nil' : c.n === c.of ? 'ok' : 'warn';
     return `<button class="${cls}${x === d ? ' on' : ''}" data-act="navday" data-d="${x}" aria-label="${esc(fmtDow(x) + ' ' + fmtDate(x))}: ${c.of ? `${c.n} of ${c.of} in range` : 'no range'}" aria-current="${x === d}"><span>${c.of ? c.n : '–'}</span><small>${esc(fmtDow(x)[0])}</small></button>`; }).join('')}</div></section>`;
@@ -364,8 +377,8 @@ function vActivity() {
   const d = ui.np?.d || today(), a = STATE.d[d]?.acts?.[ui.np?.i];
   if (!a) return wBack() + '<p class="small dim">That activity isn’t here any more.</p>';
   const s = clockMin(a.t), e = actEnd(a);
-  let h = wBack() + wTitle(`${d === today() ? 'Today' : fmtDow(d) + ' ' + fmtDate(d)}${s != null ? ` · ${wSpan(a.t, `${pad(Math.floor(e / 60) % 24)}:${pad(Math.round(e % 60))}`)}` : ''}`, a.n);
-  h += wBigRing(a.str / 21, WC.strain, strIn(a.str), 'Activity strain', `Activity strain ${a.str == null ? 'unknown' : fmtS(a.str)}`);
+  let h = wBack() + wBigRing(a.str / 21, WC.strain, strIn(a.str), 'Activity strain', `Activity strain ${a.str == null ? 'unknown' : fmtS(a.str)}`); // v1.110: name in the header
+  h += `<span class="wlab dim wsub">${d === today() ? 'Today' : fmtDow(d) + ' ' + fmtDate(d)}${s != null ? ` · ${wSpan(a.t, `${pad(Math.floor(e / 60) % 24)}:${pad(Math.round(e % 60))}`)}` : ''}</span>`;
   const t = (lab, v, u) => `<div><span class="wlab">${lab}</span><b class="wnum">${v == null ? '–' : v}${v != null && u ? `<small>${u}</small>` : ''}</b></div>`;
   h += `<div class="wtiles4">${t('Duration', a.min != null ? wHM(a.min) : null)}${t('Calories', a.kcal != null ? fmt(a.kcal, 0) : null, 'kcal')}${t('Average HR', a.ahr, 'bpm')}${t('Max HR', a.mhr, 'bpm')}</div>`;
   if (a.z) { const mx = Math.max(...a.z, 1);
@@ -405,7 +418,7 @@ function navBack() {
 }
 const WACT = {
   nav: el => { const s = el.dataset.s, p = { d: el.dataset.d || wDay() }; if (el.dataset.i != null) p.i = +el.dataset.i; if (el.dataset.m) p.m = el.dataset.m; navOpen(s, p); },
-  navback: () => navBack(),
+  navback: () => { const sub = subBack(); if (!sub) return navBack(); if (ui.tab === 'injuries' && ui.injForm) return ACT.injcancel(); go(sub); }, // v1.110: sub-screens go back to their tab (go() keeps its bookkeeping)
   navday: el => { ui.np = { ...(ui.np || {}), d: el.dataset.d }; render(true); }, // the same screen on another night; no stack entry
   navlog: el => { const d = el.dataset.d; if (d === today()) navOpen('today', {}); else navOpen('log', { d }); },
   wscroll: el => reveal('#' + el.dataset.id),

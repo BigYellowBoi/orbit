@@ -812,7 +812,7 @@ function hsDay(date) { // { v: {metric: value}, src: {metric: source id} }
 function hsVo2() { const o = S().vo2 || {}; return Object.entries(o).map(([d, x]) => ({ d, v: typeof x === 'number' ? x : x?.v, src: x?.src || 'whoop' })).filter(x => Number.isFinite(x.v)).sort((a, b) => a.d < b.d ? -1 : 1); }
 function hsImpact(m, x) {
   const q = HS.imp[m]; if (x == null || !q) return 0;
-  if (q.form === 'log') return -q.slope * Math.log(Math.max(x, 1e-9) / q.target);
+  if (q.form === 'log') return -q.slope * Math.log(Math.max(x, 1) / q.target); // floor 1 min/week (v1.110): zero vigorous minutes gave +5.83 years and pinned Pace at 3.0x; now capped at +0.72
   const y = -q.slope * ((q.xmax != null ? Math.min(x, q.xmax) : x) - q.target);
   return q.cap != null ? Math.max(y, -q.cap) : y;
 }

@@ -56,15 +56,21 @@ function drawChart(el, cfg) {
   if (cfg.avgY != null && Number.isFinite(cfg.avgY)) { const ya = Y(cfg.avgY).toFixed(1); // WHOOP's AVG. line: white dashes across, a white tag over the axis (v1.104)
     s += `<line x1="${m.l}" x2="${W - m.r}" y1="${ya}" y2="${ya}" stroke="#fff" stroke-dasharray="5 3.5" stroke-width="1.3"/><rect x="0" y="${(+ya - 9).toFixed(1)}" width="${m.l + 4}" height="18" rx="4" fill="#fff"/><text x="${((m.l + 4) / 2).toFixed(1)}" y="${(+ya + 3.6).toFixed(1)}" text-anchor="middle" style="font: 700 9.5px var(--f-body); letter-spacing: .08em; fill: #000">AVG.</text>`; }
   if (cfg.refY) s += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(cfg.refY.v)}" y2="${Y(cfg.refY.v)}" stroke="var(--ink-2)" stroke-dasharray="4 4" stroke-width="1"/>`;
+  /* v1.110: WHOOP's chart look by default: one line gets a faint fill under it and its values on short runs, points are hollow */
+  const lined = (cfg.series || []).filter(se => se.line !== false && !se.faint && se.pts.filter(p => p.y != null).length > 1), solo = lined.length === 1 && !cfg.bars ? lined[0] : null;
+  if (solo && cfg.fill !== false) { const pts = solo.pts.filter(p => p.y != null), gid = el.id + 'f', yb = (m.t + ih).toFixed(1);
+    s += `<defs><linearGradient id="${gid}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${solo.color}" stop-opacity=".22"/><stop offset="1" stop-color="${solo.color}" stop-opacity="0"/></linearGradient></defs>`;
+    s += `<path d="M${X(pts[0].x).toFixed(1)},${yb}${pts.map(p => 'L' + X(p.x).toFixed(1) + ',' + Y(p.y).toFixed(1)).join('')}L${X(pts[pts.length - 1].x).toFixed(1)},${yb}Z" fill="url(#${gid})" stroke="none"/>`; }
   for (const se of cfg.series || []) {
     const pts = se.pts.filter(p => p.y != null);
+    const lab = se.labels || (se === solo && cfg.autoLabels !== false && pts.length <= 8 ? p => yf(p.y) : null);
     if (se.line !== false && pts.length > 1) {
       let d = '', prev = null; for (const p of pts) { d += (prev != null && (!se.gap || p.x - prev <= se.gap) ? 'L' : 'M') + X(p.x).toFixed(1) + ',' + Y(p.y).toFixed(1); prev = p.x; }
       s += `<path d="${d}" fill="none" stroke="${se.color}" stroke-width="${se.w || 2}" stroke-linejoin="round" stroke-linecap="round" ${se.faint ? 'stroke-opacity=".45"' : ''}/>`;
     }
-    if (se.dots) for (const p of pts) s += `<circle cx="${X(p.x)}" cy="${Y(p.y)}" r="${se.r || 3}" fill="${se.color}" ${se.faint ? 'fill-opacity=".4"' : 'stroke="var(--surface)" stroke-width="2"'}/>`;
-    if (se.labels) for (const p of pts) s += `<text x="${X(p.x)}" y="${Y(p.y) - 9}" class="lbl" text-anchor="middle">${esc(se.labels(p))}</text>`;
-    if (se.end && pts.length) { const p = pts[pts.length - 1]; s += `<circle cx="${X(p.x)}" cy="${Y(p.y)}" r="4" fill="${se.color}" stroke="var(--surface)" stroke-width="2"/>`; }
+    if (se.dots) for (const p of pts) s += se.faint ? `<circle cx="${X(p.x)}" cy="${Y(p.y)}" r="${se.r || 3}" fill="${se.color}" fill-opacity=".4"/>` : `<circle cx="${X(p.x)}" cy="${Y(p.y)}" r="${se.r || 3}" fill="var(--card-bg)" stroke="${se.color}" stroke-width="1.8"/>`; // hollow, as WHOOP's
+    if (lab) for (const p of pts) s += `<text x="${X(p.x)}" y="${Y(p.y) - 9}" class="lbl" text-anchor="middle" style="fill:${se.color}">${esc(lab(p))}</text>`;
+    if (se.end && pts.length) { const p = pts[pts.length - 1]; s += `<circle cx="${X(p.x)}" cy="${Y(p.y)}" r="4" fill="${se.color}" stroke="var(--card-bg)" stroke-width="2"/>`; }
   }
   s += `<line class="xhair" x1="0" x2="0" y1="${m.t}" y2="${m.t + ih}" visibility="hidden"/><rect x="${m.l}" y="${m.t}" width="${iw}" height="${ih}" fill="transparent"/></svg><div class="ctip" hidden></div>`;
   el.innerHTML = s;

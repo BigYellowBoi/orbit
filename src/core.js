@@ -18,6 +18,13 @@ function addDays(s, n) { const t = new Date(toUTC(s) + n * 864e5); return `${t.g
 function diffDays(a, b) { return Math.round((toUTC(b) - toUTC(a)) / 864e5); }
 function fmtDate(s, o) { return new Date(toUTC(s)).toLocaleDateString('en-AU', { timeZone: 'UTC', day: 'numeric', month: 'short', ...(o || {}) }).replace(/\b(Sept|June|July)\b/, m => m.slice(0, 3)); } // en-AU writes Sept, June and July; Orbit uses three letters throughout
 function fmtD(s) { return s.slice(0, 4) === todayStr().slice(0, 4) ? fmtDate(s) : fmtDMY(s); } // lists and tables (v1.36): "13 Oct" this year, his d/m/yy otherwise
+/* d/m/yy or d/m/yyyy (also . or - between) to YYYY-MM-DD, null if not a real date; a 2-digit year is this century unless that's in the future (v1.110) */
+function parseDMY(t) {
+  const m = String(t || '').trim().match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2}|\d{4})$/); if (!m) return null;
+  let y = +m[3]; if (m[3].length === 2) { const c = +today().slice(2, 4); y += y > c ? 1900 : 2000; }
+  const d = new Date(Date.UTC(y, +m[2] - 1, +m[1])); if (d.getUTCMonth() !== +m[2] - 1 || d.getUTCDate() !== +m[1]) return null;
+  return `${y}-${pad(+m[2])}-${pad(+m[1])}`;
+}
 function fmtDMY(s) { const [y, m, d] = s.split('-'); return `${+d}/${+m}/${y.slice(2)}`; } // 19/9/26
 function fmtDow(s) { return new Date(toUTC(s)).toLocaleDateString('en-AU', { timeZone: 'UTC', weekday: 'short' }); }
 function dowMon(s) { return (new Date(toUTC(s)).getUTCDay() + 6) % 7; } // Mon = 0

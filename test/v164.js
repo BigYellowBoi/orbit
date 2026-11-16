@@ -40,7 +40,7 @@ const ok = (c, msg) => { if (c) passes++; else { fails++; console.log('FAIL', ms
   // colours, rep maxes, exercise order
   await p.evaluate(() => go('history'));
   const cols = await p.evaluate(() => [...document.querySelectorAll('.calk span')].map(s => s.textContent + '=' + s.querySelector('i').style.background));
-  ok(cols.some(c => /^Push 1=rgb\(255, 90, 110\)/.test(c)) && cols.some(c => /^Pull=rgb\(61, 220, 132\)/.test(c)) && cols.some(c => /^Push 2=rgb\(74, 163, 255\)/.test(c)) && cols.some(c => /^Legs=rgb\(238, 240, 244\)/.test(c)), 'session colours: ' + cols.join(', '));
+  ok(cols.some(c => /^Push 1=rgb\(255, 79, 216\)/.test(c)) && cols.some(c => /^Pull=rgb\(44, 207, 192\)/.test(c)) && cols.some(c => /^Push 2=rgb\(255, 154, 46\)/.test(c)) && cols.some(c => /^Legs=rgb\(238, 240, 244\)/.test(c)), 'session colours: ' + cols.join(', '));
   await p.evaluate(() => go('strength'));
   const rm = await p.locator('table.repmax').innerText(); ok(/^REPS\s+BEST\s+ESTIMATE/i.test(rm) && /\n1\t/.test(rm), 'rep maxes: Reps, Best, Estimate from 1 rep: ' + rm.slice(0, 80));
   ok(!errs.length, 'no page errors: ' + errs.join(' | '));

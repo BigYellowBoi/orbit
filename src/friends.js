@@ -93,8 +93,7 @@ function frAgo(ms) { const m = Math.round((Date.now() - ms) / 60e3); return m < 
 /* ---------- the screen ---------- */
 function vFriends() {
   const fl = friendList(), t = today();
-  let h = `<button class="link" data-act="go" data-tab="history" style="align-self:flex-start">‹ History</button>
-    <div class="page-h"><div><div class="eyebrow">Workouts and session times</div><h1>Friends</h1></div>${fl.length && !ui.frAdd ? '<button class="btn sm ghost" data-act="fradd">Add</button>' : ''}</div>`;
+  let h = `<div class="page-h sub"><span class="eyebrow">Workouts and session times</span>${fl.length && !ui.frAdd ? '<button class="btn sm ghost" data-act="fradd">Add</button>' : ''}</div>`;
   if (!fl.length || ui.frAdd) h += frAddHTML(!fl.length);
   if (!fl.length) return h;
   const cur = fl.find(f => f.id === ui.fr) || fl[0], c = frCache()[cur.id], busy = !!FR.busy[cur.id];

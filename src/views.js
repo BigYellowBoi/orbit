@@ -65,7 +65,7 @@ function pastDayHTML(d) {
   const st = wStats(w), dur = sessDur(w), prs = prsIn(w), ex = (w.ex || []).filter(e => doneSets(e).length);
   return `<section class="card hero"><div class="card-h"><span class="eyebrow">Logged</span>${pill('good', 'Done')}</div>
     <div><h1>${esc(sessName(w))}</h1><p class="focus">${esc(sessDef(w.s)?.focus || '')}</p></div>
-    ${sessStats(w)}
+    ${doneActs(w)}
     ${ex.length ? `<ul class="exlist">${ex.map(e => `<li><span>${esc(exDef(e.id).name)}</span><span class="rx">${esc(setsTxt(e.id, doneSets(e)))}</span></li>`).join('')}</ul>` : ''}
     ${prs.length ? `<div class="chips">${prs.slice(0, 6).map(p => `<span class="pill acc">${esc(exDef(p.id).name)} ${esc(fmtSet(p.id, p.s))}</span>`).join('')}</div>` : ''}
     <button class="btn wide ghost" data-act="openlog" data-d="${d}">Open log</button></section>`;
@@ -93,7 +93,7 @@ function vToday() {
   let h = ''; // v1.82: the day, its arrows and the streak live in the header
   const injDone = injActive(t).every(i => i.log?.[t] != null), inj = injBannerHTML(t); // v1.82: once today's pain is logged the card moves under Recovery
   if (!injDone) h += inj;
-  const top = () => todayTop(t) + alcToday(t) + (sd ? `<div class="myday"><h2>My day</h2><span class="eyebrow">${esc(w ? sessName(w) : sd.name)}${idx >= 0 ? ` · ${idx + 1} of ${o.length}` : ''}</span></div>` : ''); // v1.81
+  const top = () => todayTop(t) + alcToday(t) + `<div class="myday"><h2>My day</h2><span class="eyebrow">${sd && !w?.rest ? `${esc(w ? sessName(w) : sd.name)}${idx >= 0 ? ` · ${idx + 1} of ${o.length}` : ''}` : 'Rest day'}</span></div>`; // v1.81; v1.110: on rest days too
   const tail = () => whoopCard() + (injDone ? inj : '') + stripHTML() + weekCard() + (injActive(t).length ? '' : injList().length ? '<button class="link dim" data-act="go" data-tab="injuries" style="align-self:center">Injuries</button>' : '<button class="link dim" data-act="injnew" style="align-self:center">Log an injury</button>');
   if (w && (!w.fin || ui.editToday)) return (ui.nav.length ? wBack() : '') + h + logBody(t) + (injDone ? inj : '') + stripHTML() + weekCard(); // the log; no rings, tiles or Recovery card while logging // the log, until you press Done (no Recovery card while logging, v1.36)
   h += top();
@@ -133,7 +133,7 @@ function doneHero(w, idx, o) { // today after Done: a summary, with the log one 
 function stripHTML() { // the next days; tap one to plan it as a rest day (or undo that)
   const up = upcoming(Math.max(5, order().length + 1)), t = today(), pick = up.find((u, i) => i > 0 && u.date === ui.restPick);
   const later = (S().restPlan || []).filter(d => d >= t).sort(), lab = d => `${fmtDow(d)} ${fmtDate(d)}`;
-  let h = `<section class="sec"><div class="sec-h"><span class="eyebrow">Coming up</span><button class="link" data-act="restplan">${ui.restPlanOpen ? 'Done' : `Plan rest${later.length ? ` (${later.length})` : ''}`}</button></div><div class="strip">${up.map((u, i) => {
+  let h = `<section class="sec"><div class="sec-h"><h2 class="wh2 gh">Coming up</h2><button class="link" data-act="restplan">${ui.restPlanOpen ? 'Done' : `Plan rest${later.length ? ` (${later.length})` : ''}`}</button></div><div class="strip">${up.map((u, i) => {
     const cls = `sd ${i === 0 ? (pick ? '' : 'now') + (u.done ? ' done' : '') : ''} ${u.s === '_rest' || isRestSlot(u.s) ? 'rest' : ''} ${u.planned || u.swapped ? 'planned' : ''} ${pick && pick.date === u.date ? 'pick' : ''}`;
     const inner = `<small>${i === 0 ? 'Today' : i === 1 ? 'Tmrw' : esc(fmtDow(u.date))}</small><b>${esc(slotName(u.s))}</b>`;
     return i > 0 ? `<button class="${cls}" data-act="strippick" data-date="${u.date}" aria-label="${esc(lab(u.date))}: ${esc(slotName(u.s))}">${inner}</button>` : `<div class="${cls}" data-now="1">${inner}</div>`; }).join('')}</div>`;
@@ -168,7 +168,7 @@ function weekCard() {
   const kg = sum(wk.map(w => wStats(w).kg));
   const prs = wk.flatMap(w => prsIn(w));
   return `<section class="card"><div class="card-h"><h2>This week</h2><span class="eyebrow">from ${esc(fmtDate(ws))}</span></div>
-    <div class="stats four">${stat(wk.length, '', 'sessions')}${stat(sets, '', 'working sets')}${stat(card, 'min', 'cardio')}${stat(kg ? fmt(kg / 1000, 1) : '–', kg ? 't' : '', 'moved')}</div>
+    <div class="wtiles4">${[['Sessions', wk.length, ''], ['Working sets', sets, ''], ['Cardio', card, 'min'], ['Moved', kg ? fmt(kg / 1000, 1) : '–', kg ? 't' : '']].map(([l, v, u]) => `<div data-live="${l}"><span class="wlab">${l}</span><b class="wnum">${v}${u ? `<small>${u}</small>` : ''}</b></div>`).join('')}</div>
     ${prs.length ? `<div class="sec"><span class="xs muted">New bests this week</span><div class="chips">${prs.slice(0, 6).map(p => `<span class="pill acc">${esc(exDef(p.id).name)} ${esc(fmtSet(p.id, p.s))}</span>`).join('')}</div></div>` : ''}</section>`;
 }
 
@@ -197,8 +197,7 @@ function injEffects(inj, d) { // per training session: the lifts this injury cha
 function vInjuries() {
   if (ui.injForm) return injFormHTML();
   const t = today(), all = injList(), act = all.filter(i => !i.end || i.end > t), done = all.filter(i => i.end && i.end <= t);
-  let h = `<button class="link" data-act="go" data-tab="today" style="align-self:flex-start">‹ Today</button>
-    <div class="page-h"><div><div class="eyebrow">Train around it</div><h1>Injuries</h1></div><button class="btn sm" data-act="injnew">Log one</button></div>
+  let h = `<div class="page-h sub"><span class="eyebrow">Train around it</span><button class="btn sm" data-act="injnew">Log one</button></div>
     ${act.length ? '' : `<section class="card"><p class="small dim">Log where it hurts and how bad it is. Lifts that load it get lighter, held or skipped, with a pain check after each one, and those sessions don\u2019t count against your strength. Sharp, swelling or worsening pain is worth getting checked.</p></section>`}`;
   for (const i of act) {
     const eff = injEffects(i, t), inSess = new Set(eff.flatMap(e => e.rows.map(r => r.id)));
@@ -221,9 +220,7 @@ function vInjuries() {
 }
 function injFormHTML() {
   const f = ui.injForm, t = today(), chip = (k, v, l) => `<button type="button" class="chip ${f[k] === v ? 'on' : ''}" data-act="injset" data-k="${k}" data-v="${v}">${esc(l)}</button>`;
-  let h = `<button class="link" data-act="injcancel" style="align-self:flex-start">‹ ${f.id ? 'Injuries' : 'Back'}</button>
-    <div class="page-h"><div><div class="eyebrow">${f.id ? 'Edit' : 'New'}</div><h1>Injury</h1></div></div>
-    <section class="card"><div class="fl"><span>Where</span><div class="chips">${Object.entries(INJ_AREAS).map(([k, l]) => chip('area', k, l)).join('')}</div></div>
+  let h = `<section class="card"><div class="fl"><span>Where</span><div class="chips">${Object.entries(INJ_AREAS).map(([k, l]) => chip('area', k, l)).join('')}</div></div>
     ${INJ_SIDED.has(f.area) ? `<div class="fl"><span>Side</span><div class="chips">${chip('side', 'left', 'Left')}${chip('side', 'right', 'Right')}${chip('side', 'both', 'Both')}</div></div>` : ''}
     <div class="fl"><span>How bad</span><div class="sev">${Object.entries(INJ_SEV).map(([k, [l, d]]) => `<button type="button" class="sevb ${f.sev === k ? 'on' : ''}" data-act="injset" data-k="sev" data-v="${k}"><b>${esc(l)}</b><span>${esc(d)}</span></button>`).join('')}</div></div>
     <div class="fields" style="grid-template-columns:minmax(0,1fr)"><label class="fl">Started<input class="in" type="date" id="injstart" data-in="injstart" value="${f.start}" max="${t}"></label>
@@ -239,8 +236,8 @@ function injFormHTML() {
 /* ---------- Log: one day's session. Today's renders inside Today; past days open from History ---------- */
 function vLog() {
   const d = ui.logDate || today(), t = today();
-  return `${ui.nav.length ? wBack() : '<button class="link" data-act="go" data-tab="history" style="align-self:flex-start">‹ History</button>'}
-    <div class="dnav"><button class="iconbtn" data-act="logday" data-n="-1" aria-label="Previous day">‹</button><div class="dnav-c"><b>${esc(fmtDow(d) + ' ' + fmtDate(d))}</b><small>${esc(fmtDate(d, { weekday: 'long', year: 'numeric' }))}</small></div><button class="iconbtn" data-act="logday" data-n="1" aria-label="Next day">›</button></div>` + logBody(d);
+  // v1.110: back chevron and the day in the header; day stepping like Healthspan's week nav
+  return `<div class="hsnav lognav"><button class="iconbtn" data-act="logday" data-n="-1" aria-label="Previous day">${HS_CHEV(1)}</button><b>${esc(fmtDate(d, { weekday: 'long', year: 'numeric' }))}</b><button class="iconbtn" data-act="logday" data-n="1" aria-label="Next day">${HS_CHEV(0)}</button></div>` + logBody(d);
 }
 function sessTopTxt(w) { // the session bar's line: done working sets of all working sets, and tonnage (v1.51: warm-ups out of both, rebuilt whole on every change)
   const sd = sessDef(w.s), st = wStats(w), n = sum((w.ex || []).map(e => e.sets.filter(x => x.t !== 'w').length));
@@ -280,7 +277,7 @@ function logBody(d) {
   const ln = lastSessionNote(w);
   if (ln) h += `<section class="card flat lastnote"><span class="eyebrow">Last ${esc(sessName(ln))} · ${esc(fmtDate(ln.date))}</span><p class="small">${esc(ln.note.trim())}</p></section>`;
   const lifts = whoopActs(w.date, LIFT_RE);
-  if (lifts.length) h += lifts.map(actChips).join('');
+  if (lifts.length) h += actChips(w.date, lifts);
   normSets(w); if (autoCardio(w)) saveW(w.date);
   const prSet = new Set(prsIn(w).map(p => p.s));
   h += `<div class="exs" data-list="logex">${w.ex.map((e, i) => exCard(w, e, i, prSet)).join('')}</div>`; // drag handles reorder this day's exercises (v1.39)
@@ -303,7 +300,7 @@ function readLogHTML(w) { // a past day's log to look at: nothing here can be ch
   const edit = `<button class="btn sm ghost" data-act="logedit">Edit</button>`, note = (w.note || '').trim();
   const noteCard = note ? `<section class="card flat"><span class="eyebrow">Session notes</span><p class="small">${esc(note)}</p></section>` : '';
   if (w.rest) return `<section class="card hero"><div class="card-h"><span class="eyebrow">Rest day${isRestSlot(w.s) ? ' · planned' : ''}</span>${edit}</div><div><h1>Rest</h1></div>
-    ${w.cardio?.done ? sessStats(w) : '<p class="small dim">No cardio logged.</p>'}</section>` + noteCard + whoopCard(w.date);
+    ${w.cardio?.done ? doneActs(w) : '<p class="small dim">No cardio logged.</p>'}</section>` + noteCard + whoopCard(w.date);
   const prs = prsIn(w), prSet = new Set(prs.map(p => p.s)), acts = [...whoopActs(w.date, LIFT_RE), ...(w.cardio?.done && w.cardio.src === 'whoop' ? whoopCardio(w.date, w.cardio.name) : [])];
   const ex = (w.ex || []).filter(e => doneSets(e).length || (e.note || '').trim());
   const row = e => { // one set per line, tagged W (warm-up), D (drop) or its working-set number (v1.47)
@@ -313,9 +310,8 @@ function readLogHTML(w) { // a past day's log to look at: nothing here can be ch
     return `<li><span>${esc(exDef(e.id).name)}</span><span class="rx">${ls.join('') || '–'}</span>${nt ? `<span class="lt">${esc(nt)}</span>` : ''}</li>`; };
   return `<section class="card hero"><div class="card-h"><span class="eyebrow">Logged${sessDef(w.s)?.focus ? ` · ${esc(sessDef(w.s).focus)}` : ''}</span>${edit}</div>
     <div><h1>${esc(sessName(w))}</h1></div>
-    ${sessStats(w)}
-    ${prs.length ? `<div class="chips">${prs.slice(0, 6).map(p => `<span class="pill acc">${esc(exDef(p.id).name)} ${esc(fmtSet(p.id, p.s))}</span>`).join('')}</div>` : ''}
-    ${acts.map(actChips).join('')}</section>
+    ${doneActs(w)}
+    ${prs.length ? `<div class="chips">${prs.slice(0, 6).map(p => `<span class="pill acc">${esc(exDef(p.id).name)} ${esc(fmtSet(p.id, p.s))}</span>`).join('')}</div>` : ''}</section>
     ${ex.length ? `<section class="card"><div class="card-h"><h2>Exercises</h2><span class="eyebrow">${ex.length}</span></div><ul class="exlist ro">${ex.map(row).join('')}</ul></section>` : ''}` + noteCard + whoopCard(w.date);
 }
 /* Add exercise (v1.36): a searchable list ranked for the day: the session's own muscles, then muscles its lifts also work
@@ -406,9 +402,9 @@ function injCardHTML(w, e, i) {
   if (e.pain >= 7) h += '<p class="xs redflag">Stop this lift for today. Sharp or worsening pain is worth getting checked.</p>';
   return `<div class="injnote ${ip.act}">${h}</div>`;
 }
-function actChips(a) { // a WHOOP activity as one line of chips (v1.36)
-  const c = [a.str != null && `<span class="strain">strain ${fmtS(a.str)}</span>`, a.ahr && `avg ${fmt(a.ahr, 0)} bpm`, a.kcal && `${fmt(a.kcal, 0)} kcal`].filter(Boolean);
-  return `<div class="whoopact"><b>WHOOP · ${esc(a.n)}</b><span class="achips">${c.map(x => `<span>${x}</span>`).join('')}</span></div>`;
+function actChips(d, list) { // v1.110: WHOOP activities as the Done hero's tiles (each opens Activity detail); was a line of chips
+  const all = STATE.d[d]?.acts || [], t = list.map(a => all.indexOf(a)).filter(i => i >= 0).map(i => actTile(d, i)).join('');
+  return t ? `<div class="acts">${t}</div>` : '';
 }
 function cardioTypes() { return Object.keys(CARDIO_RE); }
 function cardioCard(w) {
@@ -419,7 +415,7 @@ function cardioCard(w) {
   return `<section class="card"><div class="card-h"><h2>${esc(c.name)}</h2>${c.done ? pill('good', fromW ? 'From WHOOP' : 'Done') : pill('', 'After lifting')}</div>
     <div class="chips" role="group" aria-label="Cardio type">${cardioTypes().map(n => `<button class="chip ${n === c.name ? 'on' : ''}" data-act="cardiotype" data-v="${esc(n)}">${esc(n)}</button>`).join('')}</div>
     <div class="fields" style="grid-template-columns:repeat(2,minmax(0,1fr))">${fromW ? `<div class="fl"><span>Minutes</span><b class="roval">${fmt(c.min, 0)} min</b></div>` : `<label class="fl">Minutes<input class="in" id="cmin" inputmode="numeric" data-in="cmin" value="${c.min ?? ''}"></label>`}<label class="fl">Level or note<input class="in" id="clvl" data-in="clvl" value="${esc(c.lvl ?? '')}" placeholder="optional"></label></div>
-    ${acts.map(actChips).join('')}
+    ${actChips(w.date, acts)}
     <div class="btnrow">${fromW ? '' : `<button class="btn ${c.done ? 'ghost' : ''}" data-act="cardio">${c.done ? 'Mark not done' : `Log ${esc(c.name.toLowerCase())}`}</button>`}<button class="link danger" data-act="cardiorem" style="margin-left:auto">Remove</button></div></section>`;
 }
 
@@ -435,7 +431,7 @@ function vHistory() {
   // search and session filter, applied in place (filterHist in boot.js) so the keyboard stays up
   const sids = [...new Set(ws.filter(w => !w.rest).map(w => w.s))].filter(id => sessDef(id)).sort((a, b) => order().indexOf(a) - order().indexOf(b));
   h += `<div class="srch">${ICON.search}<input class="in left" id="hq" type="text" inputmode="search" enterkeyhint="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search exercises and notes" aria-label="Search history" value="${esc(ui.histQ || '')}"></div>
-    <div class="chips" role="group" aria-label="Session">${[['', 'All'], ...sids.map(id => [id, sessDef(id).name])].map(([id, n]) => `<button class="chip ${(ui.histS || '') === id ? 'on' : ''}" data-act="histsess" data-v="${id}">${esc(n)}</button>`).join('')}</div>
+    <div class="chips" role="group" aria-label="Session">${[['', 'All'], ...sids.map(id => [id, sessDef(id).name])].map(([id, n]) => `<button class="chip ${(ui.histS || '') === id ? 'on' : ''}" data-act="histsess" data-v="${id}">${id ? `<i class="sesslg" style="background:${sessCol(id)}"></i>` : ''}${esc(n)}</button>`).join('')}</div>
     <p class="xs muted histempty" hidden>No sessions match.</p>`;
   let wk = null;
   for (const w of ws) {
@@ -455,8 +451,9 @@ function vHistory() {
 }
 
 /* Calendar (v1.36): a month of training days, a dot per session coloured by its place in the rotation; tap to open. */
-/* Session colours (v1.64, his pick): Push 1 red, Pull green, Push 2 blue, Legs white; any other session takes the next free one. */
-const SESS_COL = { push1: '#ff5a6e', pull: '#3ddc84', push2: '#4aa3ff', legs: '#eef0f4' }, SESS_PAL = ['var(--s1)', 'var(--s2)', 'var(--warn)', 'var(--s3)'];
+/* Session colours (v1.110, his pick): Push 1 magenta, Pull teal, Push 2 orange, Legs white, chosen to stand apart from each other and from
+   the recovery green/yellow/red and strain blue in the same History row; any other session takes violet, then slate. */
+const SESS_COL = { push1: '#ff4fd8', pull: '#2ccfc0', push2: '#ff9a2e', legs: '#eef0f4' }, SESS_PAL = ['#9f7aea', '#94a3b8'];
 function sessCol(id) { if (SESS_COL[id]) return SESS_COL[id]; const others = order().filter(x => !SESS_COL[x] && !isRestSlot(x)); return SESS_PAL[Math.max(0, others.indexOf(id)) % SESS_PAL.length]; }
 function calendarHTML(ws) {
   const t = today(), [y, m] = t.split('-').map(Number), off = ui.calOff || 0, mm = ((m - 1 + off) % 12 + 12) % 12, yy = y + Math.floor((m - 1 + off) / 12);
@@ -478,6 +475,9 @@ function liftIds() {
   const others = Object.keys(S().ex).filter(id => !ids.includes(id) && records(id)?.logged);
   return [...ids, ...others].filter(id => records(id));
 }
+/* v1.110: explanations live behind an (i) in the card header and open WHOOP's bottom sheet (infoSheet), never inline */
+function iBtn(key, title, p, ...n) { INFO_TXT[key] = { t: title, p, n }; return `<button class="winfo" data-act="winfo" data-k="${key}" aria-label="About ${esc(title)}" aria-haspopup="dialog">${INFO}</button>`; }
+const iH2 = (title, key, p, ...n) => `<span class="ch-t"><h2>${esc(title)}</h2>${iBtn(key, title, p, ...n)}</span>`;
 /* A short "About" toggle for explanations, so the copy stays out of the way (v1.36) */
 const infoHTML = txt => `<details class="info"><summary>About this</summary><p class="xs muted">${txt}</p></details>`;
 /* Lift chart metrics: estimated 1RM (the default), heaviest set, reps at that heaviest load, session volume (load × reps over
@@ -506,8 +506,7 @@ function repMaxHTML(id) {
   const rows = reps.map(r => { const c = all.filter(s => s.r >= r).sort((a, b) => (b.w || 0) - (a.w || 0) || (a.date < b.date ? -1 : 1))[0], e = est(r);
     const cls = !c ? '' : (c.w || 0) >= e ? 'better' : c.r > r ? 'muted' : '';
     return `<tr class="${inRange(r) ? 'rng' : ''}"><td>${r}</td><td class="n${cls ? ' ' + cls : ''}"${c ? ` title="${esc(fmtSet(id, c))} on ${esc(fmtD(c.date))}"` : ''}>${c ? esc(ld(c.w || 0)) : '<span class="muted">–</span>'}</td><td class="n dim">${esc(ld(e))}</td></tr>`; }).join('');
-  return `<section class="card"><div class="card-h"><h2>Rep maxes</h2><span class="eyebrow">${esc(d.name)}</span></div>
-    <p class="xs muted">Best: the heaviest you've lifted for that many reps (grey when it came from a set with more reps). Estimate: what your best set says you could do. Green: already past the estimate.</p>
+  return `<section class="card"><div class="card-h">${iH2('Rep maxes', 'repmax', "Best: the heaviest you've lifted for that many reps (grey when it came from a set with more reps).", 'Estimate: what your best set says you could do. Green: already past the estimate.')}<span class="eyebrow">${esc(d.name)}</span></div>
     <div class="tblwrap"><table class="tbl repmax"><thead><tr><th>Reps</th><th class="n">Best</th><th class="n">Estimate</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
 }
 /* Weekly sets per muscle (v1.37): a heatmap of the last 12 weeks, same counting as Volume, coloured by the research bands */
@@ -515,11 +514,10 @@ function heatHTML() {
   const t = today(), n = 12, wks = []; for (let k = n - 1; k >= 0; k--) { const ws = addDays(weekStart(t), -7 * k); wks.push({ ws, cur: k === 0, v: doneByGroup(ws, addDays(ws, 6)) }); }
   const gs = GROUP_ORDER.filter(g => wks.some(w => w.v[g])); if (!gs.length) return '';
   const tone = v => !v ? 'h0' : v < 3 ? 'h1' : v < 10 ? 'h2' : v <= 20 ? 'h3' : 'h4';
-  return `<section class="card"><div class="card-h"><h2>Weekly sets by muscle</h2><span class="eyebrow">by week</span></div>
+  return `<section class="card"><div class="card-h">${iH2('Weekly sets by muscle', 'heat', 'Hard sets per muscle each week (Monday start), compounds counting half for the muscles they also work, warm-ups left out.', 'The colours follow the Volume bands: about 3 a week holds, 10–20 grows. This week so far is outlined.')}<span class="eyebrow">by week</span></div>
     <div class="tblwrap"><table class="heat"><thead><tr><th></th>${wks.map((w, i) => `<th class="${i < 4 ? 'old' : ''}" title="Week of ${esc(fmtDate(w.ws))}">${esc(fmtDate(w.ws).split(' ')[0])}<br><span>${esc(fmtDate(w.ws).split(' ')[1] || '')}</span></th>`).join('')}</tr></thead><tbody>
     ${gs.map(g => `<tr><th>${esc(GROUPS[g])}</th>${wks.map((w, i) => { const v = w.v[g] || 0; return `<td class="${tone(v)}${w.cur ? ' cur' : ''}${i < 4 ? ' old' : ''}" title="${esc(GROUPS[g])}, week of ${esc(fmtDate(w.ws))}: ${fmt(v, 1)} sets">${v ? fmt(v, v % 1 ? 1 : 0) : ''}</td>`; }).join('')}</tr>`).join('')}
-    </tbody></table></div><div class="legend heatk"><span><i class="h1"></i>under 3</span><span><i class="h2"></i>3–10</span><span><i class="h3"></i>10–20</span><span><i class="h4"></i>over 20</span></div>
-    ${infoHTML('Hard sets per muscle each week (Monday start), compounds counting half for the muscles they also work, warm-ups left out. The colours follow the Volume bands: about 3 a week holds, 10–20 grows. This week so far is outlined.')}</section>`;
+    </tbody></table></div><div class="legend heatk"><span><i class="h1"></i>under 3</span><span><i class="h2"></i>3–10</span><span><i class="h3"></i>10–20</span><span><i class="h4"></i>over 20</span></div></section>`;
 }
 /* Recovery vs performance (v1.37): each session's lifts against the median of that lift's previous 3 sessions (top e1RM),
    averaged, plotted against that morning's WHOOP recovery. Bucket means by recovery colour sit underneath. */
@@ -538,11 +536,9 @@ function recPerfHTML() {
   const series = [{ color: 'var(--ink-3)', pts: [{ x: 0, y: a }, { x: 100, y: a + b * 100 }], w: 1.5, faint: true }];
   for (const [tone, f] of [['good', p => p.rec >= 67], ['warn', p => p.rec >= 34 && p.rec < 67], ['bad', p => p.rec < 34]]) series.push({ color: `var(--${tone})`, pts: pts.filter(f).map(p => ({ x: p.rec, y: p.p })), line: false, dots: true, r: 4 });
   const byX = {}; for (const p of pts) (byX[Math.round(p.rec)] = byX[Math.round(p.rec)] || []).push(p);
-  return `<section class="card"><div class="card-h"><h2>Recovery and performance</h2><span class="eyebrow">${n} sessions</span></div>
-    <span class="small dim">Lifts against their last 3 sessions (%), by that morning's recovery</span>
+  return `<section class="card"><div class="card-h">${iH2('Recovery and performance', 'recperf', "Lifts against their last 3 sessions (%), by that morning's recovery.", `Each dot is a session: the average of its lifts' best estimated 1RM against the median of that lift's previous 3 sessions, so 0% is a typical day for you.`, `Line: the straight-line fit (r = ${fmt(r, 2)}${n < 15 ? '; with under 15 sessions treat it as a hint' : ''}).`)}<span class="eyebrow">${n} sessions</span></div>
     ${chartHTML({ h: 180, x0: 0, x1: 100, xTicks: [0, 33, 67, 100], xFmt: x => x + '%', yFmt: v => (v > 0 ? '+' : '') + fmt(v, 0) + '%', yPad: 1, refY: { v: 0 }, series, hoverXs: Object.keys(byX).map(Number), tip: x => (byX[x] || []).map(p => `<b>${esc(fmtDate(p.date))}</b> ${esc(p.s)}<br>${fmt(p.rec, 0)}% recovery · ${p.p >= 0 ? '+' : '−'}${fmt(Math.abs(p.p), 1)}%`).join('<br>'), label: 'Recovery against performance' })}
-    <div class="rtiles">${bk.map(x => `<div class="rt"><span><i class="dot" style="background:var(--${x.tone})"></i>${x.l} days</span>${x.m == null ? '<b class="nil">–</b>' : `<b>${x.m >= 0 ? '+' : '−'}${fmt(Math.abs(x.m), 1)}<small>%</small></b>`}<em>${x.n} session${x.n === 1 ? '' : 's'}</em></div>`).join('')}</div>
-    ${infoHTML(`Each dot is a session: the average of its lifts' best estimated 1RM against the median of that lift's previous 3 sessions, so 0% is a typical day for you. Line: the straight-line fit (r = ${fmt(r, 2)}${n < 15 ? '; with under 15 sessions treat it as a hint' : ''}).`)}</section>`;
+    <div class="rtiles">${bk.map(x => `<div class="rt"><span><i class="dot" style="background:var(--${x.tone})"></i>${x.l}</span>${x.m == null ? '<b class="nil">–</b>' : `<b>${x.m >= 0 ? '+' : '−'}${fmt(Math.abs(x.m), 1)}<small>%</small></b>`}<em>${x.n} session${x.n === 1 ? '' : 's'}</em></div>`).join('')}</div></section>`;
 }
 /* Exercise order (v1.43): what the model has learned, per lift (see EXERCISE ORDER in engine.js) */
 /* Exercise order (v1.64, rewritten as a list): how much weaker each lift is in its usual place than if done first, and
@@ -552,8 +548,7 @@ function orderHTML() {
   const rows = ids.map(id => { const b = M.by[id], cost = 1 - ordFactor(id, usualCtx(id)), s = usualSid(id), slot = s ? sessDef(s).items.filter(it => S().ex[it.ex]).findIndex(it => it.ex === id) + 1 : 0;
     const v = slot <= 1 ? '<span class="muted">done first</span>' : cost >= 0.0005 ? `−${fmt(cost * 100, 1)}%` : '<span class="muted">no cost</span>';
     return `<li><span>${esc(exDef(id).name)}</span><span class="rx">${v}</span><span class="lt">${slot ? `Usually ${ordinal(slot)} · ` : ''}${b.chg ? `learned from ${b.chg} move${b.chg === 1 ? '' : 's'}` : 'never moved, so the average'}</span></li>`; }).join('');
-  return `<section class="card"><div class="card-h"><h2>Exercise order</h2><span class="eyebrow">vs doing it first</span></div>
-    <p class="xs muted">How much weaker each lift is in its usual spot than if you did it first. Learned from the times you've done lifts in a different order; Aims adjust when you change it.</p>
+  return `<section class="card"><div class="card-h">${iH2('Exercise order', 'order', 'How much weaker each lift is in its usual spot than if you did it first.', "Learned from the times you've done lifts in a different order; Aims adjust when you change it.")}<span class="eyebrow">vs doing it first</span></div>
     <ul class="exlist recent ordl">${rows}</ul></section>`;
 }
 /* New bests over time (v1.37): count per week for 12 weeks, then the latest ones with how far each beat the old best */
@@ -592,11 +587,10 @@ function vStrength() {
   for (const sid of order()) { const sd = sessDef(sid); if (!sd || isRestSlot(sid)) continue; const g = sd.items.map(it => it.ex).filter(id => ids.includes(id) && !seen.has(id)); g.forEach(id => seen.add(id)); if (g.length) groups.push([sd.name, g]); }
   const other = ids.filter(id => !seen.has(id)); if (other.length) groups.push(['Other lifts', other]);
   const hidden = ui.liftsAll ? 0 : ids.filter(id => !logged(id)).length;
-  cards.push({ k: 'lifts', t: 'Lifts table', h: `<section class="card"><div class="tblwrap"><table class="tbl lifts"><thead><tr><th>Lift</th><th class="n">Best</th><th class="n">Last</th><th class="n">4 wk</th></tr></thead>
+  cards.push({ k: 'lifts', t: 'Lifts table', h: `<section class="card"><div class="card-h">${iH2('Lifts', 'lifts', 'Best: strongest logged set.', '4 wk: your typical session over the last 4 weeks against the 2 months before; green is within 2.5% or up, amber down to 5%, red further. Too new: nothing older to compare yet.')}</div><div class="tblwrap"><table class="tbl lifts"><thead><tr><th>Lift</th><th class="n">Best</th><th class="n">Last</th><th class="n">4 wk</th></tr></thead>
     ${groups.map(([n, g]) => { const vis = g.filter(id => ui.liftsAll || logged(id)); return vis.length ? `<tbody><tr class="grp"><th colspan="4" scope="rowgroup">${esc(n)}</th></tr>${vis.map(row).join('')}</tbody>` : ''; }).join('')}
     </table></div>
-    <div class="btnrow" style="justify-content:space-between">${hidden || ui.liftsAll ? `<button class="link dim" data-act="liftsall">${ui.liftsAll ? 'Hide lifts not logged yet' : `Show all (${hidden} not logged yet)`}</button>` : '<span></span>'}</div>
-    ${infoHTML('Best: strongest logged set. 4 wk: your typical session over the last 4 weeks against the 2 months before; green is within 2.5% or up, amber down to 5%, red further. Too new: nothing older to compare yet.')}</section>` });
+    <div class="btnrow" style="justify-content:space-between">${hidden || ui.liftsAll ? `<button class="link dim" data-act="liftsall">${ui.liftsAll ? 'Hide lifts not logged yet' : `Show all (${hidden} not logged yet)`}</button>` : '<span></span>'}</div></section>` });
   // Bands from research, not from the plan: ~3 hard sets a week held size and strength in younger adults (Bickel et al., 2011:
   // a ninth of the training dose, one set of each of three exercises once a week); 10-20 a week is the usual growth range,
   // with diminishing returns above it (Schoenfeld et al., 2017; Pelland et al., 2024).
@@ -608,12 +602,11 @@ function vStrength() {
   const seg = (cls, from, n) => n > 0 ? `<span class="${cls}" style="left:${pc(from)}%;width:${pc(Math.min(n, mx - from))}%"></span>` : '';
   const dayLab = d => d === t ? 'Today' : fmtDow(d);
   const capt = vw.sess.length ? `Planned: ${vw.sess.map(x => `${dayLab(x.date)} ${esc(slotName(x.s))}`).join(', ')}` : 'Nothing planned ahead';
-  cards.push({ k: 'volume', t: 'Volume, two rotations', h: `<section class="sec" data-card="volume"><div class="sec-h"><span class="eyebrow">Volume · ${rng}</span><span class="xs muted">${esc(fmtDate(vw.ws))} – ${esc(fmtDate(vw.we))}</span></div><section class="card"><div class="legend"><span><i class="vk dir"></i>Done</span><span><i class="vk ind"></i>Done, half credit</span><span><i class="vk plan"></i>Planned</span><span><i class="tk"></i>Hold, ~${fmt(HOLD, 1)}</span><span><i class="bandk"></i>Grow, ${fmt(GLO, 1)}–${fmt(GHI, 1)}</span></div>
+  cards.push({ k: 'volume', t: 'Volume, two rotations', h: `<section class="sec" data-card="volume"><div class="sec-h"><span class="eyebrow">Volume · ${rng}</span><span class="ch-t"><span class="xs muted">${esc(fmtDate(vw.ws))} – ${esc(fmtDate(vw.we))}</span>${iBtn('volume', 'Volume', `Hard sets per muscle over two full rotations (${vw.span} days: the ${rng}), so every session counts twice whatever day it is.`, `Compounds count half for the muscles they also work, and warm-ups don't count. Planned is the rest of today's sets and the sessions your rotation puts on the days ahead, at each exercise's set count; it turns solid as you tick sets. Tap a bar for its exercises.`, `The bands are the weekly ones stretched to ${vw.span} days: about 3 a week holds (Bickel et al., 2011); 10–20 a week grows (Schoenfeld et al., 2017; Pelland et al., 2024).`)}</span></div><section class="card"><div class="legend"><span><i class="vk dir"></i>Done</span><span><i class="vk ind"></i>Done, half credit</span><span><i class="vk plan"></i>Planned</span><span><i class="tk"></i>Hold, ~${fmt(HOLD, 1)}</span><span><i class="bandk"></i>Grow, ${fmt(GLO, 1)}–${fmt(GHI, 1)}</span></div>
     <ul class="hbars proj">${gs.map(g => { const v = V(g), done = v.dir + v.ind;
       return `<li data-act="volg" data-g="${g}" role="button" tabindex="0" class="${ui.volG === g ? 'on' : ''}" aria-label="${esc(GROUPS[g])}: ${fmt(done, 1)} done, ${fmt(v.plan, 1)} planned. Show breakdown"><span class="lab">${esc(GROUPS[g])}</span><span class="v">${fmt(done, 1)} done${v.plan ? ` <span class="pl">+ ${fmt(v.plan, 1)} planned</span>` : ''}</span>
         <span class="trk"><span class="band" style="left:${pc(GLO)}%;width:${pc(GHI) - pc(GLO)}%"></span>${seg('fill', 0, v.dir)}${seg('fill ind', v.dir, v.ind)}${seg('fill plan', done, v.plan)}<span class="tgt" style="left:calc(${pc(HOLD)}% - 1px)"></span></span></li>`; }).join('')}</ul>
-    <p class="xs muted vcap">${capt}</p>
-    ${infoHTML(`Hard sets per muscle over two full rotations (${vw.span} days: the ${rng}), so every session counts twice whatever day it is. Compounds count half for the muscles they also work, and warm-ups don't count. Planned is the rest of today's sets and the sessions your rotation puts on the days ahead, at each exercise's set count; it turns solid as you tick sets. Tap a bar for its exercises. The bands are the weekly ones stretched to ${vw.span} days: about 3 a week holds (Bickel et al., 2011); 10–20 a week grows (Schoenfeld et al., 2017; Pelland et al., 2024).`)}</section></section>` });
+    <p class="xs muted vcap">${capt}</p></section></section>` });
   cards.push({ k: 'repmax', t: 'Rep maxes', h: repMaxHTML(pick) });
   cards.push({ k: 'heat', t: 'Weekly sets by muscle', h: heatHTML() });
   cards.push({ k: 'prs', t: 'New bests', h: prTimelineHTML() });
@@ -676,7 +669,7 @@ function recAfterCard() { // v1.81: also its own screen, from Recovery detail
   const raAll = recoveryAfter(), ra = raAll.filter(r => r.n >= 2).sort((a, b) => b.avg - a.avg), nAlc = sum(raAll.map(r => r.alc));
   const alcAvg = nAlc ? sum(raAll.map(r => r.alc * (r.alcAvg || 0))) / nAlc : null; // any session, then a drink: for comparison
   if (ra.length < 2) return '';
-  return `<section class="card"><div class="card-h"><h2>Recovery the morning after</h2><span class="eyebrow">all time</span></div><p class="xs muted">Average next-day WHOOP recovery after each session type. Small samples move a lot; read it as a hint.${nAlc ? ` Mornings after alcohol are left out and shown on their own.` : ''}</p>
+  return `<section class="card"><div class="card-h">${iH2('Recovery the morning after', 'recafter', 'Average next-day WHOOP recovery after each session type. Small samples move a lot; read it as a hint.', ...(nAlc ? ['Mornings after alcohol are left out and shown on their own.'] : []))}<span class="eyebrow">all time</span></div>
     <ul class="hbars">${ra.map(r => `<li><span class="lab">${esc(r.k)}</span><span class="trk"><span class="fill" style="width:${Math.max(2, r.avg)}%;background:var(--${recTone(r.avg)})"></span></span><span class="v">${fmt(r.avg, 0)}% <span class="muted">${r.n}×</span></span></li>`).join('')}${nAlc >= 2 ? `<li class="alcrow"><span class="lab">After alcohol</span><span class="trk"><span class="fill" style="width:${Math.max(2, alcAvg)}%;background:var(--${recTone(alcAvg)})"></span></span><span class="v">${fmt(alcAvg, 0)}% <span class="muted">${nAlc}×</span></span></li>` : ''}</ul></section>`;
 }
 function vBody() {
@@ -726,11 +719,10 @@ function vPlan() {
   const cols = [['ppl4', PRESETS.ppl4], ['ulppl5', PRESETS.ulppl5]]; if (!match) cols.push(['yours', cur]);
   const vols = cols.map(([, p]) => planWeekly(p));
   const gs = GROUP_ORDER.filter(g => vols.some(v => v[g]));
-  h += `<section class="card"><div class="card-h"><h2>Weekly sets by muscle</h2><span class="eyebrow">training daily</span></div>
+  h += `<section class="card"><div class="card-h">${iH2('Weekly sets by muscle', 'planwk', 'Sets a week if you train every day, counted like Volume on Strength: compounds give half a set to the muscles they also work.', 'Growth needs about 10–20; holding far less.')}<span class="eyebrow">training daily</span></div>
     <div class="tblwrap"><table class="tbl"><thead><tr><th>Muscle</th>${cols.map(([k, p]) => `<th class="n">${k === 'yours' ? 'Yours' : k === 'ppl4' ? 'Current' : 'U/L/PPL'}</th>`).join('')}</tr></thead><tbody>
     ${gs.map(g => `<tr><td>${esc(GROUPS[g])}</td>${vols.map((v, i) => { const base = vols[0][g] || 0, x = v[g] || 0; const tag = i && x > base + .5 ? ' <span class="xs" style="color:var(--accent)">▲</span>' : i && x < base - .5 ? ' <span class="xs muted">▼</span>' : ''; return `<td class="n">${fmt(x, 1)}${tag}</td>`; }).join('')}</tr>`).join('')}
-    </tbody></table></div>
-    ${infoHTML("Sets a week if you train every day, counted like Volume on Strength: compounds give half a set to the muscles they also work. Growth needs about 10–20; holding far less.")}</section>`;
+    </tbody></table></div></section>`;
 
   }
   if (pt === 'sessions') {

@@ -473,7 +473,7 @@ const ACT = {
   vo2add: () => { // this week's WHOOP VO2 estimate, dated today (one per day; a second entry the same day replaces it)
     const v = num($('#vo2in')?.value); if (v == null || v < 20 || v > 90) { toast('Enter a VO2 max between 20 and 90.', 'bad'); return; }
     S().vo2 = { ...(S().vo2 || {}), [today()]: { v: r1(v), src: 'whoop' } }; saveSettings(); toast(`VO2 ${fmt(v, 1)} saved`); render(true); },
-  hsdob: () => { const v = $('#dobin')?.value; if (!/^\d{4}-\d\d-\d\d$/.test(v || '') || v > today() || v < '1900-01-01') { toast('Enter your birth date.', 'bad'); return; } S().dob = v; saveSettings(); render(true); },
+  hsdob: () => { const v = parseDMY($('#dobin')?.value); if (!v || v > today() || v < '1900-01-01') { toast('Enter your birth date.', 'bad'); return; } S().dob = v; saveSettings(); render(true); },
   hsdobclr: () => { delete S().dob; saveSettings(); render(true); },
   hsrow: el => { const m = el.dataset.m, o = ui.hsOpen || (ui.hsOpen = new Set()); o.has(m) ? o.delete(m) : o.add(m); render(true); },
   hsnow: () => { ui.hsOff = 0; render(true); }, // tap the dates: back to this week
