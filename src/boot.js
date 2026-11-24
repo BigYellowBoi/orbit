@@ -505,6 +505,8 @@ const ACT = {
   pastlog: () => { ui.logDate = addDays(today(), -1); ui.pickSess = null; go('log'); },
   todayex: () => { ui.todayEx = !ui.todayEx; render(true); },
   exnoterem: el => { const w = logW(), i = +el.dataset.e, e = w?.ex[i]; if (!e) return; delete e.note; ui.exNote = null; saveW(w.date); render(true); }, // v1.57: a note added by mistake
+  painask: el => { const w = logW(), e = w?.ex[+el.dataset.e]; if (!e) return; const ip = injPlan(e.id, w.date); if (!ip) return; // v1.112: ask about pain on this lift again
+    const inj = S().inj[ip.inj.id]; (inj.ask = inj.ask || {})[e.id] = w.date; if (e.pain === 0) delete e.pain; saveSettings(); saveW(w.date); render(true); },
   expain: el => { const w = logW(), e = w?.ex[+el.dataset.e], v = +el.dataset.v; if (!e) return; if (e.pain === v) delete e.pain; else e.pain = v; saveW(w.date); render(true); if (v >= 5 && e.pain === v) toast('Noted. Next time this lift is lighter.'); },
   injswap: el => { const w = logW(), i = +el.dataset.e, e = w?.ex[i], id = el.dataset.id; if (!e || !id) return; const from = exDef(e.id).name;
     w.ex[i] = { id, sets: prefill(id, e.sets.filter(s => s.t !== 'w').length || defSets(id), w.date) }; saveW(w.date); toast(`Swapped ${esc(from)} for ${esc(exDef(id).name)}`); render(true); },
@@ -843,7 +845,9 @@ function autoFold(w, e, delay) {
 function setInput(el, final, foldDelay) {
   const w = logW(); if (!w) return; const i = +el.dataset.e, j = +el.dataset.s, e = w.ex[i], s = e?.sets[j]; if (!s) return;
   const def = exDef(e.id), wasDone = s.done;
-  setFromInputs(s, num($(`#w${i}_${j}`)?.value), parseInt($(`#r${i}_${j}`)?.value, 10), def.u, rowAim(e, j, w.date, aimIn(w, i))?.w);
+  const aim = rowAim(e, j, w.date, aimIn(w, i));
+  setFromInputs(s, num($(`#w${i}_${j}`)?.value), parseInt($(`#r${i}_${j}`)?.value, 10), def.u, aim?.w);
+  stampAim(s, aim); autoPain({ date: w.date, ex: [e] }); // v1.112: keep the Aim shown; a pain check that's off saves 0
   const row = $(`#row${i}_${j}`); if (row) row.classList.toggle('done', s.done);
   if (final && s.done && s.w != null && $(`#w${i}_${j}`) && $(`#w${i}_${j}`).value === '') $(`#w${i}_${j}`).value = fmt(s.w, 2).replace(/,/g, '');
   const sm = $('.sess-top .t small'); if (sm) sm.textContent = sessTopTxt(w);

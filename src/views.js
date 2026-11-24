@@ -81,7 +81,7 @@ function futureDayHTML(d, off) {
     <div><h1>Rest</h1><p class="focus">${u.planned ? 'You planned this day off. The rotation waits, so the sessions after it move back a day.' : 'A rest slot in your rotation.'}</p></div>
     ${u.planned ? `<button class="btn sm ghost" data-act="restoff" data-date="${d}">Train this day instead</button>` : ''}</section>`;
   if (!sd) return '';
-  return `<section class="card hero"><div class="card-h"><span class="eyebrow">${u.swapped ? 'Swapped' : 'Planned'} · ${idx + 1} of ${o.length}</span></div>
+  return `<section class="card hero shero" style="${heroCol(sid)}"><div class="card-h"><span class="eyebrow">${u.swapped ? 'Swapped' : 'Planned'} · ${idx + 1} of ${o.length}</span></div>
     <div class="rot">${o.map((id, i) => `<i class="${i === idx ? 'on' : ''}"></i>`).join('')}</div>
     <div><h1>${esc(sd.name)}</h1><p class="focus">${esc(sd.focus || '')}</p></div>
     ${planList(sd.items.filter(it => S().ex[it.ex]), d, sid)}
@@ -101,7 +101,7 @@ function vToday() {
   if (!sd) return h + `<section class="card"><p>Your programme has no sessions. Add one in Plan.</p><button class="btn" data-act="go" data-tab="plan">Open Plan</button></section>`;
   if (plannedRest(t) && !sd.rest) return h + oneOffRestHero(t, sid) + tail();
   if (sd.rest) return h + plannedRestHero(sid) + tail();
-  h += `<section class="card hero"><div class="card-h"><span class="eyebrow">Next up · ${idx + 1} of ${o.length}</span>${S().suggest !== false ? `<button class="pill ${S().goal === 'grow' ? 'acc' : ''}" data-act="goalflip" aria-label="Targets: ${esc(goalLabel())}. Tap to switch">${esc(goalLabel())}</button>` : ''}</div>
+  h += `<section class="card hero shero" style="${heroCol(sid)}"><div class="card-h"><span class="eyebrow">Next up · ${idx + 1} of ${o.length}</span>${S().suggest !== false ? `<button class="pill ${S().goal === 'grow' ? 'acc' : ''}" data-act="goalflip" aria-label="Targets: ${esc(goalLabel())}. Tap to switch">${esc(goalLabel())}</button>` : ''}</div>
     <div class="rot">${o.map((id, i) => `<i class="${i === idx ? 'on' : i < idx ? 'done' : ''}"></i>`).join('')}</div>
     <div><h1>${esc(sd.name)}</h1><p class="focus">${esc(sd.focus || '')}</p></div>
     <button class="btn wide" data-act="start" data-id="${sid}">Log ${esc(sd.name)}</button>
@@ -119,7 +119,7 @@ function doneHero(w, idx, o) { // today after Done: a summary, with the log one 
     ${w.cardio?.done ? `<p class="small dim">${esc(w.cardio.name)} · ${w.cardio.min || 0} min</p>` : ''}
     <div class="btnrow" style="justify-content:space-between"><button class="btn sm ghost" data-act="edittoday">${w.cardio?.done || w.note ? 'Edit day' : 'Log cardio or notes'}</button><button class="link dim" data-act="unrest">Undo rest day</button></div></section>`;
   const prs = prsIn(w);
-  return `<section class="card hero${ui.justDone ? ' just' : ''}"><div class="card-h"><span class="eyebrow">Logged today · ${idx + 1} of ${o.length}</span>${pill('good', 'Done')}</div>
+  return `<section class="card hero shero${ui.justDone ? ' just' : ''}" style="${heroCol(w.s)}"><div class="card-h"><span class="eyebrow">Logged today · ${idx + 1} of ${o.length}</span>${pill('good', 'Done')}</div>
     <div class="rot">${o.map((id, i) => `<i class="${i === idx ? 'on' : i < idx ? 'done' : ''}"></i>`).join('')}</div>
     <div><h1>${esc(sessName(w))}</h1><p class="focus">${esc(sessDef(w.s)?.focus || '')}</p></div>
     ${doneActs(w)}
@@ -358,7 +358,7 @@ function orderLine(w, i) { // v1.43: the lift is in another slot than usual, and
    stays open (ui.exOpen, by date and lift) until folded again or a set is emptied. Not while More or a note is open, or the
    injury pain check is unanswered. A past log being edited starts open; its cards fold as they're filled or folded (ui.exFold). */
 function exKey(w, e) { return w.date + '|' + e.id; }
-function exShut(w, e, i) { const k = exKey(w, e); return exFilled(e) && !ui.exOpen.has(k) && (w.date >= today() || ui.exFold.has(k)) && ui.exMore !== i && ui.exNote !== i && !(injPlan(e.id, w.date) && e.pain == null); }
+function exShut(w, e, i) { const k = exKey(w, e); return exFilled(e) && !ui.exOpen.has(k) && (w.date >= today() || ui.exFold.has(k)) && ui.exMore !== i && ui.exNote !== i && !(painAsk(e.id, w.date) && e.pain == null); }
 function exShutHTML(w, e, i, prSet) {
   const def = exDef(e.id), ds = doneSets(e), nw = e.sets.filter(s => s.t === 'w').length, pr = e.sets.some(s => prSet.has(s));
   const sub = (ds.length ? setsTxt(e.id, ds) : 'Warm-ups only') + (nw ? ` · ${nw} warm-up${nw > 1 ? 's' : ''}` : '');
@@ -395,10 +395,12 @@ function exCard(w, e, i, prSet) {
 /* Injury on a log card (v1.57): what changed and why, a pain check after the lift, and gentler swaps when it's skipped. */
 function injCardHTML(w, e, i) {
   const ip = injPlan(e.id, w.date); if (!ip) return '';
-  let h = `<p>${esc(ip.why)}${ip.lastPain >= 5 && ip.act !== 'skip' ? ' It hurt last time, so lighter again.' : ''}</p>`;
+  const off = painOff(e.id, ip, w.date); // v1.112: None twice in a row, so no pain check
+  let h = `<p>${esc(off ? ip.why.replace(/ ?Log pain after it\./, '') : ip.why)}${ip.lastPain >= 5 && ip.act !== 'skip' ? ' It hurt last time, so lighter again.' : ''}</p>`;
   if (ip.act === 'skip') { const sw = injSwaps(e.id, w.date, new Set(w.ex.map(x => x.id)));
     h += sw.length ? `<div class="chips">${sw.map(id => `<button class="chip" data-act="injswap" data-e="${i}" data-id="${id}">Swap for ${esc(exDef(id).name)}</button>`).join('')}</div>` : '<p class="xs">No gentler lift for this muscle in your list, so leave it out today.</p>'; }
-  h += `<div class="painchk"><span>Pain during it?</span><div class="chips four">${PAIN_LV.map(([v, l]) => `<button class="chip ${e.pain === v ? 'on' : ''}${v >= 5 ? ' hot' : ''}" data-act="expain" data-e="${i}" data-v="${v}" aria-pressed="${e.pain === v}">${l}</button>`).join('')}</div></div>`;
+  if (off) h += `<p class="xs painoff">No pain the last two times, so not asking. <button class="link inline" data-act="painask" data-e="${i}">Ask again</button></p>`;
+  else h += `<div class="painchk"><span>Pain during it?</span><div class="chips four">${PAIN_LV.map(([v, l]) => `<button class="chip ${e.pain === v ? 'on' : ''}${v >= 5 ? ' hot' : ''}" data-act="expain" data-e="${i}" data-v="${v}" aria-pressed="${e.pain === v}">${l}</button>`).join('')}</div></div>`;
   if (e.pain >= 7) h += '<p class="xs redflag">Stop this lift for today. Sharp or worsening pain is worth getting checked.</p>';
   return `<div class="injnote ${ip.act}">${h}</div>`;
 }
@@ -453,6 +455,7 @@ function vHistory() {
 /* Calendar (v1.36): a month of training days, a dot per session coloured by its place in the rotation; tap to open. */
 /* Session colours (v1.110, his pick): Push 1 magenta, Pull teal, Push 2 orange, Legs white, chosen to stand apart from each other and from
    the recovery green/yellow/red and strain blue in the same History row; any other session takes violet, then slate. */
+function heroCol(sid) { return `--sc:${sessCol(sid)}`; } // v1.112: session heroes take the session's colour (rotation pip, corner glow)
 const SESS_COL = { push1: '#ff4fd8', pull: '#2ccfc0', push2: '#ff9a2e', legs: '#eef0f4' }, SESS_PAL = ['#9f7aea', '#94a3b8'];
 function sessCol(id) { if (SESS_COL[id]) return SESS_COL[id]; const others = order().filter(x => !SESS_COL[x] && !isRestSlot(x)); return SESS_PAL[Math.max(0, others.indexOf(id)) % SESS_PAL.length]; }
 function calendarHTML(ws) {

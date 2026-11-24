@@ -53,8 +53,8 @@ function todayTop(d) {
     : `<span class="wico ${out ? 'warn' : 'ok'}">${wIco(out ? 'excl' : 'tick', '', 2.6)}</span><span class="wtile-t"><b class="st${out ? ' warn' : ''}">${out ? `${out} out of range` : 'Within range'}</b><span class="wnum" style="font-family:var(--f-body)">${ir.n}/${ir.of} Metrics</span></span>`;
   const sl = x.slp != null ? `<span class="wico moon">${wMoon}</span><span class="wtile-t"><b class="wnum">${wHM(x.slp)} asleep</b><span class="tm">${esc(wSpan(x.on, x.off))}</span></span>`
     : `<span class="wico nil">${wMoon}</span><span class="wtile-t"><b class="st nil">No sleep yet</b><span class="tm">&nbsp;</span></span>`;
-  h += `<div class="wtiles"><button class="wtile" data-act="nav" data-s="health" data-d="${d}" data-live="hm"><span class="wlab">Health monitor<span aria-hidden="true">›</span></span><span class="wtile-b">${hmT}</span></button>
-    <button class="wtile" data-act="nav" data-s="sleep" data-d="${d}" data-live="lastnight"><span class="wlab">Last night<span aria-hidden="true">›</span></span><span class="wtile-b">${sl}</span></button></div>`;
+  h += `<div class="wtiles"><button class="wtile" data-act="nav" data-s="health" data-d="${d}" data-live="hm"><span class="wlab">Health monitor${tChev}</span><span class="wtile-b">${hmT}</span></button>
+    <button class="wtile" data-act="nav" data-s="sleep" data-d="${d}" data-live="lastnight"><span class="wlab">Last night${tChev}</span><span class="wtile-b">${sl}</span></button></div>`;
   return h;
 }
 const nightOf = d => addDays(d, -1);
@@ -71,6 +71,8 @@ function alcRow(d) { // the answer, with Change (Sleep detail; past days on Toda
 function alcToday(d) { return d === today() ? (alcDue(d) || ui.alcEdit === d ? alcAsk(d, ui.alcEdit === d) : '') : alcRow(d); }
 
 /* ---------- Recovery card (v1.81: no ring; HRV, Resting HR and Sleep in three columns, then three tiles) ---------- */
+/* v1.112: one chevron for every card title or tile label that opens a screen (Recovery, Health monitor, Last night, Healthspan) */
+const tChev = `<span class="tchev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></span>`;
 function whoopCard(day) {
   const t = day || today(), isT = t === today(), x = STATE.d[t];
   if (!x || (x.rec == null && x.slp == null)) return '';
@@ -86,7 +88,7 @@ function whoopCard(day) {
   const hbTone = hb ? { below: 'warn', within: 'good', above: '' }[hb.state] : '';
   const tile = (label, v) => `<div data-live="${esc(label)}"><span class="wlab">${esc(label)}</span>${v}</div>`;
   const stT = stepsOf(t);
-  return `<section class="card rcard"><div class="card-h"><h2>Recovery</h2>${x.rec != null ? pill(tone, recWord(x.rec)) : ''}</div>
+  return `<section class="card rcard"><button class="card-h go" data-act="nav" data-s="recovery" data-d="${t}" aria-label="Open Recovery"><h2>Recovery${tChev}</h2>${x.rec != null ? pill(tone, recWord(x.rec)) : ''}</button>
     <div class="rc3">${col('HRV', val(x.hrv != null ? fmt(x.hrv, 0) : null, 'ms'), hb ? sub(`7-day ${HRV_STATE[hb.state][1].toLowerCase()}`, hbTone) : sub(''))}${col('Resting HR', val(x.rhr != null ? fmt(x.rhr, 0) : null, 'bpm'), vs(x.rhr, base('rhr'), 0, true))}${col('Sleep', val(x.slp != null ? fmt(x.slp / 60, 1) : null, 'h'), sub(x.sp != null ? `${fmt(x.sp, 0)}% of need` : ''))}</div>
     <div class="rt3">${tile(isT ? 'Strain today' : 'Strain', x.str != null ? `<b class="wnum strain">${fmtS(x.str)}</b>` : val(null))}${tile('Sleep debt', val(x.sd != null ? fmt(x.sd, 0) : null, 'min'))}${tile(isT ? 'Steps today' : 'Steps', val(stT != null ? fmt(stT, 0) : null))}</div>${note}
     ${wSrc(t)}</section>`;

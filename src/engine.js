@@ -392,6 +392,12 @@ function prefill(exId, n, date) {
 function normSets(w) { // older sessions stored pre-filled numbers as values; unlogged ones become hints
   for (const e of w.ex || []) for (const s of e.sets) if (!s.done && !('pw' in s)) { s.pw = s.w ?? null; s.pr = s.r ?? null; s.w = null; s.r = null; }
 }
+/* v1.112: the Aim shown when a set is logged is kept on the set (aw kg, ar reps, arir reps in reserve), so check-ins can score
+   sets against what Orbit asked for. Updated on each commit while the set is done, dropped when it's emptied. */
+function stampAim(s, a) {
+  if (!s.done || !a || a.w == null || a.r == null) { delete s.aw; delete s.ar; delete s.arir; return; }
+  s.aw = a.w; s.ar = a.r; if (a.rir != null) s.arir = a.rir; else delete s.arir;
+}
 function setFromInputs(s, wv, rv, u, hintW) { // a row counts as soon as it has reps; blank weight takes the hint
   s.r = rv > 0 ? rv : null;
   s.w = wv != null ? wv : null;
@@ -731,6 +737,17 @@ function injVerdict(exId, inj, date, hist) {
 function injPick(vs) { return vs.filter(Boolean).sort((a, b) => INJ_RANK[b.act] - INJ_RANK[a.act])[0] || null; }
 function injRaw(exId, date) { return injPick(injActive(date).map(i => injVerdict(exId, i, date, false))); } // no pain history: safe to call while the lift index is built
 function injHurt(e, date) { if (e.pain >= 5) return true; if (!S().inj) return false; const v = injRaw(e.id, date); return !!v && (v.act === 'light' || v.act === 'skip'); }
+/* v1.112: the pain check after a lift stops once it was None (0) in its last two sessions under this injury, counted from
+   when the injury began or he last asked for it again (inj.ask[exId], a date); a new injury starts its own count. */
+function painOff(exId, ip, date) {
+  if (!ip) return false; const from = ip.inj.ask?.[exId] || ip.inj.start;
+  const h = lixEx(exId).list.filter(x => x.date >= from && x.date < date); // every session of it, so an unanswered one breaks the run
+  return h.length >= 2 && h.slice(-2).every(x => x.pain === 0);
+}
+function painAsk(exId, date) { const ip = injPlan(exId, date); return ip && !painOff(exId, ip, date) ? ip : null; } // the prompt is due
+function autoPain(w) { // a skipped check saves 0, so "not asked" and "no pain" read the same
+  for (const e of w.ex || []) if (e.pain == null && doneSets(e).length) { const ip = injPlan(e.id, w.date); if (ip && painOff(e.id, ip, w.date)) e.pain = 0; }
+}
 function injPlan(exId, date = today()) { // today's verdict for a lift across active injuries, with the last pain logged on it since the injury began
   const act = injActive(date); if (!act.length) return null;
   const v = injPick(act.map(i => injVerdict(exId, i, date, true))); if (!v) return null;

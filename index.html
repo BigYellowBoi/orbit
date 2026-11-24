@@ -178,7 +178,7 @@ button { cursor: pointer; }
 .rcard em.tn-good { color: var(--good-ink); } .rcard em.tn-warn { color: var(--warn-ink); } .tn-inj { color: var(--inj-ink); }
 /* Healthspan (v1.74), WHOOP layout */
 /* Healthspan (v1.107): WHOOP's screen, sizes from his iPhone 13 Pro Max screenshots (px = pt), colours raw P3 samples */
-.hscard { cursor: pointer; } .hscard .card-h .hs-chev svg { transform: rotate(-90deg); } .hs-chev { display: inline-flex; color: #fff; } .hs-chev svg { width: 20px; height: 20px; transition: transform .2s; }
+.hscard { cursor: pointer; } .hs-chev { display: inline-flex; color: #fff; } .hs-chev svg { width: 20px; height: 20px; transition: transform .2s; }
 .hshero { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; }
 .hsst { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; min-width: 0; } .hsst b { font-size: 22px; font-weight: 700; font-family: var(--f-num); } .hsst span { font-family: var(--f-body); font-weight: 700; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: #c8c8c8; }
 .hsorb { --c: #888a8c; position: relative; width: min(46vw, 190px); aspect-ratio: 1; display: grid; place-items: center; text-align: center; isolation: isolate; cursor: pointer; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
@@ -275,6 +275,17 @@ button.pill { border: 0; font: inherit; font-size: 12.5px; font-weight: 500; cur
 .rot { display: flex; gap: 4px; }
 .rot i { flex: 1; height: 4px; border-radius: 2px; background: var(--line-2); }
 .rot i.on { background: var(--accent); box-shadow: 0 0 6px var(--glow); } .rot i.done { background: var(--ink-3); }
+/* v1.112 session heroes (Next up, a coming day, Done): the session's colour on the rotation pip and a soft glow in the corner,
+   tracked-label eyebrow, the exercise summary as an inner tile */
+.hero.shero { background: radial-gradient(110% 80% at 100% 0%, color-mix(in srgb, var(--sc) 13%, transparent), transparent 62%), var(--card-bg); }
+.hero.shero > .card-h > .eyebrow { font-family: var(--f-body); font-weight: 700; font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-2); text-align: left; }
+.hero.shero .rot i.on { background: var(--sc); box-shadow: 0 0 8px color-mix(in srgb, var(--sc) 55%, transparent); }
+.hero.shero h1 { display: flex; align-items: center; gap: 10px; }
+.hero.shero h1::before { content: ''; width: 10px; height: 10px; border-radius: 50%; background: var(--sc); flex: none; }
+.hero.shero .exsum { background: var(--tile-bg); border-color: transparent; border-radius: 12px; padding: 12px 14px; }
+/* v1.112: chevron after a title or tile label that opens a screen */
+.tchev { display: inline-flex; vertical-align: -2px; margin-left: 4px; color: var(--ink-3); } .tchev svg { width: 13px; height: 13px; }
+button.card-h.go { width: 100%; background: none; border: 0; padding: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; align-items: center; }
 .exlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .exlist li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 14.5px; align-items: baseline; }
 .exlist li .rx { font-family: var(--f-num); font-variant-numeric: tabular-nums; font-size: 12.5px; color: var(--ink-2); white-space: nowrap; }
@@ -758,7 +769,7 @@ body:has(#updp) .fab { bottom: calc(var(--tabh) + max(8px, calc(env(safe-area-in
 .wseg3.row i { width: 20px; }
 .wtiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .wtile { background: var(--card-bg); border: 1px solid var(--card-line); border-radius: var(--card-r); padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; color: var(--ink); text-align: left; cursor: pointer; min-width: 0; font: inherit; }
-.wtile > .wlab { display: flex; justify-content: space-between; font-size: 11px; }
+.wtile > .wlab { display: flex; align-items: center; font-size: 11px; }
 .wtile-b { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .wico { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex: none; }
 .wico svg { width: 16px; height: 16px; }
@@ -1007,7 +1018,7 @@ function emptyData() { return { settings: defaultSettings(), w: {}, d: {}, v: 0 
 /* ============================================================
    STATE
    ============================================================ */
-const APP_VERSION = '1.111'; // from VERSION, filled in by tools/build.sh
+const APP_VERSION = '1.112'; // from VERSION, filled in by tools/build.sh
 const verNum = v => String(v).split('.').map(Number); // compare 1.10 > 1.9 properly
 const newerVer = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 const STATE = emptyData();
@@ -1413,6 +1424,12 @@ function prefill(exId, n, date) {
 function normSets(w) { // older sessions stored pre-filled numbers as values; unlogged ones become hints
   for (const e of w.ex || []) for (const s of e.sets) if (!s.done && !('pw' in s)) { s.pw = s.w ?? null; s.pr = s.r ?? null; s.w = null; s.r = null; }
 }
+/* v1.112: the Aim shown when a set is logged is kept on the set (aw kg, ar reps, arir reps in reserve), so check-ins can score
+   sets against what Orbit asked for. Updated on each commit while the set is done, dropped when it's emptied. */
+function stampAim(s, a) {
+  if (!s.done || !a || a.w == null || a.r == null) { delete s.aw; delete s.ar; delete s.arir; return; }
+  s.aw = a.w; s.ar = a.r; if (a.rir != null) s.arir = a.rir; else delete s.arir;
+}
 function setFromInputs(s, wv, rv, u, hintW) { // a row counts as soon as it has reps; blank weight takes the hint
   s.r = rv > 0 ? rv : null;
   s.w = wv != null ? wv : null;
@@ -1752,6 +1769,17 @@ function injVerdict(exId, inj, date, hist) {
 function injPick(vs) { return vs.filter(Boolean).sort((a, b) => INJ_RANK[b.act] - INJ_RANK[a.act])[0] || null; }
 function injRaw(exId, date) { return injPick(injActive(date).map(i => injVerdict(exId, i, date, false))); } // no pain history: safe to call while the lift index is built
 function injHurt(e, date) { if (e.pain >= 5) return true; if (!S().inj) return false; const v = injRaw(e.id, date); return !!v && (v.act === 'light' || v.act === 'skip'); }
+/* v1.112: the pain check after a lift stops once it was None (0) in its last two sessions under this injury, counted from
+   when the injury began or he last asked for it again (inj.ask[exId], a date); a new injury starts its own count. */
+function painOff(exId, ip, date) {
+  if (!ip) return false; const from = ip.inj.ask?.[exId] || ip.inj.start;
+  const h = lixEx(exId).list.filter(x => x.date >= from && x.date < date); // every session of it, so an unanswered one breaks the run
+  return h.length >= 2 && h.slice(-2).every(x => x.pain === 0);
+}
+function painAsk(exId, date) { const ip = injPlan(exId, date); return ip && !painOff(exId, ip, date) ? ip : null; } // the prompt is due
+function autoPain(w) { // a skipped check saves 0, so "not asked" and "no pain" read the same
+  for (const e of w.ex || []) if (e.pain == null && doneSets(e).length) { const ip = injPlan(e.id, w.date); if (ip && painOff(e.id, ip, w.date)) e.pain = 0; }
+}
 function injPlan(exId, date = today()) { // today's verdict for a lift across active injuries, with the last pain logged on it since the injury began
   const act = injActive(date); if (!act.length) return null;
   const v = injPick(act.map(i => injVerdict(exId, i, date, true))); if (!v) return null;
@@ -2487,12 +2515,15 @@ function noteEntries() {
   for (const n of nb.general) out.push({ k: 'g|' + n.id, date: n.date, groups: [n.g || 'general'], src: 'Added in Notes', text: n.text, general: true });
   return out.sort((a, b) => a.date < b.date ? 1 : a.date > b.date ? -1 : 0);
 }
+const NOTE_DAYS = 14; // v1.112: a past note shows in the log only if written in the last 14 days (Notes tab and History keep them all)
 function lastSessionNote(w) { // newest earlier note for the same session type
-  let best = null; for (const x of Object.values(STATE.w)) if (x.s === w.s && x.date < w.date && x.note && x.note.trim() && (!best || x.date > best.date)) best = x;
+  const from = addDays(w.date, -NOTE_DAYS);
+  let best = null; for (const x of Object.values(STATE.w)) if (x.s === w.s && x.date < w.date && x.date >= from && x.note && x.note.trim() && (!best || x.date > best.date)) best = x;
   return best;
 }
 function lastExerciseNote(exId, before) {
-  let best = null; for (const x of Object.values(STATE.w)) if (x.date < before) for (const e of x.ex || []) if (e.id === exId && e.note && e.note.trim() && (!best || x.date > best.date)) best = { date: x.date, note: e.note.trim() };
+  const from = addDays(before, -NOTE_DAYS);
+  let best = null; for (const x of Object.values(STATE.w)) if (x.date < before && x.date >= from) for (const e of x.ex || []) if (e.id === exId && e.note && e.note.trim() && (!best || x.date > best.date)) best = { date: x.date, note: e.note.trim() };
   return best;
 }
 const noteId = k => k.replace(/[^a-z0-9]/gi, '_');
@@ -2742,7 +2773,7 @@ function futureDayHTML(d, off) {
     <div><h1>Rest</h1><p class="focus">${u.planned ? 'You planned this day off. The rotation waits, so the sessions after it move back a day.' : 'A rest slot in your rotation.'}</p></div>
     ${u.planned ? `<button class="btn sm ghost" data-act="restoff" data-date="${d}">Train this day instead</button>` : ''}</section>`;
   if (!sd) return '';
-  return `<section class="card hero"><div class="card-h"><span class="eyebrow">${u.swapped ? 'Swapped' : 'Planned'} · ${idx + 1} of ${o.length}</span></div>
+  return `<section class="card hero shero" style="${heroCol(sid)}"><div class="card-h"><span class="eyebrow">${u.swapped ? 'Swapped' : 'Planned'} · ${idx + 1} of ${o.length}</span></div>
     <div class="rot">${o.map((id, i) => `<i class="${i === idx ? 'on' : ''}"></i>`).join('')}</div>
     <div><h1>${esc(sd.name)}</h1><p class="focus">${esc(sd.focus || '')}</p></div>
     ${planList(sd.items.filter(it => S().ex[it.ex]), d, sid)}
@@ -2762,7 +2793,7 @@ function vToday() {
   if (!sd) return h + `<section class="card"><p>Your programme has no sessions. Add one in Plan.</p><button class="btn" data-act="go" data-tab="plan">Open Plan</button></section>`;
   if (plannedRest(t) && !sd.rest) return h + oneOffRestHero(t, sid) + tail();
   if (sd.rest) return h + plannedRestHero(sid) + tail();
-  h += `<section class="card hero"><div class="card-h"><span class="eyebrow">Next up · ${idx + 1} of ${o.length}</span>${S().suggest !== false ? `<button class="pill ${S().goal === 'grow' ? 'acc' : ''}" data-act="goalflip" aria-label="Targets: ${esc(goalLabel())}. Tap to switch">${esc(goalLabel())}</button>` : ''}</div>
+  h += `<section class="card hero shero" style="${heroCol(sid)}"><div class="card-h"><span class="eyebrow">Next up · ${idx + 1} of ${o.length}</span>${S().suggest !== false ? `<button class="pill ${S().goal === 'grow' ? 'acc' : ''}" data-act="goalflip" aria-label="Targets: ${esc(goalLabel())}. Tap to switch">${esc(goalLabel())}</button>` : ''}</div>
     <div class="rot">${o.map((id, i) => `<i class="${i === idx ? 'on' : i < idx ? 'done' : ''}"></i>`).join('')}</div>
     <div><h1>${esc(sd.name)}</h1><p class="focus">${esc(sd.focus || '')}</p></div>
     <button class="btn wide" data-act="start" data-id="${sid}">Log ${esc(sd.name)}</button>
@@ -2780,7 +2811,7 @@ function doneHero(w, idx, o) { // today after Done: a summary, with the log one 
     ${w.cardio?.done ? `<p class="small dim">${esc(w.cardio.name)} · ${w.cardio.min || 0} min</p>` : ''}
     <div class="btnrow" style="justify-content:space-between"><button class="btn sm ghost" data-act="edittoday">${w.cardio?.done || w.note ? 'Edit day' : 'Log cardio or notes'}</button><button class="link dim" data-act="unrest">Undo rest day</button></div></section>`;
   const prs = prsIn(w);
-  return `<section class="card hero${ui.justDone ? ' just' : ''}"><div class="card-h"><span class="eyebrow">Logged today · ${idx + 1} of ${o.length}</span>${pill('good', 'Done')}</div>
+  return `<section class="card hero shero${ui.justDone ? ' just' : ''}" style="${heroCol(w.s)}"><div class="card-h"><span class="eyebrow">Logged today · ${idx + 1} of ${o.length}</span>${pill('good', 'Done')}</div>
     <div class="rot">${o.map((id, i) => `<i class="${i === idx ? 'on' : i < idx ? 'done' : ''}"></i>`).join('')}</div>
     <div><h1>${esc(sessName(w))}</h1><p class="focus">${esc(sessDef(w.s)?.focus || '')}</p></div>
     ${doneActs(w)}
@@ -3019,7 +3050,7 @@ function orderLine(w, i) { // v1.43: the lift is in another slot than usual, and
    stays open (ui.exOpen, by date and lift) until folded again or a set is emptied. Not while More or a note is open, or the
    injury pain check is unanswered. A past log being edited starts open; its cards fold as they're filled or folded (ui.exFold). */
 function exKey(w, e) { return w.date + '|' + e.id; }
-function exShut(w, e, i) { const k = exKey(w, e); return exFilled(e) && !ui.exOpen.has(k) && (w.date >= today() || ui.exFold.has(k)) && ui.exMore !== i && ui.exNote !== i && !(injPlan(e.id, w.date) && e.pain == null); }
+function exShut(w, e, i) { const k = exKey(w, e); return exFilled(e) && !ui.exOpen.has(k) && (w.date >= today() || ui.exFold.has(k)) && ui.exMore !== i && ui.exNote !== i && !(painAsk(e.id, w.date) && e.pain == null); }
 function exShutHTML(w, e, i, prSet) {
   const def = exDef(e.id), ds = doneSets(e), nw = e.sets.filter(s => s.t === 'w').length, pr = e.sets.some(s => prSet.has(s));
   const sub = (ds.length ? setsTxt(e.id, ds) : 'Warm-ups only') + (nw ? ` · ${nw} warm-up${nw > 1 ? 's' : ''}` : '');
@@ -3056,10 +3087,12 @@ function exCard(w, e, i, prSet) {
 /* Injury on a log card (v1.57): what changed and why, a pain check after the lift, and gentler swaps when it's skipped. */
 function injCardHTML(w, e, i) {
   const ip = injPlan(e.id, w.date); if (!ip) return '';
-  let h = `<p>${esc(ip.why)}${ip.lastPain >= 5 && ip.act !== 'skip' ? ' It hurt last time, so lighter again.' : ''}</p>`;
+  const off = painOff(e.id, ip, w.date); // v1.112: None twice in a row, so no pain check
+  let h = `<p>${esc(off ? ip.why.replace(/ ?Log pain after it\./, '') : ip.why)}${ip.lastPain >= 5 && ip.act !== 'skip' ? ' It hurt last time, so lighter again.' : ''}</p>`;
   if (ip.act === 'skip') { const sw = injSwaps(e.id, w.date, new Set(w.ex.map(x => x.id)));
     h += sw.length ? `<div class="chips">${sw.map(id => `<button class="chip" data-act="injswap" data-e="${i}" data-id="${id}">Swap for ${esc(exDef(id).name)}</button>`).join('')}</div>` : '<p class="xs">No gentler lift for this muscle in your list, so leave it out today.</p>'; }
-  h += `<div class="painchk"><span>Pain during it?</span><div class="chips four">${PAIN_LV.map(([v, l]) => `<button class="chip ${e.pain === v ? 'on' : ''}${v >= 5 ? ' hot' : ''}" data-act="expain" data-e="${i}" data-v="${v}" aria-pressed="${e.pain === v}">${l}</button>`).join('')}</div></div>`;
+  if (off) h += `<p class="xs painoff">No pain the last two times, so not asking. <button class="link inline" data-act="painask" data-e="${i}">Ask again</button></p>`;
+  else h += `<div class="painchk"><span>Pain during it?</span><div class="chips four">${PAIN_LV.map(([v, l]) => `<button class="chip ${e.pain === v ? 'on' : ''}${v >= 5 ? ' hot' : ''}" data-act="expain" data-e="${i}" data-v="${v}" aria-pressed="${e.pain === v}">${l}</button>`).join('')}</div></div>`;
   if (e.pain >= 7) h += '<p class="xs redflag">Stop this lift for today. Sharp or worsening pain is worth getting checked.</p>';
   return `<div class="injnote ${ip.act}">${h}</div>`;
 }
@@ -3114,6 +3147,7 @@ function vHistory() {
 /* Calendar (v1.36): a month of training days, a dot per session coloured by its place in the rotation; tap to open. */
 /* Session colours (v1.110, his pick): Push 1 magenta, Pull teal, Push 2 orange, Legs white, chosen to stand apart from each other and from
    the recovery green/yellow/red and strain blue in the same History row; any other session takes violet, then slate. */
+function heroCol(sid) { return `--sc:${sessCol(sid)}`; } // v1.112: session heroes take the session's colour (rotation pip, corner glow)
 const SESS_COL = { push1: '#ff4fd8', pull: '#2ccfc0', push2: '#ff9a2e', legs: '#eef0f4' }, SESS_PAL = ['#9f7aea', '#94a3b8'];
 function sessCol(id) { if (SESS_COL[id]) return SESS_COL[id]; const others = order().filter(x => !SESS_COL[x] && !isRestSlot(x)); return SESS_PAL[Math.max(0, others.indexOf(id)) % SESS_PAL.length]; }
 function calendarHTML(ws) {
@@ -3558,8 +3592,8 @@ function todayTop(d) {
     : `<span class="wico ${out ? 'warn' : 'ok'}">${wIco(out ? 'excl' : 'tick', '', 2.6)}</span><span class="wtile-t"><b class="st${out ? ' warn' : ''}">${out ? `${out} out of range` : 'Within range'}</b><span class="wnum" style="font-family:var(--f-body)">${ir.n}/${ir.of} Metrics</span></span>`;
   const sl = x.slp != null ? `<span class="wico moon">${wMoon}</span><span class="wtile-t"><b class="wnum">${wHM(x.slp)} asleep</b><span class="tm">${esc(wSpan(x.on, x.off))}</span></span>`
     : `<span class="wico nil">${wMoon}</span><span class="wtile-t"><b class="st nil">No sleep yet</b><span class="tm">&nbsp;</span></span>`;
-  h += `<div class="wtiles"><button class="wtile" data-act="nav" data-s="health" data-d="${d}" data-live="hm"><span class="wlab">Health monitor<span aria-hidden="true">›</span></span><span class="wtile-b">${hmT}</span></button>
-    <button class="wtile" data-act="nav" data-s="sleep" data-d="${d}" data-live="lastnight"><span class="wlab">Last night<span aria-hidden="true">›</span></span><span class="wtile-b">${sl}</span></button></div>`;
+  h += `<div class="wtiles"><button class="wtile" data-act="nav" data-s="health" data-d="${d}" data-live="hm"><span class="wlab">Health monitor${tChev}</span><span class="wtile-b">${hmT}</span></button>
+    <button class="wtile" data-act="nav" data-s="sleep" data-d="${d}" data-live="lastnight"><span class="wlab">Last night${tChev}</span><span class="wtile-b">${sl}</span></button></div>`;
   return h;
 }
 const nightOf = d => addDays(d, -1);
@@ -3576,6 +3610,8 @@ function alcRow(d) { // the answer, with Change (Sleep detail; past days on Toda
 function alcToday(d) { return d === today() ? (alcDue(d) || ui.alcEdit === d ? alcAsk(d, ui.alcEdit === d) : '') : alcRow(d); }
 
 /* ---------- Recovery card (v1.81: no ring; HRV, Resting HR and Sleep in three columns, then three tiles) ---------- */
+/* v1.112: one chevron for every card title or tile label that opens a screen (Recovery, Health monitor, Last night, Healthspan) */
+const tChev = `<span class="tchev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></span>`;
 function whoopCard(day) {
   const t = day || today(), isT = t === today(), x = STATE.d[t];
   if (!x || (x.rec == null && x.slp == null)) return '';
@@ -3591,7 +3627,7 @@ function whoopCard(day) {
   const hbTone = hb ? { below: 'warn', within: 'good', above: '' }[hb.state] : '';
   const tile = (label, v) => `<div data-live="${esc(label)}"><span class="wlab">${esc(label)}</span>${v}</div>`;
   const stT = stepsOf(t);
-  return `<section class="card rcard"><div class="card-h"><h2>Recovery</h2>${x.rec != null ? pill(tone, recWord(x.rec)) : ''}</div>
+  return `<section class="card rcard"><button class="card-h go" data-act="nav" data-s="recovery" data-d="${t}" aria-label="Open Recovery"><h2>Recovery${tChev}</h2>${x.rec != null ? pill(tone, recWord(x.rec)) : ''}</button>
     <div class="rc3">${col('HRV', val(x.hrv != null ? fmt(x.hrv, 0) : null, 'ms'), hb ? sub(`7-day ${HRV_STATE[hb.state][1].toLowerCase()}`, hbTone) : sub(''))}${col('Resting HR', val(x.rhr != null ? fmt(x.rhr, 0) : null, 'bpm'), vs(x.rhr, base('rhr'), 0, true))}${col('Sleep', val(x.slp != null ? fmt(x.slp / 60, 1) : null, 'h'), sub(x.sp != null ? `${fmt(x.sp, 0)}% of need` : ''))}</div>
     <div class="rt3">${tile(isT ? 'Strain today' : 'Strain', x.str != null ? `<b class="wnum strain">${fmtS(x.str)}</b>` : val(null))}${tile('Sleep debt', val(x.sd != null ? fmt(x.sd, 0) : null, 'min'))}${tile(isT ? 'Steps today' : 'Steps', val(stT != null ? fmt(stT, 0) : null))}</div>${note}
     ${wSrc(t)}</section>`;
@@ -4082,7 +4118,7 @@ function hsVo2In() { const v2 = hsVo2(), lastV = v2[v2.length - 1];
 function healthspanCard() {
   const k = hsWeek(0);
   if (!k) return `<section class="card"><div class="card-h"><h2>Healthspan</h2><span class="eyebrow">calibrating</span></div><p class="small dim">Needs 21 WHOOP recoveries in the last 31 days.</p>${hsVo2In()}</section>`;
-  return `<section class="card hscard" data-act="nav" data-s="healthspan" role="button" aria-label="Open Healthspan"><div class="card-h"><h2>Healthspan</h2><span class="hs-chev">${ICON.down}</span></div>
+  return `<section class="card hscard" data-act="nav" data-s="healthspan" role="button" aria-label="Open Healthspan"><div class="card-h"><h2>Healthspan${tChev}</h2></div>
     <div class="hshero"><div class="hsst"><b style="color:${k.yCol}">${k.yrsTxt}</b><span>${k.yrsLab}</span></div>
       ${hsOrb('sm', k.tone, k.age != null ? `<b>${k.age}</b><span>Orbit Age</span>` : `<b>${k.yrsTxt}</b><span>${k.yrsLab}</span>`, '', k.w.pace)}
       <div class="hsst"><b>${k.pace}</b><span>Pace of Aging</span></div></div></section>`;
@@ -4725,6 +4761,8 @@ const ACT = {
   pastlog: () => { ui.logDate = addDays(today(), -1); ui.pickSess = null; go('log'); },
   todayex: () => { ui.todayEx = !ui.todayEx; render(true); },
   exnoterem: el => { const w = logW(), i = +el.dataset.e, e = w?.ex[i]; if (!e) return; delete e.note; ui.exNote = null; saveW(w.date); render(true); }, // v1.57: a note added by mistake
+  painask: el => { const w = logW(), e = w?.ex[+el.dataset.e]; if (!e) return; const ip = injPlan(e.id, w.date); if (!ip) return; // v1.112: ask about pain on this lift again
+    const inj = S().inj[ip.inj.id]; (inj.ask = inj.ask || {})[e.id] = w.date; if (e.pain === 0) delete e.pain; saveSettings(); saveW(w.date); render(true); },
   expain: el => { const w = logW(), e = w?.ex[+el.dataset.e], v = +el.dataset.v; if (!e) return; if (e.pain === v) delete e.pain; else e.pain = v; saveW(w.date); render(true); if (v >= 5 && e.pain === v) toast('Noted. Next time this lift is lighter.'); },
   injswap: el => { const w = logW(), i = +el.dataset.e, e = w?.ex[i], id = el.dataset.id; if (!e || !id) return; const from = exDef(e.id).name;
     w.ex[i] = { id, sets: prefill(id, e.sets.filter(s => s.t !== 'w').length || defSets(id), w.date) }; saveW(w.date); toast(`Swapped ${esc(from)} for ${esc(exDef(id).name)}`); render(true); },
@@ -5063,7 +5101,9 @@ function autoFold(w, e, delay) {
 function setInput(el, final, foldDelay) {
   const w = logW(); if (!w) return; const i = +el.dataset.e, j = +el.dataset.s, e = w.ex[i], s = e?.sets[j]; if (!s) return;
   const def = exDef(e.id), wasDone = s.done;
-  setFromInputs(s, num($(`#w${i}_${j}`)?.value), parseInt($(`#r${i}_${j}`)?.value, 10), def.u, rowAim(e, j, w.date, aimIn(w, i))?.w);
+  const aim = rowAim(e, j, w.date, aimIn(w, i));
+  setFromInputs(s, num($(`#w${i}_${j}`)?.value), parseInt($(`#r${i}_${j}`)?.value, 10), def.u, aim?.w);
+  stampAim(s, aim); autoPain({ date: w.date, ex: [e] }); // v1.112: keep the Aim shown; a pain check that's off saves 0
   const row = $(`#row${i}_${j}`); if (row) row.classList.toggle('done', s.done);
   if (final && s.done && s.w != null && $(`#w${i}_${j}`) && $(`#w${i}_${j}`).value === '') $(`#w${i}_${j}`).value = fmt(s.w, 2).replace(/,/g, '');
   const sm = $('.sess-top .t small'); if (sm) sm.textContent = sessTopTxt(w);

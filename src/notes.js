@@ -15,12 +15,15 @@ function noteEntries() {
   for (const n of nb.general) out.push({ k: 'g|' + n.id, date: n.date, groups: [n.g || 'general'], src: 'Added in Notes', text: n.text, general: true });
   return out.sort((a, b) => a.date < b.date ? 1 : a.date > b.date ? -1 : 0);
 }
+const NOTE_DAYS = 14; // v1.112: a past note shows in the log only if written in the last 14 days (Notes tab and History keep them all)
 function lastSessionNote(w) { // newest earlier note for the same session type
-  let best = null; for (const x of Object.values(STATE.w)) if (x.s === w.s && x.date < w.date && x.note && x.note.trim() && (!best || x.date > best.date)) best = x;
+  const from = addDays(w.date, -NOTE_DAYS);
+  let best = null; for (const x of Object.values(STATE.w)) if (x.s === w.s && x.date < w.date && x.date >= from && x.note && x.note.trim() && (!best || x.date > best.date)) best = x;
   return best;
 }
 function lastExerciseNote(exId, before) {
-  let best = null; for (const x of Object.values(STATE.w)) if (x.date < before) for (const e of x.ex || []) if (e.id === exId && e.note && e.note.trim() && (!best || x.date > best.date)) best = { date: x.date, note: e.note.trim() };
+  const from = addDays(before, -NOTE_DAYS);
+  let best = null; for (const x of Object.values(STATE.w)) if (x.date < before && x.date >= from) for (const e of x.ex || []) if (e.id === exId && e.note && e.note.trim() && (!best || x.date > best.date)) best = { date: x.date, note: e.note.trim() };
   return best;
 }
 const noteId = k => k.replace(/[^a-z0-9]/gi, '_');

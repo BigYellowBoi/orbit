@@ -148,7 +148,7 @@ function hsVo2In() { const v2 = hsVo2(), lastV = v2[v2.length - 1];
 function healthspanCard() {
   const k = hsWeek(0);
   if (!k) return `<section class="card"><div class="card-h"><h2>Healthspan</h2><span class="eyebrow">calibrating</span></div><p class="small dim">Needs 21 WHOOP recoveries in the last 31 days.</p>${hsVo2In()}</section>`;
-  return `<section class="card hscard" data-act="nav" data-s="healthspan" role="button" aria-label="Open Healthspan"><div class="card-h"><h2>Healthspan</h2><span class="hs-chev">${ICON.down}</span></div>
+  return `<section class="card hscard" data-act="nav" data-s="healthspan" role="button" aria-label="Open Healthspan"><div class="card-h"><h2>Healthspan${tChev}</h2></div>
     <div class="hshero"><div class="hsst"><b style="color:${k.yCol}">${k.yrsTxt}</b><span>${k.yrsLab}</span></div>
       ${hsOrb('sm', k.tone, k.age != null ? `<b>${k.age}</b><span>Orbit Age</span>` : `<b>${k.yrsTxt}</b><span>${k.yrsLab}</span>`, '', k.w.pace)}
       <div class="hsst"><b>${k.pace}</b><span>Pace of Aging</span></div></div></section>`;
